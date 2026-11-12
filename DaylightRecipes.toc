@@ -1,0 +1,19 @@
+## Interface: 16001
+## Title: Daylight |cffa335eeRecipes|r
+## Notes: A DaylightUI plugin: a pane beside the profession window with the picked recipe's material costs, skill-up chance, sale and disenchant value, and every recipe you don't know yet with where to get it. Uses DaylightMogul's prices when it's loaded.
+## Author: Glowey
+## X-License: GPL-3.0-or-later
+## X-Curse-Project-ID: 1801403
+## X-Credits: Recipe, source and disenchant data from ForeverRecipes by Ismail (GPL-3.0), built from ForeverDB.app and CMaNGOS Classic DB.
+## Version: @project-version@
+## Dependencies: DaylightUI
+## OptionalDeps: DaylightMogul, TomTom
+
+Data\Recipes.lua
+Data\Sources.lua
+Data\Npcs.lua
+Data\Disenchant.lua
+Core.lua
+Calc.lua
+Where.lua
+Pane.lua
