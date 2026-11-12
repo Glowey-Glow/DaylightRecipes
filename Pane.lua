@@ -15,6 +15,17 @@ local PAD = 14
 local SIZES = { tiny = 10, small = 12, body = 13, head = 15, title = 18 }
 
 local root, scroll, child, thumb
+
+-- Folded: the pane slides down to a thin strip with a tab to bring it back (as DaylightUI folds its
+-- damage meter beside the minimap), remembered between sessions in DaylightRecipesDB.
+local FOLDED_WIDTH = 20
+local shownWidth          -- the width the pane has now, while it slides
+local function DB()
+	DaylightRecipesDB = type(DaylightRecipesDB) == "table" and DaylightRecipesDB or {}
+	return DaylightRecipesDB
+end
+local function Folded() return DB().folded == true end
+local function TargetWidth() return Folded() and FOLDED_WIDTH or ns.Get("paneWidth") end
 local duiPane, mogulPane
 local tab = "recipe"
 local open = {}        -- missing recipe -> its sources are shown
@@ -466,8 +477,47 @@ local function Build()
 		end
 		root.tabs[i] = b
 	end
+	-- Fold: a ">" at the top right tucks the pane away.
+	root.fold = CreateFrame("Button", nil, root)
+	root.fold:SetSize(18, 22)
+	root.fold:SetPoint("TOPRIGHT", root, "TOPRIGHT", -6, -12)
+	root.fold.text = Text(root.fold, "head")
+	root.fold.text:SetPoint("CENTER", 0, 0)
+	root.fold.text:SetText(">")
+	root.fold:SetScript("OnClick", function() Pane.SetFolded(true) end)
+	root.fold:SetScript("OnEnter", function(self)
+		self.text:SetTextColor(API.Accent())
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:SetText("Fold Daylight Recipes away")
+		GameTooltip:Show()
+	end)
+	root.fold:SetScript("OnLeave", function(self)
+		self.text:SetTextColor(Color("LABEL"))
+		GameTooltip:Hide()
+	end)
 	root.skill = Text(root, "small", "RIGHT")
-	root.skill:SetPoint("TOPRIGHT", root, "TOPRIGHT", -PAD, -18)
+	root.skill:SetPoint("TOPRIGHT", root, "TOPRIGHT", -PAD - 18, -18)
+
+	-- Folded: the whole strip is the tab, a "<" in its middle.
+	root.strip = CreateFrame("Button", nil, root)
+	root.strip:SetAllPoints(root)
+	root.strip.text = Text(root.strip, "head")
+	root.strip.text:SetPoint("CENTER", 0, 0)
+	root.strip.text:SetText("<")
+	root.strip:SetScript("OnClick", function() Pane.SetFolded(false) end)
+	root.strip:SetScript("OnEnter", function(self)
+		self.text:SetTextColor(API.Accent())
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:SetText("Daylight Recipes")
+		GameTooltip:AddLine("Click to open.", Color("LABEL"))
+		GameTooltip:Show()
+	end)
+	root.strip:SetScript("OnLeave", function(self)
+		self.text:SetTextColor(Color("LABEL"))
+		GameTooltip:Hide()
+	end)
+	root.strip:Hide()
+	root:SetClipsChildren(true)
 
 	root.search = API.Input(root, { search = true, hint = "Search",
 		onChange = function(text)
@@ -504,7 +554,10 @@ end
 -- The pane in use: DaylightUI's docked one, or ours on Mogul's window.
 local function Host()
 	if S.mode == "mogul" then return mogulPane end
-	if not duiPane then duiPane = me.AttachCraftPane(ns.Get("paneWidth")) end
+	if not duiPane then
+		shownWidth = TargetWidth()
+		duiPane = me.AttachCraftPane(shownWidth)
+	end
 	return duiPane
 end
 
@@ -514,7 +567,7 @@ function Pane.AttachMogul(win)
 		mogulPane = CreateFrame("Frame", "DaylightRecipesPane", win)
 		mogulPane:SetPoint("TOPLEFT", win, "TOPRIGHT", 6, 0)
 		mogulPane:SetPoint("BOTTOMLEFT", win, "BOTTOMRIGHT", 6, 0)
-		mogulPane:SetWidth(ns.Get("paneWidth"))
+		mogulPane:SetWidth(shownWidth or TargetWidth())
 		mogulPane:EnableMouse(true)
 		API.Skin(mogulPane, { window = true })
 	end
@@ -535,6 +588,21 @@ function Pane.Render()
 	end
 	root:Show()
 	if not host:IsVisible() then return end
+
+	-- Folded: only the strip with its tab.
+	local folded = Folded()
+	root.strip:SetShown(folded)
+	root.strip.text:SetTextColor(Color("LABEL"))
+	for _, b in ipairs(root.tabs) do b:SetShown(not folded) end
+	root.fold:SetShown(not folded)
+	root.fold.text:SetTextColor(Color("LABEL"))
+	root.skill:SetShown(not folded)
+	scroll:SetShown(not folded)
+	thumb:SetShown(false)
+	if folded then
+		root.search:Hide()
+		return
+	end
 
 	PaintTabs()
 	local missing = tab == "missing"
@@ -567,14 +635,46 @@ function Pane.Render()
 	FitThumb()
 end
 
-function Pane.Resize()
-	local w = ns.Get("paneWidth")
+-- The pane's width now, on whichever host there is (DaylightUI's through AttachCraftPane, so its
+-- window and the ones beside it make room).
+local function ApplyWidth(w)
+	shownWidth = w
 	if duiPane then me.AttachCraftPane(w) end
 	if mogulPane then
 		mogulPane:SetWidth(w)
 		API.Skin(mogulPane, { window = true })
 	end
+end
+
+function Pane.Resize()
+	ApplyWidth(TargetWidth())
 	if Pane.Shown() then ns.Changed() end
+end
+
+-- Folds the pane away or brings it back, sliding (DaylightUI's NORMAL speed). Folding hides the
+-- page first and then narrows; opening widens first and then draws the page.
+local slider
+function Pane.SetFolded(folded)
+	DB().folded = folded and true or nil
+	GameTooltip:Hide()
+	if root then Pane.Render() end
+	local from, to = shownWidth or TargetWidth(), TargetWidth()
+	if from == to then
+		ApplyWidth(to)
+		return
+	end
+	slider = slider or CreateFrame("Frame")
+	local elapsed, duration = 0, (API.Speed and API.Speed.NORMAL) or 0.2
+	slider:SetScript("OnUpdate", function(self, dt)
+		elapsed = elapsed + dt
+		local t = math.min(1, elapsed / duration)
+		t = 1 - (1 - t) * (1 - t)   -- ease out
+		ApplyWidth(math.floor(from + (to - from) * t + 0.5))
+		if t >= 1 then
+			self:SetScript("OnUpdate", nil)
+			if not Folded() then ns.Changed() end
+		end
+	end)
 end
 
 -- The player's font changed: every string we made takes it, at its size.

@@ -8,6 +8,7 @@
 ## Version: @project-version@
 ## Dependencies: DaylightUI
 ## OptionalDeps: DaylightMogul, TomTom
+## SavedVariables: DaylightRecipesDB
 
 Data\Recipes.lua
 Data\Sources.lua

@@ -1,5 +1,8 @@
 # Daylight Recipes
 
+## 1.1.0
+- The pane folds away: the ">" at its top right slides it down to a thin strip beside the profession window, and clicking the strip brings it back. It stays folded or open between sessions, on DaylightUI's profession window and DaylightMogul's.
+
 ## 1.0.0
 - First release: a pane beside DaylightUI's profession window, or DaylightMogul's.
 - Recipe page: skill-up chance (Overtime counted), every material priced from the Auction House (DaylightMogul) or the cheapest vendor (reputation and Bartering counted), total and cost per skill point, value on the Auction House, at a vendor and disenchanted with the profit each way, and the disenchant materials.
