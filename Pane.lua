@@ -16,10 +16,17 @@ local SIZES = { tiny = 10, small = 12, body = 13, head = 15, title = 18 }
 
 local root, scroll, child, thumb
 
--- Folded: the pane slides down to a thin strip with a tab to bring it back (as DaylightUI folds its
--- damage meter beside the minimap), remembered between sessions in DaylightRecipesDB.
-local FOLDED_WIDTH = 20
-local shownWidth          -- the width the pane has now, while it slides
+-- The fold tab: DaylightUI's look for its damage meter's fold (a small bordered tab on the panel's
+-- outer edge with a grip on it, tucked under the edge). Folded, the pane slides away and fades
+-- out, and the tab stays against the profession window's edge to bring it back. Always shown.
+-- Remembered between sessions in DaylightRecipesDB.
+local FOLDED_WIDTH = 1          -- AttachCraftPane takes no 0; at 1 the pane is out of sight
+local TAB_W, TAB_H = 14, 34
+local TAB_TUCK = 3              -- how far the tab sits under the edge it hangs from
+local WINDOW_GAP = 6            -- the gap between the window and a docked pane
+local shownWidth                -- the width the pane has now, while it slides
+local foldTab
+local slider                    -- drives the fold's slide
 local function DB()
 	DaylightRecipesDB = type(DaylightRecipesDB) == "table" and DaylightRecipesDB or {}
 	return DaylightRecipesDB
@@ -477,46 +484,8 @@ local function Build()
 		end
 		root.tabs[i] = b
 	end
-	-- Fold: a ">" at the top right tucks the pane away.
-	root.fold = CreateFrame("Button", nil, root)
-	root.fold:SetSize(18, 22)
-	root.fold:SetPoint("TOPRIGHT", root, "TOPRIGHT", -6, -12)
-	root.fold.text = Text(root.fold, "head")
-	root.fold.text:SetPoint("CENTER", 0, 0)
-	root.fold.text:SetText(">")
-	root.fold:SetScript("OnClick", function() Pane.SetFolded(true) end)
-	root.fold:SetScript("OnEnter", function(self)
-		self.text:SetTextColor(API.Accent())
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:SetText("Fold Daylight Recipes away")
-		GameTooltip:Show()
-	end)
-	root.fold:SetScript("OnLeave", function(self)
-		self.text:SetTextColor(Color("LABEL"))
-		GameTooltip:Hide()
-	end)
 	root.skill = Text(root, "small", "RIGHT")
-	root.skill:SetPoint("TOPRIGHT", root, "TOPRIGHT", -PAD - 18, -18)
-
-	-- Folded: the whole strip is the tab, a "<" in its middle.
-	root.strip = CreateFrame("Button", nil, root)
-	root.strip:SetAllPoints(root)
-	root.strip.text = Text(root.strip, "head")
-	root.strip.text:SetPoint("CENTER", 0, 0)
-	root.strip.text:SetText("<")
-	root.strip:SetScript("OnClick", function() Pane.SetFolded(false) end)
-	root.strip:SetScript("OnEnter", function(self)
-		self.text:SetTextColor(API.Accent())
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:SetText("Daylight Recipes")
-		GameTooltip:AddLine("Click to open.", Color("LABEL"))
-		GameTooltip:Show()
-	end)
-	root.strip:SetScript("OnLeave", function(self)
-		self.text:SetTextColor(Color("LABEL"))
-		GameTooltip:Hide()
-	end)
-	root.strip:Hide()
+	root.skill:SetPoint("TOPRIGHT", root, "TOPRIGHT", -PAD, -18)
 	root:SetClipsChildren(true)
 
 	root.search = API.Input(root, { search = true, hint = "Search",
@@ -589,20 +558,10 @@ function Pane.Render()
 	root:Show()
 	if not host:IsVisible() then return end
 
-	-- Folded: only the strip with its tab.
-	local folded = Folded()
-	root.strip:SetShown(folded)
-	root.strip.text:SetTextColor(Color("LABEL"))
-	for _, b in ipairs(root.tabs) do b:SetShown(not folded) end
-	root.fold:SetShown(not folded)
-	root.fold.text:SetTextColor(Color("LABEL"))
-	root.skill:SetShown(not folded)
-	scroll:SetShown(not folded)
-	thumb:SetShown(false)
-	if folded then
-		root.search:Hide()
-		return
-	end
+	-- Folded (after a reload, or the window reopened): out of sight at once. A slide fades it itself.
+	if not (slider and slider:GetScript("OnUpdate")) then host:SetAlpha(Folded() and 0 or 1) end
+	Pane.PlaceTab(host)
+	if Folded() then return end
 
 	PaintTabs()
 	local missing = tab == "missing"
@@ -651,20 +610,77 @@ function Pane.Resize()
 	if Pane.Shown() then ns.Changed() end
 end
 
--- Folds the pane away or brings it back, sliding (DaylightUI's NORMAL speed). Folding hides the
--- page first and then narrows; opening widens first and then draws the page.
-local slider
+-- The grip on the tab: three short bars, grey, in the accent under the mouse.
+local function PaintGrip(hover)
+	if not foldTab then return end
+	local r, g, b
+	if hover then r, g, b = API.Accent() else r, g, b = Color("LABEL") end
+	for _, bar in ipairs(foldTab.bars) do bar:SetColorTexture(r, g, b, 1) end
+end
+
+local function BuildTab()
+	foldTab = CreateFrame("Button", nil, UIParent)
+	foldTab:SetSize(TAB_W, TAB_H)
+	foldTab:SetIgnoreParentAlpha(true)   -- it stays while the folded pane fades out
+	API.Skin(foldTab, { noBevel = true })
+	foldTab.bars = {}
+	for i = 1, 3 do
+		local bar = foldTab:CreateTexture(nil, "OVERLAY")
+		bar:SetSize(6, 2)
+		bar:SetPoint("CENTER", foldTab, "CENTER", 0, (2 - i) * 4)
+		foldTab.bars[i] = bar
+	end
+	PaintGrip(false)
+	foldTab:SetScript("OnClick", function() Pane.SetFolded(not Folded()) end)
+	foldTab:SetScript("OnEnter", function(self)
+		PaintGrip(true)
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:SetText(Folded() and "Open Daylight Recipes" or "Fold Daylight Recipes away")
+		GameTooltip:Show()
+	end)
+	foldTab:SetScript("OnLeave", function()
+		PaintGrip(false)
+		GameTooltip:Hide()
+	end)
+end
+
+-- The tab on the host's outer edge, vertically centred: on the pane's edge while it's open, on the
+-- window's edge (where the pane folds into) while folded. Under the edge's border either way.
+function Pane.PlaceTab(host)
+	if not host then return end
+	if not foldTab then BuildTab() end
+	if foldTab:GetParent() ~= host then
+		foldTab:SetParent(host)
+		foldTab:SetIgnoreParentAlpha(true)
+	end
+	foldTab:SetFrameStrata(host:GetFrameStrata())
+	foldTab:SetFrameLevel(math.max(0, host:GetFrameLevel() - 1))
+	foldTab:ClearAllPoints()
+	if Folded() then
+		foldTab:SetPoint("LEFT", host, "LEFT", -WINDOW_GAP - TAB_TUCK, 0)
+	else
+		foldTab:SetPoint("LEFT", host, "RIGHT", -TAB_TUCK, 0)
+	end
+	foldTab:Show()
+end
+
+-- Folds the pane away or brings it back, sliding at DaylightUI's NORMAL speed: folding narrows the
+-- pane as it fades out, opening widens it as it fades in and draws the page at the end.
 function Pane.SetFolded(folded)
 	DB().folded = folded and true or nil
 	GameTooltip:Hide()
-	if root then Pane.Render() end
+	local host = Host()
 	local from, to = shownWidth or TargetWidth(), TargetWidth()
+	local duration = (API.Speed and API.Speed.NORMAL) or 0.2
+	if host then API.Fade(host, folded and 0 or 1, duration) end
+	if root and not folded then Pane.Render() end
 	if from == to then
 		ApplyWidth(to)
+		if host then Pane.PlaceTab(host) end
 		return
 	end
 	slider = slider or CreateFrame("Frame")
-	local elapsed, duration = 0, (API.Speed and API.Speed.NORMAL) or 0.2
+	local elapsed = 0
 	slider:SetScript("OnUpdate", function(self, dt)
 		elapsed = elapsed + dt
 		local t = math.min(1, elapsed / duration)
@@ -672,6 +688,7 @@ function Pane.SetFolded(folded)
 		ApplyWidth(math.floor(from + (to - from) * t + 0.5))
 		if t >= 1 then
 			self:SetScript("OnUpdate", nil)
+			if host then Pane.PlaceTab(host) end
 			if not Folded() then ns.Changed() end
 		end
 	end)

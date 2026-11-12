@@ -1,7 +1,7 @@
 # Daylight Recipes
 
 ## 1.1.0
-- The pane folds away: the ">" at its top right slides it down to a thin strip beside the profession window, and clicking the strip brings it back. It stays folded or open between sessions, on DaylightUI's profession window and DaylightMogul's.
+- The pane folds away, like DaylightUI's damage meter: a small tab on its outer edge slides it out of sight, leaving only the tab against the profession window, and a click on the tab brings it back. It stays folded or open between sessions, on DaylightUI's profession window and DaylightMogul's.
 
 ## 1.0.0
 - First release: a pane beside DaylightUI's profession window, or DaylightMogul's.
