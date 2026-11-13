@@ -80,7 +80,7 @@ end
 -- Skill-up chance
 -- ---------------------------------------------------------------------------------------------
 
--- The recipe's four skill thresholds (orange from, yellow, green, grey), or nil when unknown.
+-- The recipe's four skill thresholds (orange from, yellow, green, gray), or nil when unknown.
 function Calc.Thresholds(spell)
 	local data = ns.Recipes and ns.Recipes[spell]
 	local meta = ns.RecipeMeta and ns.RecipeMeta[spell]

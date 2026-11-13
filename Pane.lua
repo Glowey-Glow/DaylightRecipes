@@ -41,7 +41,7 @@ local searchSerial = 0
 local fonts = {}       -- font string -> its size name (to follow a font change)
 
 -- ---------------------------------------------------------------------------------------------
--- Colours
+-- Colors
 -- ---------------------------------------------------------------------------------------------
 
 local function Color(name)
@@ -54,7 +54,7 @@ local function Hex(r, g, b)
 	return ("|cff%02x%02x%02x"):format(r * 255, g * 255, b * 255)
 end
 
--- The game's skill-up colours (orange, yellow, green, grey), DaylightUI's inks without them.
+-- The game's skill-up colors (orange, yellow, green, gray), DaylightUI's inks without them.
 local DIFF = { "optimal", "medium", "easy", "trivial" }
 local DIFF_INK = { "BAD", "WARN", "GOOD", "OFF" }
 local function DiffColor(i)
@@ -265,7 +265,7 @@ local function SkillPart(spell)
 	row.right:SetTextColor(r, g, b)
 	Bar(chance)
 	local marks = {}
-	local words = { "orange", "yellow", "green", "grey" }
+	local words = { "orange", "yellow", "green", "gray" }
 	for i = 1, 4 do
 		local cr, cg, cb = DiffColor(i)
 		marks[#marks + 1] = Hex(cr, cg, cb) .. words[i] .. " " .. t[i] .. "|r"
@@ -276,7 +276,7 @@ local function SkillPart(spell)
 	elseif chance > 0 and chance < 1 then
 		Line(("About %.1f crafts a point."):format(1 / chance), "small", "TEXT")
 	elseif chance <= 0 then
-		Line("Grey: it gives no more points.", "small", "OFF")
+		Line("Gray: it gives no more points.", "small", "OFF")
 	end
 	local overtime, _, talents = Calc.Talents()
 	if overtime > 0 and base and base > 0 and base < 1 then
@@ -632,7 +632,7 @@ function Pane.Resize()
 	if Pane.Shown() then ns.Changed() end
 end
 
--- The grip on the tab: three short bars, grey, in the accent under the mouse.
+-- The grip on the tab: three short bars, gray, in the accent under the mouse.
 local function PaintGrip(hover)
 	if not foldTab then return end
 	local r, g, b
@@ -666,7 +666,7 @@ local function BuildTab()
 	end)
 end
 
--- The tab on the host's outer edge, vertically centred: on the pane's edge while it's open, on the
+-- The tab on the host's outer edge, vertically centered: on the pane's edge while it's open, on the
 -- window's edge (where the pane folds into) while folded. Under the edge's border either way.
 function Pane.PlaceTab(host)
 	if not host then return end
