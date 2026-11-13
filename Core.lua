@@ -72,21 +72,32 @@ local function Ask(name, ...)
 end
 ns.Ask = Ask
 
+local LINE_KEYS = { "professionID", "parentProfessionID", "skillLineID" }
+
+-- Reads the open profession. True when anything the pane shows changed (another profession, the
+-- skill, its cap, someone else's recipes): the game's list updates on every bag change while the
+-- window is open, and most of those change none of it.
 function ns.ReadProfession()
 	local info = Ask("GetBaseProfessionInfo")
 	local line
 	if type(info) == "table" then
-		for _, key in ipairs({ "professionID", "parentProfessionID", "skillLineID" }) do
+		for _, key in ipairs(LINE_KEYS) do
 			local v = info[key]
 			if type(v) == "number" and ns.LINES[v] then line = v break end
 		end
 	end
-	if line ~= S.line then S.recipe = nil end
-	S.line = line
-	S.name = type(info) == "table" and info.professionName or nil
-	S.skill = type(info) == "table" and tonumber(info.skillLevel) or 0
-	S.max = type(info) == "table" and tonumber(info.maxSkillLevel) or 0
-	S.linked = Ask("IsTradeSkillLinked") == true or Ask("IsTradeSkillGuild") == true
+	local name = type(info) == "table" and info.professionName or nil
+	local skill = type(info) == "table" and tonumber(info.skillLevel) or 0
+	local max = type(info) == "table" and tonumber(info.maxSkillLevel) or 0
+	local linked = Ask("IsTradeSkillLinked") == true or Ask("IsTradeSkillGuild") == true
+	local changed = line ~= S.line or name ~= S.name or skill ~= S.skill or max ~= S.max or linked ~= S.linked
+	-- Another profession, or someone else's recipes: the known recipes are read again.
+	if line ~= S.line or linked ~= S.linked then
+		S.recipe = line ~= S.line and nil or S.recipe
+		if ns.Where then ns.Where.ForgetKnown() end
+	end
+	S.line, S.name, S.skill, S.max, S.linked = line, name, skill, max, linked
+	return changed
 end
 
 -- What changed is drawn once, on the next frame.
@@ -162,7 +173,7 @@ local function PaneShown()
 	return ns.Pane and ns.Pane.Shown()
 end
 
-events:SetScript("OnEvent", function(_, event)
+events:SetScript("OnEvent", function(_, event, itemID)
 	if event == "PLAYER_LOGIN" then
 		local M = _G.DaylightMogul
 		if type(M) == "table" and type(M.API) == "table" and type(M.API.On) == "function" then
@@ -188,11 +199,17 @@ events:SetScript("OnEvent", function(_, event)
 		if S.mode == "mogul" then S.mode = nil end
 	elseif event == "TRADE_SKILL_LIST_UPDATE" or event == "SKILL_LINES_CHANGED" then
 		if not S.mode then return end
-		ns.ReadProfession()
-		if ns.Where then ns.Where.ForgetKnown() end
-		if PaneShown() then ns.Changed() end
+		local changed = ns.ReadProfession()
+		-- Drawn again only when something shown changed: the skill or profession, or (with the
+		-- missing list up) a recipe learned.
+		if ns.Where then
+			ns.Where.MarkStale()
+			if ns.Pane and ns.Pane.ShowingMissing() and ns.Where.Refresh() then changed = true end
+		end
+		if changed and PaneShown() then ns.Changed() end
 	elseif event == "GET_ITEM_INFO_RECEIVED" then
-		if PaneShown() then ns.Changed() end
+		-- Any addon's item asks bring this; only one the recipe page is waiting on redraws it.
+		if PaneShown() and ns.Pane and ns.Pane.Waiting(itemID) then ns.Changed() end
 	elseif event == "TRAIT_CONFIG_UPDATED" or event == "UPDATE_FACTION" then
 		if ns.Calc then ns.Calc.Forget() end
 		if PaneShown() then ns.Changed() end

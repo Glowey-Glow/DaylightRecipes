@@ -37,6 +37,7 @@ local duiPane, mogulPane
 local tab = "recipe"
 local open = {}        -- missing recipe -> its sources are shown
 local filter = ""
+local searchSerial = 0
 local fonts = {}       -- font string -> its size name (to follow a font change)
 
 -- ---------------------------------------------------------------------------------------------
@@ -90,7 +91,11 @@ local function Take(kind, make)
 	return piece
 end
 
+-- Items the page drew without their data (not cached yet): only their arrival redraws it.
+local waiting = {}
+
 local function Begin()
+	wipe(waiting)
 	for _, p in pairs(pools) do
 		for i = 1, #p.list do p.list[i]:Hide() end
 		p.used = 0
@@ -227,6 +232,7 @@ end
 
 local function ItemName(itemID)
 	local name, _, quality, icon = Calc.ItemInfo(itemID)
+	if not name then waiting[itemID] = true end
 	if not icon and C_Item and C_Item.GetItemIconByID then icon = C_Item.GetItemIconByID(itemID) end
 	if name and quality and C_Item and C_Item.GetItemQualityColor then
 		local ok, r, g, b = pcall(C_Item.GetItemQualityColor, quality)
@@ -493,8 +499,14 @@ local function Build()
 			text = (text or ""):lower()
 			if text == filter then return end
 			filter = text
-			if scroll then scroll:SetVerticalScroll(0) end
-			Pane.Render()
+			-- One search a moment after the last key, not one per key (each goes over every recipe).
+			searchSerial = searchSerial + 1
+			local serial = searchSerial
+			C_Timer.After(0.15, function()
+				if serial ~= searchSerial then return end
+				if scroll then scroll:SetVerticalScroll(0) end
+				Pane.Render()
+			end)
 		end })
 	root.search:SetPoint("TOPLEFT", root, "TOPLEFT", PAD, -44)
 	root.search:SetPoint("TOPRIGHT", root, "TOPRIGHT", -PAD, -44)
@@ -544,6 +556,16 @@ end
 
 function Pane.Shown()
 	return root ~= nil and root:IsVisible()
+end
+
+-- Whether the page now drawn is waiting on this item's data.
+function Pane.Waiting(itemID)
+	return type(itemID) == "number" and waiting[itemID] == true
+end
+
+-- Whether the missing list is what's on show.
+function Pane.ShowingMissing()
+	return Pane.Shown() and tab == "missing" and not Folded()
 end
 
 function Pane.Render()

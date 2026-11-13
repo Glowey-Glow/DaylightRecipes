@@ -9,11 +9,22 @@ local Where = {}
 ns.Where = Where
 
 local known       -- recipe -> true, this character's, for the open profession (read once per list)
+local knownCount = 0
+local stale = false       -- the game's list may have changed: read it again before it's next used
 local lastKey, lastList   -- the last missing list, and what it was made for
 
+-- A new profession opened (or settings changed): everything is read again.
 function Where.ForgetKnown()
-	known = nil
+	known, knownCount, stale = nil, 0, false
 	lastKey, lastList = nil, nil
+end
+
+-- The game's list was updated. That happens on every bag change and every craft while the window
+-- is open, and almost never because a recipe was learned, so nothing is thrown away here: the
+-- known recipes are read again the next time they're needed, and the missing list only rebuilt
+-- if they changed (Where.Refresh).
+function Where.MarkStale()
+	stale = true
 end
 
 local function SpellKnown(id)
@@ -24,14 +35,41 @@ local function SpellKnown(id)
 	return IsSpellKnown and IsSpellKnown(id) or false
 end
 
-local function Known()
-	if known then return known end
-	known = {}
+local function ReadKnown()
+	local set, count = {}, 0
 	local ids = ns.Ask("GetAllRecipeIDs")
 	for _, id in ipairs(type(ids) == "table" and ids or {}) do
 		local info = ns.Ask("GetRecipeInfo", id)
-		if type(info) == "table" and info.learned then known[id] = true end
+		if type(info) == "table" and info.learned then
+			set[id] = true
+			count = count + 1
+		end
 	end
+	return set, count
+end
+
+-- Reads the known recipes again if the game's list may have changed. True when they did (a recipe
+-- learned or unlearned): then the missing list is made again.
+function Where.Refresh()
+	if not stale then return false end
+	stale = false
+	if not known then return false end
+	local set, count = ReadKnown()
+	local changed = count ~= knownCount
+	if not changed then
+		for id in pairs(set) do
+			if not known[id] then changed = true break end
+		end
+	end
+	known, knownCount = set, count
+	if changed then lastKey, lastList = nil, nil end
+	return changed
+end
+
+local function Known()
+	if known then return known end
+	known, knownCount = ReadKnown()
+	stale = false
 	return known
 end
 
@@ -183,6 +221,7 @@ function Where.Missing(filter)
 	local S = ns.state
 	local out = {}
 	if not S.line or S.linked then return out end
+	Where.Refresh()
 	local mine = ns.Faction()
 	local only = ns.Get("learnableOnly")
 	local level = UnitLevel("player") or 0
