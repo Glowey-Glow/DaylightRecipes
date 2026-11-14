@@ -1,5 +1,8 @@
 # Daylight Recipes
 
+## 1.1.2
+- All text in American English (gray, color and the like), in the game and in the docs.
+
 ## 1.1.1
 - Lighter while a profession is open: a bag change or a craft no longer rebuilds the missing list (only learning a recipe does) or redraws the pane unless the skill changed; item data arriving redraws only a page waiting on that item; the missing list's search runs a moment after the last key instead of on every key.
 
