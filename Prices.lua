@@ -8,6 +8,7 @@
 -- faction.
 local _, ns = ...
 if not ns.ok then return end
+local L = ns.L
 
 local Prices = {}
 ns.Prices = Prices
@@ -160,7 +161,7 @@ local function Watch(serial)
 		if not scanning or serial ~= asked then return end
 		tries = tries + 1
 		if tries >= TRIES then
-			Finish("The Auction House stopped answering: prices read so far are kept.")
+			Finish(L["The Auction House stopped answering: prices read so far are kept."])
 		else
 			More()
 		end
@@ -171,7 +172,7 @@ function More()
 	if not scanning or not ahOpen then scanning = false return end
 	if C_AuctionHouse.HasFullBrowseResults and C_AuctionHouse.HasFullBrowseResults() then
 		Book().scanned = time()
-		Finish("Auction House prices read.")
+		Finish(L["Auction House prices read."])
 		return
 	end
 	if not Ready() then C_Timer.After(0.3, More) return end
@@ -183,20 +184,20 @@ end
 function Prices.Scan()
 	if not Prices.CanScan() then return end
 	if not Ready() then
-		ns.Print("The Auction House is busy: try again in a moment.")
+		ns.Print(L["The Auction House is busy: try again in a moment."])
 		return
 	end
 	local order = Enum and Enum.AuctionHouseSortOrder and Enum.AuctionHouseSortOrder.Price or 0
 	local ok = pcall(C_AuctionHouse.SendBrowseQuery, { searchString = "", sorts = { { sortOrder = order, reverseSort = false } },
 		filters = {}, itemClassFilters = {} })
 	if not ok then
-		ns.Print("The Auction House didn't take the scan.")
+		ns.Print(L["The Auction House didn't take the scan."])
 		return
 	end
 	scanning, firstRead, tries = true, false, 0
 	asked = asked + 1
 	Watch(asked)
-	ns.Print("Reading Auction House prices...")
+	ns.Print(L["Reading Auction House prices..."])
 	if ns.ShowingPlan() then ns.Changed() end
 end
 

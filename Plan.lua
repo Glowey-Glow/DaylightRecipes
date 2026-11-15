@@ -15,6 +15,7 @@
 -- the target, a recipe learned, prices).
 local _, ns = ...
 if not ns.ok then return end
+local L = ns.L
 
 local Plan = {}
 ns.Plan = Plan
@@ -24,7 +25,8 @@ local S = ns.state
 local floor, ceil, min, max = math.floor, math.ceil, math.min, math.max
 
 local RANK_CAPS = { 75, 150, 225, 300 }
-local RANK_NAMES = { [75] = "Apprentice", [150] = "Journeyman", [225] = "Expert", [300] = "Artisan" }
+local RANK_NAMES = { [75] = "Apprentice", [150] = "Journeyman", [225] = "Expert", [300] = "Artisan" }   -- kept in saved plans
+local RANK_SHOWN = { [75] = L["Apprentice"], [150] = L["Journeyman"], [225] = L["Expert"], [300] = L["Artisan"] }
 local RANK_LEVEL = { [150] = 10, [225] = 20, [300] = 35 }   -- the character level each rank asks
 local TOP = 300
 local UNPRICED = 1e9          -- added to a recipe's cost per point when a material has no price
@@ -69,9 +71,9 @@ end
 -- Kept per account (DaylightRecipesDB.routeGoal).
 
 Plan.GOALS = { "cost", "vendor", "disenchant", "auction" }
-Plan.GOAL_WORDS = { cost = "Cheapest", vendor = "Vendor", disenchant = "Disenchant", auction = "Auction House" }
-Plan.GOAL_LONG = { cost = "cheapest materials", vendor = "after vendoring what you make",
-	disenchant = "after disenchanting what you make", auction = "after selling what you make" }
+Plan.GOAL_WORDS = { cost = L["Cheapest"], vendor = L["Vendor"], disenchant = L["Disenchant"], auction = L["Auction House"] }
+Plan.GOAL_LONG = { cost = L["cheapest materials"], vendor = L["after vendoring what you make"],
+	disenchant = L["after disenchanting what you make"], auction = L["after selling what you make"] }
 
 function Plan.Goal()
 	local db = DaylightRecipesDB
@@ -129,18 +131,31 @@ for _, list in pairs(TOOLS) do
 	for _, tool in ipairs(list) do isTool[tool.spell] = tool end
 end
 
-local toolNames     -- lower-case name -> tool
+-- The game's list gives the tool's name in the client's language, so the names matched are the
+-- game's too (the rod's recipe and the rod itself), folded the same way on both sides. An item name
+-- the game hasn't cached yet leaves the table to be made again on the next ask.
+local toolNames     -- folded name -> tool
+local toolNamesWhole = false
 local function ToolByName(name)
-	if not toolNames then
-		toolNames = {}
+	if not toolNames or not toolNamesWhole then
+		toolNames, toolNamesWhole = {}, true
 		for _, tool in pairs(isTool) do
-			local a = ns.RecipeNames and ns.RecipeNames[tool.spell]
-			local b = ns.ItemNames and ns.ItemNames[tool.item]
-			if a then toolNames[a:lower()] = tool end
-			if b then toolNames[b:lower()] = tool end
+			local a = ns.SpellName(tool.spell)
+			local b
+			if C_Item and C_Item.GetItemNameByID then
+				local ok, n = pcall(C_Item.GetItemNameByID, tool.item)
+				if ok then b = n end
+			end
+			if not b and GetItemInfo then b = GetItemInfo(tool.item) end
+			if not b then
+				toolNamesWhole = false
+				b = ns.ItemNames and ns.ItemNames[tool.item]
+			end
+			if a then toolNames[ns.Fold(a)] = tool end
+			if b then toolNames[ns.Fold(b)] = tool end
 		end
 	end
-	return type(name) == "string" and toolNames[name:lower()] or nil
+	return type(name) == "string" and toolNames[ns.Fold(name)] or nil
 end
 
 local toolOf = {}   -- spell -> its tool, or false
@@ -151,13 +166,15 @@ local function ToolFor(spell, data, learnAt)
 	local tools = TOOLS[data[1]]
 	if tools and not isTool[spell] then
 		local reqs = ns.Ask("GetRecipeRequirements", spell)
-		if type(reqs) == "table" and #reqs > 0 then
+		if type(reqs) == "table" then
 			for _, r in ipairs(reqs) do
 				local tool = type(r) == "table" and ToolByName(r.name)
 				if tool then v = tool break end
 			end
-		elseif data[1] == 333 and data[4] == false then
-			-- (An enchant: the best rod there is at the skill it's learned at.)
+		end
+		-- (An enchant the list names no rod for, whether it's empty or only names something else,
+		-- such as a place: the best rod there is at the skill it's learned at.)
+		if not v and data[1] == 333 and data[4] == false then
 			for _, tool in ipairs(tools) do
 				if tool.at <= (learnAt or 0) then v = tool end
 			end
@@ -236,10 +253,12 @@ local function Value(spell, goal)
 	local w = Calc.Worth(spell)
 	if not w then return 0 end
 	local want = goal == "vendor" and "Vendor" or goal == "disenchant" and "Disenchant" or "Auction House"
+	-- (Calc's labels, in English or shown in the player's language.)
+	local shown = Plan.GOAL_WORDS[goal]
 	local vendor
 	for _, r in ipairs(w.routes) do
-		if r.label == want then return r.value end
-		if r.label == "Vendor" then vendor = r.value end
+		if r.label == want or r.label == shown then return r.value end
+		if r.label == "Vendor" or r.label == L["Vendor"] then vendor = r.value end
 	end
 	if goal == "disenchant" and vendor then return vendor end
 	return 0
@@ -403,7 +422,7 @@ local function Route(from, target, cap, goal, credit)
 			if cap >= TOP then break end
 			local nextCap = cap + 75
 			for _, c in ipairs(RANK_CAPS) do if c > cap then nextCap = c break end end
-			steps[#steps + 1] = { kind = "rank", at = k, cap = nextCap, name = RANK_NAMES[nextCap], level = RANK_LEVEL[nextCap] }
+			steps[#steps + 1] = { kind = "rank", at = k, cap = nextCap, name = RANK_SHOWN[nextCap], level = RANK_LEVEL[nextCap] }
 			cap = nextCap
 		else
 			-- The cheapest three a point here (the best and the next two, for the alternatives).
@@ -658,7 +677,7 @@ function Plan.Get()
 		local rank
 		for _, s in ipairs(route.steps) do
 			if s.kind == "rank" then
-				rank = { at = s.at, name = s.name }
+				rank = { at = s.at, name = RANK_NAMES[s.cap] }
 				break
 			end
 		end
@@ -668,4 +687,4 @@ function Plan.Get()
 end
 
 -- Rank names for a cap (for text).
-function Plan.RankName(cap) return RANK_NAMES[cap] end
+function Plan.RankName(cap) return RANK_SHOWN[cap] end

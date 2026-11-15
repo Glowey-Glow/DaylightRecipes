@@ -4,6 +4,7 @@
 -- Also the small helpers every page uses (colors, item names, tooltips, percentages).
 local _, ns = ...
 if not ns.ok then return end
+local L, Plural = ns.L, ns.Plural
 
 local API = ns.API
 local Calc = ns.Calc
@@ -55,20 +56,21 @@ function Doc.SpellTip(spell)
 end
 
 function Doc.Pct(v)
-	if v >= 0.995 or v == 0 then return ("%d%%"):format(v * 100 + 0.5) end
-	return ("%.1f%%"):format(v * 100)
+	if v >= 0.995 or v == 0 then return L["%d%%"]:format(v * 100 + 0.5) end
+	return L["%.1f%%"]:format(v * 100)
 end
 
 function Doc.RecipeName(spell)
 	local info = ns.Ask("GetRecipeInfo", spell)
-	return type(info) == "table" and info.name or (ns.RecipeNames and ns.RecipeNames[spell]) or ("Recipe " .. spell)
+	return type(info) == "table" and info.name or ns.SpellName(spell) or L["Recipe %d"]:format(spell)
 end
 
 function Doc.Ago(stamp)
 	local s = time() - (stamp or 0)
-	if s < 3600 then return ("%d min ago"):format(math.max(1, math.floor(s / 60))) end
-	if s < 86400 then return ("%d h ago"):format(math.floor(s / 3600)) end
-	return ("%d days ago"):format(math.floor(s / 86400))
+	if s < 3600 then return L["%d min ago"]:format(math.max(1, math.floor(s / 60))) end
+	if s < 86400 then return L["%d h ago"]:format(math.floor(s / 3600)) end
+	local days = math.floor(s / 86400)
+	return Plural(days, "%d day ago", "%d days ago"):format(days)
 end
 
 -- An item's name in its quality color and its icon. One not cached yet is noted on the doc, so
@@ -81,7 +83,7 @@ function Doc.ItemName(itemID, d)
 		local ok, r, g, b = pcall(C_Item.GetItemQualityColor, quality)
 		if ok and r then name = Doc.Hex(r, g, b) .. name .. "|r" end
 	end
-	return name or (ns.ItemNames and ns.ItemNames[itemID]) or ("Item " .. itemID), icon
+	return name or ns.ItemNameOf(itemID) or L["Item %d"]:format(itemID), icon
 end
 
 -- The player's font changed: every string made here takes it, at its size.

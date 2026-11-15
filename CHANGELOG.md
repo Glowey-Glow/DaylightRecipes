@@ -1,5 +1,13 @@
 # Daylight Recipes
 
+## 2.0.1
+- Item tooltips only speak of the professions this character has learned: "Used in", "Known by" and your own guides' lines (your alts' guide lines stay).
+- Daylight Recipes speaks German, French, Spanish, Russian, Korean and Simplified Chinese (machine drafts, corrections welcome).
+- Fixes for non-English game clients: the Leveling Guide makes Enchanting's rods and Engineering's tools again when the next recipes need them (the game names them in your language, and the guide only knew the English names); the trainer's "Recommended" list finds the recipes a trainer teaches by their name in your language too.
+- Recipe, item, profession, zone and quest names are shown in your game's language wherever the game has them (the Missing tab, an alt's recipes, trainer reminders, item tooltips, the buy lists), with the English name only while the game hasn't loaded one yet.
+- Searches find accented and Cyrillic letters whatever their case ("ä" finds "Ä", "б" finds "Б"), and lists sorted by name follow your language's alphabet.
+- Window opacity: follows DaylightUI's by default, or set your own on the options page.
+
 ## 2.0.0
 - New: Daylight Recipes' own profession window, in place of the game's and DaylightUI's. Your professions sit on the left (click one to open it) with your alts' below; the open profession's skill bar and five tabs across the top: Recipes, Leveling Guide, Materials, Queue and Missing.
 - Recipes tab: the recipe list with a search, "Can make" and "Skill-ups" filters, categories that fold, and how many you can make of each; the picked recipe beside it with what it makes and needs, the materials you hold (bags, bank, mail, alts), its skill-up chance, costs and value, and Create, Create All or the item an enchant goes on. Stop ends a run of crafts.

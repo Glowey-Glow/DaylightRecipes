@@ -16,6 +16,7 @@
 -- folds away to a small tab on that window's edge (remembered, each on its own).
 local _, ns = ...
 if not ns.ok then return end
+local L, Plural = ns.L, ns.Plural
 
 local API = ns.API
 local Doc, Calc = ns.Doc, ns.Calc
@@ -107,11 +108,11 @@ local function RowTip(r, hint)
 		if hint then tip:AddLine(hint, Color("ACCENT")) end
 		tip:AddLine(" ")
 		for line, n in pairs(r.lines or {}) do
-			local label = line == "queue" and "Crafting queue" or ((ns.Tips and ns.Tips.LineName(line) or "") .. " Leveling Guide")
+			local label = line == "queue" and L["Crafting queue"] or L["%s Leveling Guide"]:format(ns.Tips and ns.Tips.LineName(line) or "")
 			tip:AddDoubleLine(label, tostring(n), Color("LABEL"))
 		end
 		local where = ns.Pages and ns.Pages.HaveText(r.itemID)
-		if where then tip:AddLine("You have " .. where, Color("TEXT")) end
+		if where then tip:AddLine(L["You have %s"]:format(where), Color("TEXT")) end
 	end
 end
 
@@ -165,7 +166,7 @@ local function MakeTab(p)
 	t:SetScript("OnEnter", function(self)
 		PaintGrip(self, true)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:SetText((Folds()[p.key] and "Show " or "Hide ") .. p.label)
+		GameTooltip:SetText((Folds()[p.key] and L["Show %s"] or L["Hide %s"]):format(p.label))
 		GameTooltip:Show()
 	end)
 	t:SetScript("OnLeave", function(self)
@@ -217,7 +218,7 @@ local function NewPanel(name, title, key)
 	p:SetClampedToScreen(true)
 	p:EnableMouse(true)
 	p:Hide()
-	API.Skin(p, { window = true })
+	ns.SkinWindow(p)
 	p.title = Doc.Text(p, "head")
 	p.title:SetPoint("TOPLEFT", p, "TOPLEFT", 14, -12)
 	p.title:SetText(title)
@@ -280,7 +281,7 @@ local function Paint(p, host, side, fill)
 	local ok, err = pcall(fill, d)
 	if not ok then
 		geterrorhandler()(err)
-		d:Line("Something went wrong drawing this list.", "small", "BAD")
+		d:Line(L["Something went wrong drawing this list."], "small", "BAD")
 	end
 	d:Finish()
 	-- (A panel with nothing in its footer ends under its rows.)
@@ -376,10 +377,10 @@ end
 -- Where a material not sold here comes from: the vendor that sells it, or only how many more.
 local function Elsewhere(r)
 	local _, who = Calc.Vendor(r.itemID)
-	if who and who ~= "Vendor" then return ("Buy %d from %s"):format(r.buy, who) end
-	if who then return ("Buy %d elsewhere"):format(r.buy) end
-	if Calc.AH(r.itemID) then return ("Buy %d on the Auction House"):format(r.buy) end
-	return ("Need %d more"):format(r.buy)
+	if who and who ~= "Vendor" and who ~= L["Vendor"] then return L["Buy %d from %s"]:format(r.buy, who) end
+	if who then return L["Buy %d elsewhere"]:format(r.buy) end
+	if Calc.AH(r.itemID) then return L["Buy %d on the Auction House"]:format(r.buy) end
+	return L["Need %d more"]:format(r.buy)
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -399,7 +400,7 @@ local function BuildConfirm()
 	API.Skin(f, { bgAlpha = 1 })
 	f.title = Doc.Text(f, "head")
 	f.title:SetPoint("TOP", f, "TOP", 0, -18)
-	f.title:SetText("Are you sure?")
+	f.title:SetText(L["Are you sure?"])
 	f.what = Doc.Text(f, "body")
 	f.what:SetPoint("TOP", f.title, "BOTTOM", 0, -12)
 	f.what:SetWidth(228)
@@ -407,10 +408,10 @@ local function BuildConfirm()
 	f.what:SetJustifyH("CENTER")
 	f.cost = Doc.Text(f, "body")
 	f.cost:SetPoint("TOP", f.what, "BOTTOM", 0, -8)
-	f.yes = API.Button(f, "Yes", 26)
+	f.yes = API.Button(f, L["Yes"], 26)
 	f.yes:SetWidth(90)
 	f.yes:SetPoint("BOTTOMRIGHT", f, "BOTTOM", -6, 18)
-	f.no = API.Button(f, "No", 26)
+	f.no = API.Button(f, L["No"], 26)
 	f.no:SetWidth(90)
 	f.no:SetPoint("BOTTOMLEFT", f, "BOTTOM", 6, 18)
 	f.no:SetScript("OnClick", function() f:Hide() end)
@@ -426,7 +427,7 @@ local function Confirm(owner, what, total, onYes)
 	local short = total > money
 	f.what:SetText(what)
 	f.what:SetTextColor(Color("TEXT"))
-	f.cost:SetText("Total Cost: " .. Calc.Money(total))
+	f.cost:SetText(L["Total Cost: %s"]:format(Calc.Money(total)))
 	f.cost:SetTextColor(Color(short and "BAD" or "VALUE"))
 	f.title:SetTextColor(Color("VALUE"))
 	-- (Top 18, the title, 12, the question, 8, the cost, 20 clear above the buttons, 18 under them.)
@@ -459,7 +460,7 @@ function Shop.Vendor()
 	if not merchantOpen then return true end
 	local host = VendorHost()
 	if not host then return false end
-	vendor = vendor or NewPanel("DaylightRecipesBuyList", "Buy list", "vendor")
+	vendor = vendor or NewPanel("DaylightRecipesBuyList", L["Buy list"], "vendor")
 	vendor.redraw = Shop.Vendor
 	local list = Shop.List()
 	-- Nothing to buy at all: the window stays out of the way.
@@ -473,39 +474,39 @@ function Shop.Vendor()
 		for _, r in ipairs(list) do
 			local name, icon = Doc.ItemName(r.itemID, d)
 			local s = shelf[r.itemID]
-			local sub = ("Need %d · you have %d"):format(r.need, r.have.mine)
+			local sub = L["Need %d · you have %d"]:format(r.need, r.have.mine)
 			if r.alert then sub = sub .. " · " .. r.alert end
 			if s then
 				local count, price = CanBuy(s, r.buy)
 				local short = count < r.buy
 				here[#here + 1] = { s = s, want = r.buy, itemID = r.itemID, price = price }
 				cost = cost + price
-				local why = s.left == 0 and "Sold out" or "Can't afford"
-				d:Row({ icon = icon, left = name, right = count > 0 and ("Buy %d for %s"):format(count, Calc.Money(price)) or why,
-					rightInk = count > 0 and "VALUE" or "BAD", sub = short and count > 0 and (sub .. (" · only %d here"):format(count)) or sub,
-					subInk = "TEXT", tip = RowTip(r, count > 0 and "Double-click to buy." or nil),
+				local why = s.left == 0 and L["Sold out"] or L["Can't afford"]
+				d:Row({ icon = icon, left = name, right = count > 0 and L["Buy %d for %s"]:format(count, Calc.Money(price)) or why,
+					rightInk = count > 0 and "VALUE" or "BAD", sub = short and count > 0 and (sub .. " · " .. L["only %d here"]:format(count)) or sub,
+					subInk = "TEXT", tip = RowTip(r, count > 0 and L["Double-click to buy."] or nil),
 					onDouble = count > 0 and function()
-						local itemName = Calc.ItemInfo(r.itemID) or (ns.ItemNames and ns.ItemNames[r.itemID]) or "it"
-						Confirm(vendor, ("Buy %d %s?"):format(count, itemName), price, function()
+						local itemName = Calc.ItemInfo(r.itemID) or ns.ItemNameOf(r.itemID) or L["it"]
+						Confirm(vendor, L["Buy %d %s?"]:format(count, itemName), price, function()
 							NoteBought(r.itemID, BuyOne(s, r.buy))
 							Shop.Vendor()
 						end)
 					end or nil })
 			else
-				d:Row({ icon = icon, dim = true, left = name, leftInk = "OFF", right = "[Not Available]", rightInk = "OFF",
+				d:Row({ icon = icon, dim = true, left = name, leftInk = "OFF", right = L["[Not Available]"], rightInk = "OFF",
 					sub = Elsewhere(r) .. (r.alert and (" · " .. r.alert) or ""), subInk = "OFF",
 					tip = RowTip(r) })
 			end
 		end
 	end)
-	vendor.note:SetText(("%d to buy"):format(#list))
+	vendor.note:SetText(L["%d to buy"]:format(#list))
 	vendor.note:SetTextColor(Color("LABEL"))
-	vendor.total:SetText(#here > 0 and ("Here: " .. Calc.Money(cost)) or "Nothing Available")
+	vendor.total:SetText(#here > 0 and L["Here: %s"]:format(Calc.Money(cost)) or L["Nothing Available"])
 	-- (Nothing on the list sold here: the whole list grayed out, the title too.)
 	vendor.doc.scroll:SetAlpha(#here > 0 and 1 or 0.45)
 	vendor.title:SetTextColor(Color(#here > 0 and "VALUE" or "OFF"))
 	vendor.total:SetTextColor(Color(#here > 0 and "VALUE" or "OFF"))
-	vendor.button.text:SetText("Buy all here")
+	vendor.button.text:SetText(L["Buy all here"])
 	vendor.button:SetWidth(120)
 	-- (Nothing sold here: the footer says so, no button to press.)
 	vendor.button:SetShown(#here > 0)
@@ -522,7 +523,7 @@ function Shop.Vendor()
 			end
 		end
 		if #picks == 0 then return end
-		Confirm(vendor, ("Buy all %d item%s on your list sold here?"):format(#picks, #picks == 1 and "" or "s"), total, function()
+		Confirm(vendor, Plural(#picks, "Buy all %d item on your list sold here?", "Buy all %d items on your list sold here?"):format(#picks), total, function()
 			-- (Your gold drops only when the server answers: the picks were sized to it above.)
 			for _, h in ipairs(picks) do NoteBought(h.itemID, BuyOne(h.s, h.want)) end
 			Shop.Vendor()
@@ -549,7 +550,7 @@ end
 local function SearchFor(itemID)
 	local f = _G.AuctionHouseFrame
 	if not Visible(f) or type(f.SearchBar) ~= "table" then return false end
-	local name = Calc.ItemInfo(itemID) or (ns.ItemNames and ns.ItemNames[itemID])
+	local name = Calc.ItemInfo(itemID) or ns.ItemNameOf(itemID)
 	if not name then return false end
 	local box = f.SearchBar.SearchBox
 	if type(box) == "table" and box.SetText then
@@ -564,7 +565,7 @@ function Shop.Auction()
 	if not ahOpen then return true end
 	local host = AHHost()
 	if not host then return false end
-	auction = auction or NewPanel("DaylightRecipesAHList", "Buy list", "auction")
+	auction = auction or NewPanel("DaylightRecipesAHList", L["Buy list"], "auction")
 	auction.redraw = Shop.Auction
 	local list = Shop.List()
 	if #list == 0 then
@@ -580,54 +581,54 @@ function Shop.Auction()
 			local right, ink
 			if ah and vend then
 				if ah < vend then
-					right, ink = "AH is cheaper", "GOOD"
+					right, ink = L["AH is cheaper"], "GOOD"
 					ahTotal = ahTotal + ah * r.buy
 					saved = saved + (vend - ah) * r.buy
 				else
-					right, ink = "Vendor is cheaper", "WARN"
+					right, ink = L["Vendor is cheaper"], "WARN"
 				end
 			elseif ah then
-				right, ink = "Auction House", "VALUE"
+				right, ink = L["Auction House"], "VALUE"
 				ahTotal = ahTotal + ah * r.buy
 			elseif vend then
-				right, ink = "Vendor only", "OFF"
+				right, ink = L["Vendor only"], "OFF"
 			else
-				right, ink = "No price", "OFF"
+				right, ink = L["No price"], "OFF"
 			end
-			local parts = { ("Buy %d"):format(r.buy) }
+			local parts = { L["Buy %d"]:format(r.buy) }
 			if r.alert then parts[#parts + 1] = r.alert end
-			if ah then parts[#parts + 1] = "AH " .. Calc.Money(ah * r.buy) end
-			if vend then parts[#parts + 1] = ("Vendor %s (%s)"):format(Calc.Money(vend * r.buy), who or "vendor") end
+			if ah then parts[#parts + 1] = L["AH %s"]:format(Calc.Money(ah * r.buy)) end
+			if vend then parts[#parts + 1] = L["Vendor %s (%s)"]:format(Calc.Money(vend * r.buy), who or L["vendor"]) end
 			d:Row({ icon = icon, left = name, right = right, rightInk = ink,
 				sub = table.concat(parts, " · "), subInk = "TEXT", tip = RowTip(r),
 				onClick = function() SearchFor(r.itemID) end })
 		end
 		if not Calc.HasAH() then
-			d:Line("No Auction House prices yet: scan from the Leveling Guide.", "tiny", "OFF")
+			d:Line(L["No Auction House prices yet: scan from the Leveling Guide."], "tiny", "OFF")
 		end
 	end)
-	auction.note:SetText(("%d to buy"):format(#list))
+	auction.note:SetText(L["%d to buy"]:format(#list))
 	auction.note:SetTextColor(Color("LABEL"))
 	if ahTotal > 0 then
-		auction.total:SetText(("On the AH: %s"):format(Calc.Money(ahTotal))
-			.. (saved > 0 and (" (saves %s)"):format(Calc.Money(saved)) or ""))
+		auction.total:SetText(saved > 0 and L["On the AH: %s (saves %s)"]:format(Calc.Money(ahTotal), Calc.Money(saved))
+			or L["On the AH: %s"]:format(Calc.Money(ahTotal)))
 		auction.total:SetTextColor(Color("VALUE"))
 	else
-		auction.total:SetText("Nothing here is cheaper on the AH.")
+		auction.total:SetText(L["Nothing here is cheaper on the AH."])
 		auction.total:SetTextColor(Color("OFF"))
 	end
 	-- With Auctionator loaded: the list as one of its shopping lists (its own search does the rest).
 	local A = _G.Auctionator
 	local api = type(A) == "table" and type(A.API) == "table" and A.API.v1
 	if type(api) == "table" and type(api.CreateShoppingList) == "function" and type(api.ConvertToSearchString) == "function" then
-		auction.button.text:SetText("Auctionator list")
+		auction.button.text:SetText(L["Auctionator list"])
 		auction.button:SetWidth(140)
 		auction.button.SetOff(false)
 		auction.button:Show()
 		auction.button:SetScript("OnClick", function()
 			local searches = {}
 			for _, r in ipairs(list) do
-				local name = Calc.ItemInfo(r.itemID) or (ns.ItemNames and ns.ItemNames[r.itemID])
+				local name = Calc.ItemInfo(r.itemID) or ns.ItemNameOf(r.itemID)
 				if name then
 					local ok, text = pcall(api.ConvertToSearchString, "Daylight Recipes",
 						{ searchString = name, isExact = true, quantity = r.buy })
@@ -636,8 +637,9 @@ function Shop.Auction()
 			end
 			if #searches == 0 then return end
 			local ok = pcall(api.CreateShoppingList, "Daylight Recipes", "Daylight Recipes", searches)
-			ns.Print(ok and ("Auctionator list \"Daylight Recipes\" made: %d items."):format(#searches)
-				or "Auctionator didn't take the list.")
+			ns.Print(ok and Plural(#searches, "Auctionator list \"Daylight Recipes\" made: %d item.",
+				"Auctionator list \"Daylight Recipes\" made: %d items."):format(#searches)
+				or L["Auctionator didn't take the list."])
 		end)
 	else
 		auction.button:Hide()
@@ -653,6 +655,9 @@ local trainer
 local trainerOpen = false
 
 -- A trainer's service as a recipe: its spell (from the service's tooltip data, else its name).
+-- The trainer's names are in the client's language, so the names matched are the game's own for
+-- the data's recipes (the English ones only where the game has none). Made once, the first time a
+-- name is needed: one name per recipe of the data, a few thousand lookups.
 local byName
 local function SpellOf(index, name)
 	if C_TooltipInfo and C_TooltipInfo.GetTrainerService then
@@ -664,7 +669,10 @@ local function SpellOf(index, name)
 	if not name then return nil end
 	if not byName then
 		byName = {}
-		for spell, n in pairs(ns.RecipeNames or {}) do byName[n] = byName[n] or spell end
+		for spell in pairs(ns.Recipes or {}) do
+			local n = ns.SpellName(spell)
+			if n then byName[n] = byName[n] or spell end
+		end
 	end
 	return byName[name]
 end
@@ -736,7 +744,7 @@ function Shop.Trainer()
 	if IsTradeskillTrainer and not IsTradeskillTrainer() then return true end
 	local host = TrainerHost()
 	if not host then return false end
-	trainer = trainer or NewPanel("DaylightRecipesTrainer", "Recommended", "trainer")
+	trainer = trainer or NewPanel("DaylightRecipesTrainer", L["Recommended"], "trainer")
 	trainer.redraw = Shop.Trainer
 	local list, used, lines = Services()
 	local line = TrainerLine(lines)
@@ -790,40 +798,40 @@ function Shop.Trainer()
 	trainer.footless = #rec == 0
 	Paint(trainer, host, "beside", function(d)
 		if not plan then
-			d:Line(("Open %s once to work out its Leveling Guide: the recipes it uses are listed here."):format(
-				ns.Tips and ns.Tips.LineName(line) or "this profession"), "small", "OFF")
+			d:Line(L["Open %s once to work out its Leveling Guide: the recipes it uses are listed here."]:format(
+				ns.Tips and ns.Tips.LineName(line) or L["this profession"]), "small", "OFF")
 			return
 		end
 		if #rec == 0 then
 			if elsewhere > 0 then
-				d:Line("This trainer teaches none of the recipes your Leveling Guide still needs.", "small", "OFF")
+				d:Line(L["This trainer teaches none of the recipes your Leveling Guide still needs."], "small", "OFF")
 			else
-				d:Line("All Leveling Recipes Known", "body", "GOOD")
+				d:Line(L["All Leveling Recipes Known"], "body", "GOOD")
 			end
 			return
 		end
 		for _, s in ipairs(rec) do
-			local sub = s.rank and ("Your next rank: you're capped at %d"):format(s.use[1] or 0)
-				or ("For skill %d to %d"):format(s.use[1] or 0, s.use[2] or 0)
-			if not s.available then sub = sub .. (s.req and (" · needs skill %d"):format(s.req) or " · not yet") end
+			local sub = s.rank and L["Your next rank: you're capped at %d"]:format(s.use[1] or 0)
+				or L["For skill %d to %d"]:format(s.use[1] or 0, s.use[2] or 0)
+			if not s.available then sub = sub .. " · " .. (s.req and L["needs skill %d"]:format(s.req) or L["not yet"]) end
 			if s.available then
 				learnAll[#learnAll + 1] = s
 				learnCost = learnCost + (s.cost or 0)
 			end
 			d:Row({ icon = s.icon, dim = not s.available, left = s.name, leftInk = s.available and "VALUE" or "TEXT",
-				right = s.available and Calc.Money(s.cost or 0) or "Later", rightInk = s.available and "GOOD" or "OFF",
+				right = s.available and Calc.Money(s.cost or 0) or L["Later"], rightInk = s.available and "GOOD" or "OFF",
 				sub = sub, subInk = s.available and "GOOD" or "OFF", tip = function(tip) tip:SetTrainerService(s.index) end,
 				onClick = s.available and function() Learn(s) end or nil })
 		end
 		if elsewhere > 0 then
-			d:Line(("%d more come from elsewhere: see the Missing tab."):format(elsewhere), "tiny", "OFF")
+			d:Line(L["%d more come from elsewhere: see the Missing tab."]:format(elsewhere), "tiny", "OFF")
 		end
 	end)
-	trainer.note:SetText(#rec > 0 and ("%d to learn"):format(#rec) or "")
+	trainer.note:SetText(#rec > 0 and L["%d to learn"]:format(#rec) or "")
 	trainer.note:SetTextColor(Color("GOOD"))
 	trainer.total:SetText(#learnAll > 0 and Calc.Money(learnCost) or "")
 	trainer.total:SetTextColor(Color("VALUE"))
-	trainer.button.text:SetText("Learn all")
+	trainer.button.text:SetText(L["Learn all"])
 	trainer.button:SetWidth(110)
 	trainer.button:SetShown(#rec > 0)
 	trainer.line:SetShown(#rec > 0)

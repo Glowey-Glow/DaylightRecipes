@@ -17,6 +17,7 @@ if not ns.ok then return end
 local API = ns.API
 local Doc, Pages, Calc, Craft = ns.Doc, ns.Pages, ns.Calc, ns.Craft
 local S = ns.state
+local L, Plural = ns.L, ns.Plural
 local Color, Hex, Text, DiffColor = Doc.Color, Doc.Hex, Doc.Text, Doc.DiffColor
 
 local Window = {}
@@ -108,11 +109,11 @@ local filterText = ""
 local catNames = {}
 
 local function CategoryName(id)
-	if not id then return "Other" end
+	if not id then return L["Other"] end
 	local name = catNames[id]
 	if name then return name end
 	local info = TS("GetCategoryInfo", id)
-	name = type(info) == "table" and info.name or "Other"
+	name = type(info) == "table" and info.name or L["Other"]
 	catNames[id] = name
 	return name
 end
@@ -136,7 +137,7 @@ local function BuildList()
 	for _, id in ipairs(AllRecipeIDs()) do
 		local info = TS("GetRecipeInfo", id)
 		if type(info) == "table" and info.learned and not info.isDummyRecipe and info.name then
-			local keep = filterText == "" or info.name:lower():find(filterText, 1, true) ~= nil
+			local keep = filterText == "" or ns.Fold(info.name):find(filterText, 1, true) ~= nil
 			local count = keep and Craft.Count(id) or 0
 			local rd = type(info.relativeDifficulty) == "number" and info.relativeDifficulty or 3
 			if keep and canOnly and count <= 0 then keep = false end
@@ -341,14 +342,14 @@ local function Linked() return S.linked == true end
 local function Cooldown(spell)
 	local cd = TS("GetRecipeCooldown", spell)
 	if type(cd) ~= "number" or cd <= 0 then return nil end
-	if cd >= 3600 then return ("Ready in %d h %d min"):format(math.floor(cd / 3600), math.floor(cd % 3600 / 60)) end
-	return ("Ready in %d min"):format(math.max(1, math.floor(cd / 60)))
+	if cd >= 3600 then return L["Ready in %d h %d min"]:format(math.floor(cd / 3600), math.floor(cd % 3600 / 60)) end
+	return L["Ready in %d min"]:format(math.max(1, math.floor(cd / 60)))
 end
 
 local function DetailPage(d)
 	local spell = S.recipe
 	if not spell then
-		d:Line(#entries == 0 and "No recipe matches." or "Pick a recipe.", "body", "OFF")
+		d:Line(#entries == 0 and L["No recipe matches."] or L["Pick a recipe."], "body", "OFF")
 		return
 	end
 	local info = TS("GetRecipeInfo", spell)
@@ -362,7 +363,7 @@ local function DetailPage(d)
 	local schematic = TS("GetRecipeSchematic", spell, false)
 	if type(schematic) == "table" and schematic.quantityMax and schematic.quantityMax > 1 then
 		local lo, hi = schematic.quantityMin or 1, schematic.quantityMax
-		d:Line(("Makes %s at a time."):format(lo == hi and tostring(lo) or (lo .. "-" .. hi)), "small", "TEXT")
+		d:Line(L["Makes %s at a time."]:format(lo == hi and tostring(lo) or (lo .. "-" .. hi)), "small", "TEXT")
 	end
 	local reqs = TS("GetRecipeRequirements", spell)
 	if type(reqs) == "table" and #reqs > 0 then
@@ -373,7 +374,7 @@ local function DetailPage(d)
 				words[#words + 1] = Hex(cr, cg, cb) .. r.name .. "|r"
 			end
 		end
-		if #words > 0 then d:Line("Needs " .. table.concat(words, ", "), "small", "TEXT") end
+		if #words > 0 then d:Line(L["Needs %s"]:format(table.concat(words, ", ")), "small", "TEXT") end
 	end
 	local cd = Cooldown(spell)
 	if cd then d:Line(cd, "small", "WARN") end
@@ -385,7 +386,7 @@ local function DetailPage(d)
 	Pages.Worth(d, spell)
 	local who = ns.Store and ns.Store.WhoKnows(spell)
 	if type(who) == "table" and #who > 0 then
-		d:Heading("Also known by")
+		d:Heading(L["Also known by"])
 		d:Line(table.concat(who, ", "), "small", "TEXT")
 	end
 end
@@ -407,7 +408,7 @@ local function PaintCraftBar()
 	local info = TS("GetRecipeInfo", spell)
 	local enchant = type(info) == "table" and info.isEnchantingRecipe == true
 	local verb = type(info) == "table" and info.alternateVerb
-	if type(verb) ~= "string" or verb == "" then verb = enchant and "Enchant" or "Create" end
+	if type(verb) ~= "string" or verb == "" then verb = enchant and L["Enchant"] or L["Create"] end
 	local can = Craft.Count(spell)
 	local blocked = type(info) == "table" and info.disabled == true
 	-- An enchant: its item row above the buttons (the item it goes on, Auto-replace).
@@ -418,9 +419,9 @@ local function PaintCraftBar()
 		cb:SetHeight(BAR + ENCH)
 		ench.icon:SetTexture(t and t.icon or EMPTY_SLOT)
 		ench.icon:SetDesaturated(t == nil)
-		ench.name:SetText(t and t.name or "Drag an item here")
+		ench.name:SetText(t and t.name or L["Drag an item here"])
 		ench.name:SetTextColor(Color(t and "VALUE" or "LABEL"))
-		ench.hint:SetText(t and "Every enchant here goes on it" or "or click to pick one from your bags")
+		ench.hint:SetText(t and L["Every enchant here goes on it"] or L["or click to pick one from your bags"])
 		ench.hint:SetTextColor(Color("OFF"))
 		ench.auto.SetOn(Craft.AutoReplace())
 		ench.target = t
@@ -437,24 +438,24 @@ local function PaintCraftBar()
 		countBox:Hide()
 		cb.minus:Hide()
 		cb.plus:Hide()
-		cb.status:SetText(("%d of %d done"):format(making.done, making.count))
+		cb.status:SetText(L["%d of %d done"]:format(making.done, making.count))
 		cb.status:ClearAllPoints()
 		cb.status:SetPoint("RIGHT", cb.all, "LEFT", -12, 0)
 		cb.status:SetTextColor(Color("LABEL"))
 		cb.status:Show()
-		cb.make.text:SetText(("Next (%d left)"):format(making.count - making.done))
+		cb.make.text:SetText(L["Next (%d left)"]:format(making.count - making.done))
 		cb.make.SetOff(false)
 		cb.make:Show()
-		cb.all.text:SetText("Done")
+		cb.all.text:SetText(L["Done"])
 		cb.all.SetOff(false)
 		cb.all:Show()
 		return
 	end
 	if making or held then
 		if making then
-			cb.status:SetText(("Making %d of %d"):format(math.min(making.done + 1, making.count), making.count))
+			cb.status:SetText(L["Making %d of %d"]:format(math.min(making.done + 1, making.count), making.count))
 		else
-			cb.status:SetText("Stopped")
+			cb.status:SetText(L["Stopped"])
 		end
 		cb.status:SetTextColor(API.Accent())
 		cb.status:Show()
@@ -480,7 +481,7 @@ local function PaintCraftBar()
 	cb.minus:Show()
 	cb.plus:Show()
 	cb.all:Show()
-	cb.all.text:SetText(verb .. " All" .. (can > 0 and (" " .. can) or ""))
+	cb.all.text:SetText(can > 0 and L["%s All %d"]:format(verb, can) or L["%s All"]:format(verb))
 	-- (An enchant with no item yet: the game would ask for a click on one, once; with one kept,
 	-- as many as asked go on it.)
 	local noItem = enchant and not ench.target
@@ -498,7 +499,7 @@ local function PickTarget(owner)
 	if not spell then return end
 	local list = Craft.Targets(spell)
 	if #list == 0 then
-		ns.Print("Nothing you carry can take this enchant.")
+		ns.Print(L["Nothing you carry can take this enchant."])
 		return
 	end
 	local keys, values, byKey = {}, {}, {}
@@ -537,7 +538,7 @@ local function BuildEnchantRow(cb)
 	local function Take()
 		local spell = S.recipe
 		if not spell then return end
-		if not Craft.TakeFromCursor(spell) then ns.Print("That item can't take this enchant.") end
+		if not Craft.TakeFromCursor(spell) then ns.Print(L["That item can't take this enchant."]) end
 		PaintCraftBar()
 	end
 	slot:SetScript("OnReceiveDrag", Take)
@@ -558,9 +559,9 @@ local function BuildEnchantRow(cb)
 			GameTooltip:SetHyperlink(t.link)
 			GameTooltip:AddLine(" ")
 		else
-			GameTooltip:SetText("The item to enchant")
+			GameTooltip:SetText(L["The item to enchant"])
 		end
-		GameTooltip:AddLine("Drag an item here, or click to pick one. Right-click empties it.", Color("LABEL"))
+		GameTooltip:AddLine(L["Drag an item here, or click to pick one. Right-click empties it."], Color("LABEL"))
 		GameTooltip:Show()
 	end)
 	slot:SetScript("OnLeave", function(self)
@@ -586,9 +587,9 @@ local function BuildEnchantRow(cb)
 	end)
 	row.auto:HookScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
-		GameTooltip:SetText("Auto-replace")
-		GameTooltip:AddLine("Answers the game's \"replace the enchant?\" with yes while a run of yours is putting enchants on this item, so it doesn't stop at every cast.", Color("TEXT"))
-		GameTooltip:AddLine("Off: the game asks each time.", Color("LABEL"))
+		GameTooltip:SetText(L["Auto-replace"])
+		GameTooltip:AddLine(L["Answers the game's \"replace the enchant?\" with yes while a run of yours is putting enchants on this item, so it doesn't stop at every cast."], Color("TEXT"))
+		GameTooltip:AddLine(L["Off: the game asks each time."], Color("LABEL"))
 		GameTooltip:Show()
 	end)
 	row.auto:HookScript("OnLeave", function(self)
@@ -596,7 +597,7 @@ local function BuildEnchantRow(cb)
 	end)
 	row.autoLabel = Text(row, "small", "RIGHT")
 	row.autoLabel:SetPoint("RIGHT", row.auto, "LEFT", -8, 0)
-	row.autoLabel:SetText("Auto-replace")
+	row.autoLabel:SetText(L["Auto-replace"])
 	row.autoLabel:SetTextColor(Color("LABEL"))
 	return row
 end
@@ -610,7 +611,7 @@ local function BuildCraftBar(parent)
 	line:SetPoint("TOPRIGHT", 0, 0)
 	line:SetColorTexture(1, 1, 1, 0.06)
 
-	cb.make = API.Button(cb, "Create", 26)
+	cb.make = API.Button(cb, L["Create"], 26)
 	cb.make:SetWidth(96)
 	-- (The buttons sit on the bar's bottom row: an enchant's item row goes above them.)
 	cb.make:SetPoint("RIGHT", cb, "BOTTOMRIGHT", -PAD, BAR / 2)
@@ -625,7 +626,7 @@ local function BuildCraftBar(parent)
 		-- (An enchant goes on its kept item, as many times as asked: Craft.Make finds it.)
 		Craft.Make(spell, CountWanted())
 	end)
-	cb.all = API.Button(cb, "Create All", 26)
+	cb.all = API.Button(cb, L["%s All"]:format(L["Create"]), 26)
 	cb.all:SetWidth(120)
 	cb.all:SetPoint("RIGHT", cb.make, "LEFT", -8, 0)
 	cb.all:SetScript("OnClick", function()
@@ -657,7 +658,7 @@ local function BuildCraftBar(parent)
 	cb.plus:SetScript("OnClick", function() Step(IsShiftKeyDown() and 10 or 1) end)
 	cb.minus:SetScript("OnClick", function() Step(IsShiftKeyDown() and -10 or -1) end)
 
-	cb.queue = API.Button(cb, "Queue", 26)
+	cb.queue = API.Button(cb, L["Queue"], 26)
 	cb.queue:SetWidth(76)
 	cb.queue:SetPoint("RIGHT", cb.minus, "LEFT", -8, 0)
 	cb.queue:SetScript("OnClick", function()
@@ -668,7 +669,7 @@ local function BuildCraftBar(parent)
 
 	cb.ench = BuildEnchantRow(cb)
 
-	cb.stop = API.Button(cb, "Stop", 26)
+	cb.stop = API.Button(cb, L["Stop"], 26)
 	cb.stop:SetWidth(110)
 	cb.stop:SetPoint("RIGHT", cb, "BOTTOMRIGHT", -PAD, BAR / 2)
 	-- (The secure Stop laid over it takes the click: Craft.PlaceStop.)
@@ -843,10 +844,10 @@ local function PaintSide()
 	if not side then return end
 	for i = 1, #sideRows do sideRows[i]:Hide() end
 	sideUsed, sideY = 0, 8 - sideScroll
-	SideHeading("Professions")
+	SideHeading(L["Professions"])
 	local mine = MyProfessions()
 	if #mine == 0 then
-		SideHeading("You have no profession yet.")
+		SideHeading(L["You have no profession yet."])
 	end
 	for _, p in ipairs(mine) do
 		local picked = not alt and S.mode == "win" and not Linked() and p.line == S.line
@@ -871,7 +872,7 @@ local function PaintSide()
 			if (a.c.name or "") ~= (b.c.name or "") then return (a.c.name or "") < (b.c.name or "") end
 			return a.line < b.line
 		end)
-		SideHeading("Your alts")
+		SideHeading(L["Your alts"])
 		for _, a in ipairs(alts) do
 			local color
 			if a.c.class and API.ClassColor then
@@ -903,25 +904,25 @@ local altFilter = ""
 local function AltPage(d)
 	local c = ns.Store and ns.Store.Alts()[alt.guid]
 	if type(c) ~= "table" then
-		d:Line("That character isn't on this realm and faction.", "small", "OFF")
+		d:Line(L["That character isn't on this realm and faction."], "small", "OFF")
 		return
 	end
 	local p = type(c.prof) == "table" and c.prof[alt.line] or {}
 	local known = type(c.known) == "table" and c.known[alt.line] or nil
 	if type(known) ~= "table" then
-		d:Line(("Open this profession on %s once to see what they know."):format(c.name or "them"), "small", "OFF")
+		d:Line(L["Open this profession on %s once to see what they know."]:format(c.name or L["them"]), "small", "OFF")
 		return
 	end
 	local skill = p.skill or 0
 	local list = {}
 	for spell in pairs(known) do
-		local name = (ns.RecipeNames and ns.RecipeNames[spell]) or Doc.RecipeName(spell)
-		if altFilter == "" or name:lower():find(altFilter, 1, true) then
+		local name = ns.SpellName(spell) or Doc.RecipeName(spell)
+		if altFilter == "" or ns.Fold(name):find(altFilter, 1, true) then
 			list[#list + 1] = { spell = spell, name = name }
 		end
 	end
-	table.sort(list, function(a, b) return a.name < b.name end)
-	d:Line(("%d recipe%s known"):format(#list, #list == 1 and "" or "s"), "small", "LABEL")
+	table.sort(list, function(a, b) return ns.NameLess(a.name, b.name) end)
+	d:Line(Plural(#list, "%d recipe known", "%d recipes known"):format(#list), "small", "LABEL")
 	d:Gap(2)
 	for _, e in ipairs(list) do
 		local t = Calc.Thresholds(e.spell)
@@ -938,8 +939,8 @@ end
 
 local headIcon, headName, headBar, headSkill, headNote
 
-local TABS = { { "recipes", "Recipes" }, { "guide", "Leveling Guide" }, { "materials", "Materials" },
-	{ "queue", "Queue" }, { "missing", "Missing" } }
+local TABS = { { "recipes", L["Recipes"] }, { "guide", L["Leveling Guide"] }, { "materials", L["Materials"] },
+	{ "queue", L["Queue"] }, { "missing", L["Missing"] } }
 
 local function PaintTabs()
 	for _, b in ipairs(tabButtons) do
@@ -998,7 +999,7 @@ local function Build()
 	end)
 	win:Hide()
 	win:SetScale(ns.Get("winScale") or 1)
-	API.Skin(win, { window = true })
+	ns.SkinWindow(win)
 	Place()
 	-- Esc closes it like any window (and ends the trade skill with it).
 	if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "DaylightRecipesWindow") end
@@ -1086,9 +1087,9 @@ local function Build()
 	body:SetPoint("BOTTOMRIGHT", content, "BOTTOMRIGHT", 0, 0)
 
 	-- Recipes: search, filters, list on the left; the recipe on the right; making it under it.
-	search = API.Input(body, { search = true, hint = "Search recipes",
+	search = API.Input(body, { search = true, hint = L["Search recipes"],
 		onChange = function(text)
-			text = (text or ""):lower()
+			text = ns.Fold(text)
 			if text == filterText then return end
 			filterText = text
 			Debounce(function()
@@ -1098,7 +1099,7 @@ local function Build()
 		end })
 	search:SetPoint("TOPLEFT", body, "TOPLEFT", PAD, -10)
 	search:SetWidth(LIST - PAD * 2)
-	filterButtons = { Toggle(body, "Can make", "canMake"), Toggle(body, "Skill-ups", "skillUps") }
+	filterButtons = { Toggle(body, L["Can make"], "canMake"), Toggle(body, L["Skill-ups"], "skillUps") }
 	filterButtons[1]:SetPoint("TOPLEFT", search, "BOTTOMLEFT", -6, -6)
 	filterButtons[2]:SetPoint("LEFT", filterButtons[1], "RIGHT", 4, 0)
 
@@ -1132,9 +1133,9 @@ local function Build()
 	detail.scroll:SetPoint("BOTTOMRIGHT", craftBar, "TOPRIGHT", 0, 0)
 
 	-- The other tabs: one page across, the missing list with its search above it.
-	pageSearch = API.Input(body, { search = true, hint = "Search missing recipes",
+	pageSearch = API.Input(body, { search = true, hint = L["Search missing recipes"],
 		onChange = function(text)
-			text = (text or ""):lower()
+			text = ns.Fold(text)
 			if text == (pageSearch.filter or "") then return end
 			pageSearch.filter = text
 			Debounce(function()
@@ -1147,9 +1148,9 @@ local function Build()
 	pageDoc = Doc.New(body, { pad = 24 })
 
 	altDoc = Doc.New(body, { pad = 24 })
-	altDoc.search = API.Input(body, { search = true, hint = "Search their recipes",
+	altDoc.search = API.Input(body, { search = true, hint = L["Search their recipes"],
 		onChange = function(text)
-			text = (text or ""):lower()
+			text = ns.Fold(text)
 			if text == altFilter then return end
 			altFilter = text
 			Debounce(function() Window.Render() end)
@@ -1178,14 +1179,14 @@ local function PaintHead()
 		local c = ns.Store and ns.Store.Alts()[alt.guid]
 		local p = c and type(c.prof) == "table" and c.prof[alt.line] or {}
 		headIcon:Hide()
-		headName:SetText(((c and c.name) or "?") .. "'s " .. (ns.Tips and ns.Tips.LineName(alt.line) or ""))
+		headName:SetText(L["%s's %s"]:format((c and c.name) or "?", ns.Tips and ns.Tips.LineName(alt.line) or ""))
 		headName:SetTextColor(Color("VALUE"))
 		headBar:SetMinMaxValues(0, math.max(1, p.max or 1))
 		headBar:SetValue(p.skill or 0)
 		headBar:Show()
 		headSkill:SetText(("%d / %d"):format(p.skill or 0, p.max or 0))
 		headSkill:SetTextColor(Color("LABEL"))
-		headNote:SetText("As of their last visit")
+		headNote:SetText(L["As of their last visit"])
 		headNote:SetTextColor(Color("OFF"))
 		return
 	end
@@ -1196,7 +1197,7 @@ local function PaintHead()
 	end
 	headIcon:SetTexture(icon)
 	headIcon:SetShown(icon ~= nil)
-	headName:SetText(open and (S.name or "Profession") or "Daylight Recipes")
+	headName:SetText(open and (S.name or L["Profession"]) or "Daylight Recipes")
 	headName:SetTextColor(Color("VALUE"))
 	if open and (S.max or 0) > 0 then
 		headBar:SetMinMaxValues(0, S.max)
@@ -1206,12 +1207,12 @@ local function PaintHead()
 		headSkill:SetTextColor(Color("LABEL"))
 	else
 		headBar:Hide()
-		headSkill:SetText(open and "" or "Pick a profession on the left.")
+		headSkill:SetText(open and "" or L["Pick a profession on the left."])
 		headSkill:SetTextColor(Color("OFF"))
 	end
 	if open and Linked() then
 		local _, who = TS("IsTradeSkillLinked")
-		headNote:SetText(type(who) == "string" and (who .. "'s recipes") or "Someone else's recipes")
+		headNote:SetText(type(who) == "string" and L["%s's recipes"]:format(who) or L["Someone else's recipes"])
 		headNote:SetTextColor(Color("WARN"))
 	else
 		headNote:SetText("")
@@ -1223,13 +1224,13 @@ local function Draw(d, fn, ...)
 	local ok, err = pcall(fn, d, ...)
 	if not ok then
 		geterrorhandler()(err)
-		d:Line("Something went wrong drawing this page.", "small", "BAD")
+		d:Line(L["Something went wrong drawing this page."], "small", "BAD")
 	end
 	d:Finish()
 end
 
 local function NoSession(d)
-	d:Line("Open a profession from the list on the left (or cast it from your spellbook).", "body", "OFF")
+	d:Line(L["Open a profession from the list on the left (or cast it from your spellbook)."], "body", "OFF")
 end
 
 function Window.Render()
@@ -1395,7 +1396,7 @@ function Window.OpenProfession(line)
 	end
 	alt = nil
 	local ok, opened = pcall(C_TradeSkillUI.OpenTradeSkill, line)
-	if not ok or opened == false then ns.Print("The game didn't open that profession.") end
+	if not ok or opened == false then ns.Print(L["The game didn't open that profession."]) end
 end
 
 function Window.ShowAlt(guid, line)
@@ -1431,7 +1432,6 @@ function Window.Toggle()
 end
 
 function Window.Restyle()
-	if win then API.Skin(win, { window = true }) end
 	if Window.Shown() then Window.Render() end
 end
 

@@ -7,6 +7,7 @@ local _, ns = ...
 if not ns.ok then return end
 
 local API, me = ns.API, ns.me
+local L = ns.L
 local Doc, Pages = ns.Doc, ns.Pages
 local S = ns.state
 local Color, Hex, Text = Doc.Color, Doc.Hex, Doc.Text
@@ -74,7 +75,7 @@ local function Build()
 	-- Drawn while its window was shut: draw again once it shows.
 	root:SetScript("OnShow", function() ns.Changed() end)
 	root.tabs = {}
-	for i, spec in ipairs({ { "recipe", "Recipe" }, { "plan", "Guide" }, { "missing", "Missing" } }) do
+	for i, spec in ipairs({ { "recipe", L["Recipe"] }, { "plan", L["Guide"] }, { "missing", L["Missing"] } }) do
 		local b = CreateFrame("Button", nil, root)
 		b.key = spec[1]
 		b:SetHeight(26)
@@ -104,9 +105,9 @@ local function Build()
 	root.skill:SetPoint("TOPRIGHT", root, "TOPRIGHT", -PAD, -18)
 	root:SetClipsChildren(true)
 
-	root.search = API.Input(root, { search = true, hint = "Search",
+	root.search = API.Input(root, { search = true, hint = L["Search"],
 		onChange = function(text)
-			text = (text or ""):lower()
+			text = ns.Fold(text)
 			if text == filter then return end
 			filter = text
 			-- One search a moment after the last key, not one per key (each goes over every recipe).
@@ -143,7 +144,7 @@ function Pane.AttachMogul(win)
 		mogulPane:SetPoint("BOTTOMLEFT", win, "BOTTOMRIGHT", 6, 0)
 		mogulPane:SetWidth(shownWidth or TargetWidth())
 		mogulPane:EnableMouse(true)
-		API.Skin(mogulPane, { window = true })
+		ns.SkinWindow(mogulPane)
 	end
 end
 
@@ -214,7 +215,7 @@ function Pane.Render()
 	end
 	if not ok then
 		geterrorhandler()(err)
-		doc:Line("Something went wrong drawing this page.", "small", "BAD")
+		doc:Line(L["Something went wrong drawing this page."], "small", "BAD")
 	end
 	doc:Finish()
 end
@@ -226,7 +227,7 @@ local function ApplyWidth(w)
 	if duiPane then me.AttachCraftPane(w) end
 	if mogulPane then
 		mogulPane:SetWidth(w)
-		API.Skin(mogulPane, { window = true })
+		ns.SkinWindow(mogulPane)
 	end
 end
 
@@ -260,7 +261,7 @@ local function BuildTab()
 	foldTab:SetScript("OnEnter", function(self)
 		PaintGrip(true)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:SetText(Folded() and "Open Daylight Recipes" or "Fold Daylight Recipes away")
+		GameTooltip:SetText(Folded() and L["Open Daylight Recipes"] or L["Fold Daylight Recipes away"])
 		GameTooltip:Show()
 	end)
 	foldTab:SetScript("OnLeave", function()
@@ -321,7 +322,6 @@ end
 
 -- The player's font changed: every string we made takes it, at its size.
 function Pane.Restyle()
-	if mogulPane then API.Skin(mogulPane, { window = true }) end
 	if Pane.Shown() then ns.Changed() end
 end
 

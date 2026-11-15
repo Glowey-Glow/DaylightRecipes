@@ -13,6 +13,7 @@
 -- (LICENSE.md). Built on DaylightUI.API only.
 
 local ADDON, ns = ...
+local L = ns.L
 
 local DUI = _G.DaylightUI
 local API = DUI and DUI.API
@@ -38,6 +39,8 @@ local DEFAULTS = {
 	tooltips = true,
 	reminders = true,
 	marks = true,
+	duiOpacity = true,
+	opacity = 0.85,
 }
 ns.DEFAULTS = DEFAULTS
 
@@ -47,8 +50,106 @@ function ns.Get(path)
 	return DEFAULTS[path]
 end
 
+-- ---------------------------------------------------------------------------------------------
+-- Window opacity
+-- ---------------------------------------------------------------------------------------------
+-- Every window and panel of ours is dressed through here: DaylightUI's window shell, its
+-- background at DaylightUI's window opacity (opts.window), or at the player's own (opts.bgAlpha)
+-- with "Use DaylightUI's opacity" off. Each one is kept with the look it asked for, so a change
+-- of either dresses them all again.
+
+local skinned = setmetatable({}, { __mode = "k" })
+
+function ns.SkinWindow(frame, extra)
+	if not frame then return end
+	skinned[frame] = extra or false
+	local opts = { window = true }
+	if extra then for k, v in pairs(extra) do opts[k] = v end end
+	if ns.Get("duiOpacity") == false and not opts.noBackground then opts.bgAlpha = ns.Get("opacity") end
+	API.Skin(frame, opts)
+end
+
+function ns.ReskinWindows()
+	for frame, extra in pairs(skinned) do ns.SkinWindow(frame, extra or nil) end
+end
+
 function ns.Print(msg)
 	DEFAULT_CHAT_FRAME:AddMessage("|cff66ccffDaylight Recipes|r: " .. msg)
+end
+
+-- ---------------------------------------------------------------------------------------------
+-- Names in the client's language
+-- ---------------------------------------------------------------------------------------------
+-- The data's names (ns.RecipeNames, ns.ItemNames) are English. Whatever is shown or searched takes
+-- the game's own name instead, which is in the client's language, and the English one only when
+-- the game doesn't have it (a spell it doesn't know, an item not cached yet). Matching data to data
+-- (the route's left-out recipes) keeps the English names.
+
+-- A recipe's (or any spell's) name in the client's language.
+function ns.SpellName(spell)
+	if not spell then return nil end
+	local name
+	if C_Spell and C_Spell.GetSpellName then
+		local ok, n = pcall(C_Spell.GetSpellName, spell)
+		if ok then name = n end
+	elseif GetSpellInfo then
+		name = GetSpellInfo(spell)
+	end
+	if type(name) == "string" and name ~= "" then return name end
+	return ns.RecipeNames and ns.RecipeNames[spell] or nil
+end
+
+-- An item's name in the client's language (the English one while it isn't cached yet).
+function ns.ItemNameOf(itemID)
+	if not itemID then return nil end
+	local name
+	if C_Item and C_Item.GetItemNameByID then
+		local ok, n = pcall(C_Item.GetItemNameByID, itemID)
+		if ok then name = n end
+	end
+	if not name and GetItemInfo then name = GetItemInfo(itemID) end
+	if type(name) == "string" and name ~= "" then return name end
+	return ns.ItemNames and ns.ItemNames[itemID] or nil
+end
+
+-- Lower case for searches. string.lower only folds A to Z: the capitals of German, French, Spanish
+-- (Latin-1 and Latin Extended-A) and Russian (Cyrillic) are two bytes in UTF-8, folded here from a
+-- table made once, so "Ä" finds "ä" and "Б" finds "б". Korean and Chinese have no case.
+local FOLD = {}
+do
+	local function utf8(cp) return string.char(0xC0 + math.floor(cp / 64), 0x80 + cp % 64) end
+	local function pair(upper, lower) FOLD[utf8(upper)] = utf8(lower) end
+	for cp = 0xC0, 0xDE do
+		if cp ~= 0xD7 then pair(cp, cp + 0x20) end          -- À to Þ (not ×)
+	end
+	for cp = 0x100, 0x137, 2 do                            -- Ā to ķ: capital, then small
+		if cp ~= 0x130 then pair(cp, cp + 1) end           -- (not Turkish İ: its small one isn't ı)
+	end
+	for cp = 0x139, 0x148, 2 do pair(cp, cp + 1) end       -- Ĺ to ň
+	for cp = 0x14A, 0x177, 2 do pair(cp, cp + 1) end       -- Ŋ to ŷ
+	pair(0x178, 0xFF)                                      -- Ÿ to ÿ
+	for cp = 0x179, 0x17E, 2 do pair(cp, cp + 1) end       -- Ź to ž
+	for cp = 0x400, 0x40F do pair(cp, cp + 0x50) end       -- Ѐ to Џ (Ё among them)
+	for cp = 0x410, 0x42F do pair(cp, cp + 0x20) end       -- А to Я
+end
+
+function ns.Fold(text)
+	if type(text) ~= "string" then return "" end
+	text = text:lower()
+	-- (Only text with a two-byte letter from those blocks is gone over again.)
+	if text:find("[\195-\209]") then text = (text:gsub("[\195-\209][\128-\191]", FOLD)) end
+	return text
+end
+
+-- Names in alphabetical order the client's way (accents next to their letter, not after Z), where
+-- the game offers it; byte order otherwise.
+local cmp = type(strcmputf8i) == "function" and strcmputf8i or nil
+function ns.NameLess(a, b)
+	if cmp then
+		local c = cmp(a, b)
+		if c ~= 0 then return c < 0 end
+	end
+	return a < b
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -273,53 +374,60 @@ end)
 -- ---------------------------------------------------------------------------------------------
 
 local SOURCES = {
-	market = "Market value",
-	minbuyout = "Lowest buyout",
-	daily = "Today's average",
+	market = L["Market value"],
+	minbuyout = L["Lowest buyout"],
+	daily = L["Today's average"],
 }
 
 local function NoAH(get) return get("useAH") == false end
 local function PaneOff(get) return get("window") == "recipes" end
 local function WindowOff(get) return get("window") ~= "recipes" end
+local function FollowOpacity(get) return get("duiOpacity") ~= false end
 
 local WINDOWS = {
-	recipes = "Recipes window",
-	pane = "Docked pane",
+	recipes = L["Recipes window"],
+	pane = L["Docked pane"],
 }
 
 local pages = {
-	{ id = "recipes", label = "Recipes",
-	  desc = "Your profession window, leveling plan and missing recipes.",
+	{ id = "recipes", label = L["Recipes"],
+	  desc = L["Your profession window, leveling plan and missing recipes."],
 	  groups = {
-		{ label = "Profession window", items = {
-			{ type = "dropdown", key = "window", label = "Profession window", values = WINDOWS,
-			  desc = "Daylight Recipes' own large window in place of the game's (and DaylightUI's or DaylightMogul's), or theirs with a pane beside it." },
-			{ type = "slider", key = "winScale", label = "Window size", min = 0.7, max = 1.2, step = 0.05,
-			  desc = "How large Daylight Recipes' window is.", disabled = WindowOff },
-			{ type = "slider", key = "paneWidth", label = "Pane width", min = 260, max = 400, step = 10,
-			  desc = "How wide the pane beside DaylightUI's or DaylightMogul's profession window is.", disabled = PaneOff },
+		{ label = L["Profession window"], items = {
+			{ type = "dropdown", key = "window", label = L["Profession window"], values = WINDOWS,
+			  desc = L["Daylight Recipes' own large window in place of the game's (and DaylightUI's or DaylightMogul's), or theirs with a pane beside it."] },
+			{ type = "slider", key = "winScale", label = L["Window size"], min = 0.7, max = 1.2, step = 0.05,
+			  desc = L["How large Daylight Recipes' window is."], disabled = WindowOff },
+			{ type = "slider", key = "paneWidth", label = L["Pane width"], min = 260, max = 400, step = 10,
+			  desc = L["How wide the pane beside DaylightUI's or DaylightMogul's profession window is."], disabled = PaneOff },
 		} },
-		{ label = "Prices", items = {
-			{ type = "toggle", key = "useAH", label = "Use Auction House prices",
-			  desc = "Materials, sales and disenchants are priced from the Auction House: DaylightMogul's prices when it's loaded, else what you've browsed or scanned from the Leveling Guide. Off, only vendor prices are used." },
-			{ type = "dropdown", key = "priceSource", label = "DaylightMogul's price", values = SOURCES,
-			  desc = "Which of DaylightMogul's prices to use, when it's loaded.", disabled = NoAH },
-			{ type = "toggle", key = "talents", label = "Count my profession talents",
-			  desc = "Overtime raises the skill-up chance and Bartering lowers vendor prices, by the ranks you've bought." },
+		{ label = L["Look"], items = {
+			{ type = "toggle", key = "duiOpacity", label = L["Use DaylightUI's opacity"],
+			  desc = L["Our windows and panels follow DaylightUI's window opacity."] },
+			{ type = "slider", key = "opacity", label = L["Window opacity"], min = 0.1, max = 1, step = 0.05, unit = "%",
+			  desc = L["How solid our windows' backgrounds are, with DaylightUI's opacity off."], disabled = FollowOpacity },
 		} },
-		{ label = "Help around the game", items = {
-			{ type = "toggle", key = "tooltips", label = "Item tooltips",
-			  desc = "What uses a material, what your plans need of it, and who on your account knows a recipe item." },
-			{ type = "toggle", key = "reminders", label = "Trainer reminders",
-			  desc = "A chat line when a skill-up opens new recipes at a trainer, or a profession reaches its cap." },
-			{ type = "toggle", key = "marks", label = "Mark the best recipe",
-			  desc = "A small mark in the recipe list on the cheapest recipe to skill up with now." },
+		{ label = L["Prices"], items = {
+			{ type = "toggle", key = "useAH", label = L["Use Auction House prices"],
+			  desc = L["Materials, sales and disenchants are priced from the Auction House: DaylightMogul's prices when it's loaded, else what you've browsed or scanned from the Leveling Guide. Off, only vendor prices are used."] },
+			{ type = "dropdown", key = "priceSource", label = L["DaylightMogul's price"], values = SOURCES,
+			  desc = L["Which of DaylightMogul's prices to use, when it's loaded."], disabled = NoAH },
+			{ type = "toggle", key = "talents", label = L["Count my profession talents"],
+			  desc = L["Overtime raises the skill-up chance and Bartering lowers vendor prices, by the ranks you've bought."] },
 		} },
-		{ label = "Missing recipes", items = {
-			{ type = "toggle", key = "learnableOnly", label = "Only ones my skill allows",
-			  desc = "List only the recipes your skill is high enough to learn now." },
-			{ type = "toggle", key = "tomtom", label = "Waypoints with TomTom",
-			  desc = "Clicking a place sets a TomTom waypoint when TomTom is installed. Off, or without it, the game's own map pin is used." },
+		{ label = L["Help around the game"], items = {
+			{ type = "toggle", key = "tooltips", label = L["Item tooltips"],
+			  desc = L["What uses a material, what your plans need of it, and who on your account knows a recipe item."] },
+			{ type = "toggle", key = "reminders", label = L["Trainer reminders"],
+			  desc = L["A chat line when a skill-up opens new recipes at a trainer, or a profession reaches its cap."] },
+			{ type = "toggle", key = "marks", label = L["Mark the best recipe"],
+			  desc = L["A small mark in the recipe list on the cheapest recipe to skill up with now."] },
+		} },
+		{ label = L["Missing recipes"], items = {
+			{ type = "toggle", key = "learnableOnly", label = L["Only ones my skill allows"],
+			  desc = L["List only the recipes your skill is high enough to learn now."] },
+			{ type = "toggle", key = "tomtom", label = L["Waypoints with TomTom"],
+			  desc = L["Clicking a place sets a TomTom waypoint when TomTom is installed. Off, or without it, the game's own map pin is used."] },
 		} },
 	  } },
 }
@@ -327,11 +435,11 @@ local pages = {
 pcall(function()
 	DUI:RegisterPlugin(ADDON, {
 		needs = { 1, 2 },
-		short = "Recipes",
+		short = L["Recipes"],
 		color = { 0.95, 0.75, 0.35 },
-		blurb = "A profession window with costs, skill-up chances, a leveling plan and missing recipes.",
+		blurb = L["A profession window with costs, skill-up chances, a leveling plan and missing recipes."],
 	})
-	DUI:RegisterModule(ADDON, { plugin = ADDON, label = "Recipes", defaults = DEFAULTS, options = { pages = pages } })
+	DUI:RegisterModule(ADDON, { plugin = ADDON, label = L["Recipes"], defaults = DEFAULTS, options = { pages = pages } })
 end)
 
 me.On("SettingChanged", function(scope, path)
@@ -348,11 +456,16 @@ me.On("SettingChanged", function(scope, path)
 		if ns.Window then ns.Window.Rescale() end
 		return
 	end
+	if path == "duiOpacity" or path == "opacity" then
+		ns.ReskinWindows()
+		return
+	end
 	if ns.Calc then ns.Calc.Forget() end
 	if PaneShown() then ns.Changed() end
 end)
 
 me.On("StyleChanged", function()
+	ns.ReskinWindows()
 	if ns.Doc then ns.Doc.Restyle() end
 	if ns.Pane then ns.Pane.Restyle() end
 	if ns.Window then ns.Window.Restyle() end
@@ -363,7 +476,7 @@ SLASH_DAYLIGHTRECIPES1 = "/recipes"
 SLASH_DAYLIGHTRECIPES2 = "/dr"
 SlashCmdList.DAYLIGHTRECIPES = function()
 	if ns.Get("window") ~= "recipes" then
-		ns.Print("The pane beside the profession window is in use: pick Daylight Recipes' window in its options.")
+		ns.Print(L["The pane beside the profession window is in use: pick Daylight Recipes' window in its options."])
 		return
 	end
 	if ns.Window then ns.Window.Toggle() end

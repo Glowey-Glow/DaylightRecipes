@@ -4,6 +4,7 @@
 -- on changes (prices, talents, reputation, a setting): Calc.Forget().
 local _, ns = ...
 if not ns.ok then return end
+local L = ns.L
 
 local Calc = {}
 ns.Calc = Calc
@@ -217,16 +218,16 @@ function Calc.Vendor(itemID)
 				end
 				if not best or unit < best then
 					local npc = ns.Npcs and ns.Npcs[seller.npc]
-					best, who = unit, seller.name or (npc and npc[1]) or "Vendor"
+					best, who = unit, seller.name or (npc and npc[1]) or L["Vendor"]
 				end
 			end
 		end
 		local seen = Mogul(itemID, "vendorbuy")
-		if seen and (not best or seen < best) then best, who = seen, "Vendor" end
+		if seen and (not best or seen < best) then best, who = seen, L["Vendor"] end
 		-- A vendor you've been to yourself (your discounts already in its price).
 		local visited, name
 		if ns.Store then visited, name = ns.Store.SeenVendor(itemID) end
-		if visited and (not best or visited < best) then best, who = visited, name or "Vendor" end
+		if visited and (not best or visited < best) then best, who = visited, name or L["Vendor"] end
 		if best then return { unit = best, who = who } end
 	end)
 	if v then return v.unit, v.who end
@@ -349,33 +350,34 @@ end
 
 Calc.AH_CUT = 0.05
 
--- { itemID, count, bound, ah, vendor, de (Calc.Disenchant's), routes = { { label, value, profit } } }
+-- { itemID, count, bound, ah, vendor, de (Calc.Disenchant's), routes = { { label, text, value, profit } } }
+-- label is the English name the code compares ("Auction House"), text the one to show.
 function Calc.Worth(spell)
 	local itemID, count = Calc.Output(spell)
 	if not itemID then return nil end
 	local name, _, _, _, sell, bind = ItemInfo(itemID)
 	local out = { itemID = itemID, count = count, bound = bind == 1, routes = {} }
 	local cost = Calc.Cost(spell)
-	local function route(label, value)
+	local function route(label, text, value)
 		if not value then return end
-		out.routes[#out.routes + 1] = { label = label, value = value,
+		out.routes[#out.routes + 1] = { label = label, text = text, value = value,
 			profit = cost.complete and (value - cost.total) or nil }
 	end
 	if not out.bound then
 		local ah = Calc.AH(itemID)
 		if ah then
 			out.ah = ah * count
-			route("Auction House", floor(out.ah * (1 - Calc.AH_CUT) + 0.5))
+			route("Auction House", L["Auction House"], floor(out.ah * (1 - Calc.AH_CUT) + 0.5))
 		end
 	end
 	if name and type(sell) == "number" and sell > 0 then
 		out.vendor = sell * count
-		route("Vendor", out.vendor)
+		route("Vendor", L["Vendor"], out.vendor)
 	end
 	local de = Calc.Disenchant(itemID)
 	if de then
 		out.de = de
-		if de.value > 0 then route("Disenchant", floor(de.value * count + 0.5)) end
+		if de.value > 0 then route("Disenchant", L["Disenchant"], floor(de.value * count + 0.5)) end
 	end
 	return out
 end
@@ -392,7 +394,7 @@ function Calc.Money(copper)
 		if ok and text then return text end
 	end
 	local g, s, c = floor(copper / 10000), floor(copper % 10000 / 100), copper % 100
-	if g > 0 then return ("%dg %ds %dc"):format(g, s, c) end
-	if s > 0 then return ("%ds %dc"):format(s, c) end
-	return ("%dc"):format(c)
+	if g > 0 then return L["%dg %ds %dc"]:format(g, s, c) end
+	if s > 0 then return L["%ds %dc"]:format(s, c) end
+	return L["%dc"]:format(c)
 end

@@ -53,7 +53,7 @@ function Craft.Targets(spell)
 				link = C_Item.GetItemLink and C_Item.GetItemLink(loc) }
 		end
 	end
-	table.sort(out, function(a, b) return a.name < b.name end)
+	table.sort(out, function(a, b) return ns.NameLess(a.name, b.name) end)
 	return out
 end
 

@@ -4,6 +4,7 @@
 -- is left out.
 local _, ns = ...
 if not ns.ok then return end
+local L = ns.L
 
 local Where = {}
 ns.Where = Where
@@ -179,8 +180,23 @@ local function Near(place)
 	return 2, 0
 end
 
+-- A zone's name in the client's language, from its map (the data's English name when the game has
+-- no map by that ID). Memoized: an NPC list asks it for every spawn.
+local zoneName = {}       -- uiMapID -> its name (false: the game has none)
+local function ZoneName(mapID, english)
+	local v = zoneName[mapID]
+	if v == nil then
+		v = false
+		local info = C_Map and C_Map.GetMapInfo and C_Map.GetMapInfo(mapID)
+		if type(info) == "table" and type(info.name) == "string" and info.name ~= "" then v = info.name end
+		zoneName[mapID] = v
+	end
+	return v or english
+end
+
 -- name, place ({ zone, mapID, x, y } or { zone }) of one of the data's NPCs, nil when it's the
--- other faction's. Of an NPC's spawns, the nearest one with a spot on the map.
+-- other faction's. Of an NPC's spawns, the nearest one with a spot on the map. NPC names stay the
+-- data's (English): the game only knows an NPC's name once you've seen it.
 function Where.Npc(id)
 	local npc = ns.Npcs and ns.Npcs[id]
 	if not npc then return nil end
@@ -190,7 +206,7 @@ function Where.Npc(id)
 		local l = npc[i]
 		if type(l) == "table" then
 			if l[2] then
-				local place = { zone = l[1], mapID = l[2], x = l[3], y = l[4] }
+				local place = { zone = ZoneName(l[2], l[1]), mapID = l[2], x = l[3], y = l[4] }
 				local rank, dist = Near(place)
 				if not best or rank < bestRank or (rank == bestRank and dist < bestDist) then
 					best, bestRank, bestDist = place, rank, dist
@@ -217,10 +233,17 @@ local function AnySource(spell, teach)
 	return false
 end
 
+-- A quest's title in the client's language once the game has it cached; until then the data's
+-- English one, with the quest asked for so the next list made (the window opened again) has it.
 local function QuestName(id)
+	if C_QuestLog and C_QuestLog.GetTitleForQuestID then
+		local ok, title = pcall(C_QuestLog.GetTitleForQuestID, id)
+		if ok and type(title) == "string" and title ~= "" then return title end
+		if C_QuestLog.RequestLoadQuestByID then pcall(C_QuestLog.RequestLoadQuestByID, id) end
+	end
 	local q = ns.Quests and ns.Quests[id]
 	local meta = ns.QuestMeta and ns.QuestMeta[id]
-	return (q and q[1]) or (meta and meta.name) or ("Quest " .. id)
+	return (q and q[1]) or (meta and meta.name) or L["Quest %d"]:format(id)
 end
 
 -- "180 copper" (how the data writes a vendor's price) as money; anything else as it is.
@@ -273,22 +296,22 @@ local function BuildSources(spell)
 	local automatic = ns.AutomaticRecipes and ns.AutomaticRecipes[spell]
 	local trainers = ns.Trainers and ns.Trainers[spell]
 	if trainers and #trainers > 0 then
-		group("trainer", "Trainer", trainers, function(rec)
-			if automatic then return "With the profession" end
+		group("trainer", L["Trainer"], trainers, function(rec)
+			if automatic then return L["With the profession"] end
 			return type(rec[2]) == "number" and ns.Calc.Money(rec[2]) or nil
 		end)
 	elseif automatic then
-		groups[#groups + 1] = { kind = "auto", title = "Learned with the profession", lines = {}, more = 0 }
+		groups[#groups + 1] = { kind = "auto", title = L["Learned with the profession"], lines = {}, more = 0 }
 	end
 
 	local teach = data[5]
 	if teach then
 		local costs = ns.RecipeVendorCosts and ns.RecipeVendorCosts[teach]
-		group("vendor", "Sold by", ns.Sellers and ns.Sellers[teach], function(_, id)
+		group("vendor", L["Sold by"], ns.Sellers and ns.Sellers[teach], function(_, id)
 			return costs and PriceText(costs[id]) or nil
 		end)
-		group("drop", "Dropped by", ns.Drops and ns.Drops[teach], function(rec)
-			return type(rec[2]) == "number" and (rec[2] .. "%") or nil
+		group("drop", L["Dropped by"], ns.Drops and ns.Drops[teach], function(rec)
+			return type(rec[2]) == "number" and L["%s%%"]:format(rec[2]) or nil
 		end, function(a, b)
 			local ac, bc = a.chance or -1, b.chance or -1
 			if ac ~= bc then return ac > bc end
@@ -298,9 +321,9 @@ local function BuildSources(spell)
 		if others and #others > 0 then
 			local lines = {}
 			for _, row in ipairs(others) do
-				lines[#lines + 1] = { name = row.name or "Somewhere", note = type(row.chance) == "number" and (row.chance .. "%") or nil }
+				lines[#lines + 1] = { name = row.name or L["Somewhere"], note = type(row.chance) == "number" and L["%s%%"]:format(row.chance) or nil }
 			end
-			groups[#groups + 1] = { kind = "drop", title = "Found in", lines = lines, more = 0 }
+			groups[#groups + 1] = { kind = "drop", title = L["Found in"], lines = lines, more = 0 }
 		end
 	end
 
@@ -308,7 +331,7 @@ local function BuildSources(spell)
 	if quests and #quests > 0 then
 		local lines = {}
 		for _, id in ipairs(quests) do lines[#lines + 1] = { name = QuestName(id), quest = id } end
-		groups[#groups + 1] = { kind = "quest", title = "Quest reward", lines = lines, more = 0 }
+		groups[#groups + 1] = { kind = "quest", title = L["Quest reward"], lines = lines, more = 0 }
 	end
 	return groups
 end
@@ -323,7 +346,7 @@ function Where.Sources(spell)
 	return g
 end
 
-local KIND_WORD = { trainer = "Trainer", vendor = "Vendor", drop = "Drop", quest = "Quest", auto = "With the profession" }
+local KIND_WORD = { trainer = L["Trainer"], vendor = L["Vendor"], drop = L["Drop"], quest = L["Quest"], auto = L["With the profession"] }
 
 -- "Trainer · Vendor", for the list.
 function Where.Summary(groups)
@@ -341,7 +364,7 @@ end
 
 -- The open profession's missing recipes: { { spell, name, required, level, reachable, item,
 -- groups, summary } }, by the skill they need, then name. filter: lower-case text to match.
-local UNKNOWN_SOURCE = "Source not known yet"
+local UNKNOWN_SOURCE = L["Source not known yet"]
 
 -- The open profession's missing recipes, everything that doesn't depend on your skill or level:
 -- made once per profession opening and again only when a recipe is learned (a skill point only
@@ -358,14 +381,14 @@ local function Base()
 			local meta = ns.RecipeMeta and ns.RecipeMeta[spell]
 			local variant = meta and meta.variantFaction
 			if (not variant or variant == mine) and not Where.Knows(spell) then
-				local name = ns.RecipeNames and ns.RecipeNames[spell] or ("Recipe " .. spell)
+				local name = ns.SpellName(spell) or L["Recipe %d"]:format(spell)
 				local groups = Where.Sources(spell)
 				local teach = data[5] or nil
 				-- Only the other faction can get it: not a recipe for you. Nothing in the data at
 				-- all (many of Forever's own): listed, saying so, rather than left out.
 				local unknown = #groups == 0 and not AnySource(spell, teach)
 				if #groups > 0 or unknown then
-					out[#out + 1] = { spell = spell, name = name, lower = name:lower(),
+					out[#out + 1] = { spell = spell, name = name, lower = ns.Fold(name),
 						required = Where.Required(spell), level = Where.Level(spell), item = teach,
 						groups = groups, unknown = unknown,
 						summary = unknown and UNKNOWN_SOURCE or Where.Summary(groups) }
@@ -376,7 +399,7 @@ local function Base()
 	table.sort(out, function(a, b)
 		local ar, br = a.required or 9999, b.required or 9999
 		if ar ~= br then return ar < br end
-		return a.name < b.name
+		return ns.NameLess(a.name, b.name)
 	end)
 	base, baseKey = out, key
 	return out
@@ -412,18 +435,18 @@ function Where.Go(name, place)
 	local tomtom = _G.TomTom
 	if ns.Get("tomtom") and type(tomtom) == "table" and type(tomtom.AddWaypoint) == "function" then
 		pcall(tomtom.AddWaypoint, tomtom, place.mapID, x, y, { title = name, from = "Daylight Recipes" })
-		ns.Print(("Waypoint: %s, %s (%d, %d)."):format(name, place.zone, place.x + 0.5, place.y + 0.5))
+		ns.Print(L["Waypoint: %s, %s (%d, %d)."]:format(name, place.zone, place.x + 0.5, place.y + 0.5))
 		return true
 	end
 	if not (C_Map and C_Map.SetUserWaypoint and UiMapPoint and UiMapPoint.CreateFromCoordinates) then return false end
 	if C_Map.CanSetUserWaypointOnMap and not C_Map.CanSetUserWaypointOnMap(place.mapID) then
-		ns.Print(("%s is in %s (%d, %d); the map there takes no pins."):format(name, place.zone, place.x + 0.5, place.y + 0.5))
+		ns.Print(L["%s is in %s (%d, %d); the map there takes no pins."]:format(name, place.zone, place.x + 0.5, place.y + 0.5))
 		return false
 	end
 	local ok = pcall(C_Map.SetUserWaypoint, UiMapPoint.CreateFromCoordinates(place.mapID, x, y))
 	if ok and C_SuperTrack and C_SuperTrack.SetSuperTrackedUserWaypoint then
 		pcall(C_SuperTrack.SetSuperTrackedUserWaypoint, true)
 	end
-	if ok then ns.Print(("Map pin: %s, %s (%d, %d)."):format(name, place.zone, place.x + 0.5, place.y + 0.5)) end
+	if ok then ns.Print(L["Map pin: %s, %s (%d, %d)."]:format(name, place.zone, place.x + 0.5, place.y + 0.5)) end
 	return ok
 end

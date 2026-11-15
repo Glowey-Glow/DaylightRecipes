@@ -8,15 +8,44 @@
 --   * The recipe "Craft next" picks gets a small mark in DaylightUI's profession list.
 local _, ns = ...
 if not ns.ok then return end
+local L, Plural = ns.L, ns.Plural
 
 local API, me = ns.API, ns.me
 local Tips = {}
 ns.Tips = Tips
 
-local NAMES = { [164] = "Blacksmithing", [165] = "Leatherworking", [171] = "Alchemy", [185] = "Cooking",
-	[186] = "Mining", [197] = "Tailoring", [202] = "Engineering", [333] = "Enchanting", [129] = "First Aid",
-	[40] = "Poisons" }
-function Tips.LineName(line) return NAMES[line] or "Profession" end
+local NAMES = { [164] = L["Blacksmithing"], [165] = L["Leatherworking"], [171] = L["Alchemy"], [185] = L["Cooking"],
+	[186] = L["Mining"], [197] = L["Tailoring"], [202] = L["Engineering"], [333] = L["Enchanting"], [129] = L["First Aid"],
+	[40] = L["Poisons"] }
+
+-- A profession's name in the client's language: the name of its own spell (the one learning it
+-- gives you; every rank shares the name), else the game's name for the skill line, else the English
+-- one above. Kept once found: it never changes in a session.
+local LINE_SPELL = { [164] = 2018, [165] = 2108, [171] = 2259, [185] = 2550, [186] = 2575, [197] = 3908,
+	[202] = 4036, [333] = 7411, [129] = 3273, [40] = 2842 }
+local lineNames = {}
+local function Usable(name) return type(name) == "string" and name ~= "" and name or nil end
+local function LineName(line)
+	if not line then return nil end
+	local name = lineNames[line]
+	if name then return name end
+	local spell = LINE_SPELL[line]
+	if spell and C_Spell and C_Spell.GetSpellName then
+		local ok, n = pcall(C_Spell.GetSpellName, spell)
+		name = ok and Usable(n) or nil
+	end
+	name = name or Usable(ns.Ask("GetTradeSkillDisplayName", line))
+	if not name then
+		local info = ns.Ask("GetProfessionInfoBySkillLineID", line)
+		name = type(info) == "table" and Usable(info.professionName) or nil
+	end
+	if name then
+		lineNames[line] = name
+		return name
+	end
+	return NAMES[line]
+end
+function Tips.LineName(line) return LineName(line) or L["Profession"] end
 
 -- ---------------------------------------------------------------------------------------------
 -- Indexes, made once
@@ -43,7 +72,29 @@ local function Index()
 	end
 end
 
-local usedText = {}      -- itemID -> its "Used in" text (false: none), made once
+-- The professions this character has learned (skill line -> true), from the game, kept until its
+-- skills change. The tooltip only speaks of these: a profession you don't have is no news to you.
+-- (Poisons are a rogue's class skill, not in the professions list.)
+local learned
+local function Learned()
+	if learned then return learned end
+	learned = {}
+	if GetProfessions and GetProfessionInfo then
+		local list = { GetProfessions() }
+		for i = 1, 6 do
+			local index = list[i]
+			if index then
+				local ok, _, _, _, _, _, _, line = pcall(GetProfessionInfo, index)
+				if ok and type(line) == "number" then learned[line] = true end
+			end
+		end
+	end
+	local _, class = UnitClass("player")
+	if class == "ROGUE" then learned[40] = true end
+	return learned
+end
+
+local usedText = {}      -- itemID -> its "Used in" text (false: none), made once per set of professions
 local function UsedText(itemID)
 	local cached = usedText[itemID]
 	if cached ~= nil then return cached or nil end
@@ -53,10 +104,17 @@ local function UsedText(itemID)
 		return nil
 	end
 	local parts = {}
-	for line, n in pairs(t) do parts[#parts + 1] = { NAMES[line] or "?", n } end
+	local have = Learned()
+	for line, n in pairs(t) do
+		if have[line] then parts[#parts + 1] = { LineName(line) or "?", n } end
+	end
+	if #parts == 0 then
+		usedText[itemID] = false
+		return nil
+	end
 	table.sort(parts, function(a, b) return a[2] > b[2] end)
 	local out = {}
-	for i = 1, math.min(3, #parts) do out[i] = ("%s %d"):format(parts[i][1], parts[i][2]) end
+	for i = 1, math.min(3, #parts) do out[i] = L["%s %d"]:format(parts[i][1], parts[i][2]) end
 	if #parts > 3 then out[#out + 1] = "..." end
 	local text = table.concat(out, ", ")
 	usedText[itemID] = text
@@ -73,21 +131,27 @@ local function ItemLines(lines, data)
 	if type(itemID) ~= "number" then return end
 	Index()
 	local spell = teaches[itemID]
-	if spell then
+	local recipe = spell and ns.Recipes and ns.Recipes[spell]
+	if spell and recipe and Learned()[recipe[1]] then
 		local who = ns.Store.WhoKnows(spell)
-		lines.Line("Known by", #who > 0 and table.concat(who, ", ") or "No one on your account")
+		lines.Line(L["Known by"], #who > 0 and table.concat(who, ", ") or L["No one on your account"])
 	end
 	local used = UsedText(itemID)
-	if used then lines.Line("Used in", used) end
+	if used then lines.Line(L["Used in"], used) end
 	-- Plans: yours first, then your alts' on this realm.
 	local mine = ns.Store.Char()
+	-- (Your own guides for the professions you have; an alt's for the ones that alt has, which is
+	-- why it has a guide: what to mail them.)
 	local function planLines(c, who)
 		if type(c) ~= "table" or type(c.plans) ~= "table" then return end
+		local have = not who and Learned() or nil
 		for line, plan in pairs(c.plans) do
 			local n = type(plan) == "table" and plan.need and plan.need[itemID]
+			if have and not have[line] then n = nil end
 			if n and n > 0 then
-				local label = (who and (who .. "'s ") or "Your ") .. (NAMES[line] or "") .. " guide"
-				lines.Line(label, ("%d (to %d)"):format(n, plan.target or 0))
+				local label = who and L["%s's %s guide"]:format(who, LineName(line) or "")
+					or L["Your %s guide"]:format(LineName(line) or "")
+				lines.Line(label, L["%d (to %d)"]:format(n, plan.target or 0))
 			end
 		end
 	end
@@ -108,11 +172,11 @@ local function NewAt(line, from, to)
 		if data[1] == line and not known[spell] and ns.Trainers and ns.Trainers[spell] then
 			local req = ns.Where.Required(spell)
 			if req and req > from and req <= to then
-				out[#out + 1] = ns.RecipeNames and ns.RecipeNames[spell] or ("Recipe " .. spell)
+				out[#out + 1] = ns.SpellName(spell) or L["Recipe %d"]:format(spell)
 			end
 		end
 	end
-	table.sort(out)
+	table.sort(out, ns.NameLess)
 	return out
 end
 
@@ -123,18 +187,18 @@ function Tips.SkillUp(line, from, skill, max)
 	local key = line .. ":" .. skill
 	if told[key] then return end
 	told[key] = true
-	local name = NAMES[line] or "Your profession"
+	local name = LineName(line) or L["Your profession"]
 	if max and max > 0 and skill >= max and max < 300 then
 		local nextCap = max + 75
-		local rank = ns.Plan and ns.Plan.RankName(nextCap) or "the next rank"
-		ns.Print(("%s is at its cap (%d): train %s at a %s trainer."):format(name, max, rank, name))
+		local rank = ns.Plan and ns.Plan.RankName(nextCap) or L["the next rank"]
+		ns.Print(L["%s is at its cap (%d): train %s at a %s trainer."]:format(name, max, rank, name))
 		return
 	end
 	local new = NewAt(line, from, skill)
 	if #new > 0 then
 		local list = table.concat(new, ", ", 1, math.min(3, #new))
-		if #new > 3 then list = list .. ("... (%d in all)"):format(#new) end
-		ns.Print(("New %s recipe%s at a trainer: %s."):format(name, #new == 1 and "" or "s", list))
+		if #new > 3 then list = list .. L["... (%d in all)"]:format(#new) end
+		ns.Print(Plural(#new, "New %s recipe at a trainer: %s.", "New %s recipes at a trainer: %s."):format(name, list))
 	end
 end
 
@@ -177,6 +241,14 @@ end
 -- ---------------------------------------------------------------------------------------------
 -- Start
 -- ---------------------------------------------------------------------------------------------
+
+-- A profession learned or dropped: the set and the texts made from it are read again.
+local skills = CreateFrame("Frame")
+skills:RegisterEvent("SKILL_LINES_CHANGED")
+skills:SetScript("OnEvent", function()
+	learned = nil
+	wipe(usedText)
+end)
 
 me.On("Login", function()
 	if type(me.AddTooltipLines) == "function" then pcall(me.AddTooltipLines, "item", ItemLines) end

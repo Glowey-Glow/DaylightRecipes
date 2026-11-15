@@ -26,12 +26,17 @@ Open any profession and Daylight Recipes' window takes the place of the game's (
 Drag a cheap item into the slot and level on it: enchant after enchant, with the game's "replace the enchant?" answered for you (Auto-replace, a switch).
 
 ## Around the game
-Item tooltips (what uses a material, what your guides need of it, and who on your account knows a recipe), and trainer reminders in chat when a skill-up opens new recipes or you reach your rank's cap.
+Item tooltips (what uses a material, what your guides need of it, and who on your account knows a recipe; only for the professions this character has learned), and trainer reminders in chat when a skill-up opens new recipes or you reach your rank's cap.
+
+---
+
+## In your language
+Daylight Recipes speaks German, French, Spanish, Russian, Korean and Simplified Chinese (machine drafts, corrections welcome), and shows recipe, item, profession, zone and quest names in your game's language.
 
 ---
 
 ## Settings
-DaylightUI options > **Plugins > Recipes**. Prefer DaylightUI's or Mogul's own profession window? Pick **Docked pane** there for the old pane beside it.
+DaylightUI options > **Plugins > Recipes**. Prefer DaylightUI's or Mogul's own profession window? Pick **Docked pane** there for the old pane beside it. Window opacity follows DaylightUI's, or set your own there.
 
 ---
 
