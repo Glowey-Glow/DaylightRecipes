@@ -4,6 +4,7 @@ package-as: DaylightRecipes
 ignore:
   - README.md
   - CHANGELOG.md
+  - CURSEFORGE.md
   - .github
   - .gitignore
   - .gitattributes
