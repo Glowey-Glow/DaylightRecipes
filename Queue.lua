@@ -62,6 +62,20 @@ function Queue.Move(i, by)
 	Changed()
 end
 
+-- A profession unlearned: its recipes leave the queue.
+function Queue.ForgetLine(line)
+	local q = List()
+	if not q or not line then return end
+	local gone = false
+	for i = #q, 1, -1 do
+		if q[i].line == line then
+			table.remove(q, i)
+			gone = true
+		end
+	end
+	if gone then Changed() end
+end
+
 function Queue.Clear()
 	local q = List()
 	if q and #q > 0 then

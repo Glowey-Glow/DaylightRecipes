@@ -1,5 +1,26 @@
 # Daylight Recipes
 
+## 2.0.3
+- A swap button (two arrows) beside the X: on Daylight Recipes' window it switches to the game's own profession window, and on the game's window it switches back. The open profession moves across at once, and the window you pick stays picked. Not in a fight.
+- New "Use Daylight Recipes' profession window?" question, asked once. Yes makes Daylight Recipes' window the one and switches DaylightUI's own profession window off (one reload, offered), so the swap button goes to the game's window. Picking Docked pane in the options brings DaylightUI's window back as it was. The Profession window choice now also has The game's window.
+- Reputation recipes read "Nightclaw Druids: Friendly (Current Rep: Neutral)", each standing in the game's reputation colors (red for Hated and Hostile, orange for Unfriendly, yellow for Neutral, green from Friendly up).
+- Herbalism, Skinning and Fishing are no longer grayed out on the left of the window: a click shows their own page, with your skill, your rank and when to train the next one (they have no recipes, so no recipe list or Leveling Guide).
+- Mining is found under its own name too, so its smelting recipes and Leveling Guide open from the left; if the game won't open a profession from there, its page says which spell to cast instead.
+- Text wraps instead of being cut off: long recipe, item and place names, prices and notes in the window, the pane and the buy and trainer lists take a second line, and a page drawn at one width is drawn again when its panel gets wider or narrower.
+- Buttons fit their words in every language (Create All, Queue, Buy all here, Learn all...): when the crafting bar runs out of room, the count and Queue move to a row of their own above Create.
+- The enchant item row, the pane's skill beside its tabs, and the buy list's total beside its button no longer run into each other.
+- At a large Window size on a small screen, the window shrinks to fit instead of running off the screen.
+- With DaylightUI 1.8.3: Create, Buy all here, Learn all and the Yes of the confirm box have DaylightUI's main-button look; a buy list's item tooltip no longer repeats your bags and bank when DaylightUI already lists every character's (the mail count stays).
+- New: camping items. Herbalism, Skinning and Fishing's pages list theirs (Fishing's Fish Bowl, Fishing Rack and Fishing Hut, for one): what each does, what it takes and what you hold of it, the skill it needs, whether you know it, and how to learn it (a trainer or the quest "Camping 101", or a blueprint with where it drops and a waypoint). A new "Camping" entry on the left lists every profession's camping items, yours first.
+- Fishing's page says where its next rank comes from: Expert is a book sold in Booty Bay, Artisan a quest from Nat Pagle in Dustwallow Marsh (with a waypoint to each), not a trainer.
+- The Missing tab knows where far more recipes come from: of the 469 listed as "Source not known yet", 193 now show their vendors, drops, quests or reputation, from Polestar's data (GPL-3.0), Forever's own ones among them (the Gustwoven and Windraveled patterns: the Nightclaw Druids' vendor).
+- Recipes that ask for a reputation say which and how much, with your standing beside it (green once you have it): "Nightclaw Druids: Friendly (you: Neutral)". For a recipe no data knows, the recipe item's own tooltip is read for it.
+- Right-click one of your two primary professions on the left to unlearn it (as in the game's professions book), after an "Are you sure?" that names it and warns that its skill and recipes are lost. Its saved skill, recipes, Leveling Guide and queued recipes are forgotten with it.
+- Fix: a skill-up while you gather (Herbalism 70 to 75) shows on the window's list of professions and the gathering page at once, with no profession window open.
+- Fix: the window fits the screen again when the UI scale or the game's window size changes.
+- Lighter: a page drawn again after its panel changed width redraws only that window (not the pane, the window and the buy lists together), and never the folded pane.
+- The buy list's item tooltip keeps "You have..." unless DaylightUI (1.8.3 or later, its bags and its bank and alts viewer on) lists your characters' bags and bank there itself; the mail stays said.
+
 ## 2.0.2
 - On German, French, Spanish, Russian, Korean and Chinese clients, words the game already translates (like Apprentice, Journeyman, Search, Yes and No) use the game's own translation instead of our draft.
 - Item tooltips no longer show your alts' guide lines: only this character's own guides, for the professions it has learned.

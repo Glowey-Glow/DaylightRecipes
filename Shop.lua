@@ -101,6 +101,32 @@ function Shop.List()
 	return out
 end
 
+-- Whether DaylightUI's bags list every character's holdings under an item's tooltip: DaylightUI
+-- 1.8.3 or later, its Bags module on and its bank and alts viewer not switched off. When that can't
+-- be told for sure, no: then our own line stays.
+local function AtLeast(version, want)
+	if type(version) ~= "string" then return false end
+	local a = { version:match("^(%d+)%.(%d+)%.?(%d*)") }
+	if not a[1] then return false end
+	for i = 1, 3 do
+		local x, y = tonumber(a[i]) or 0, want[i]
+		if x ~= y then return x > y end
+	end
+	return true
+end
+
+local function DuiListsHoldings()
+	local meta = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata
+	if type(meta) ~= "function" then return false end
+	local ok, version = pcall(meta, "DaylightUI", "Version")
+	if not ok or not AtLeast(version, { 1, 8, 3 }) then return false end
+	local on, bags = pcall(API.IsModuleEnabled, "Bags")
+	if not on or not bags then return false end
+	local got, viewer = pcall(API.GetSetting, "Bags", "viewer.enabled")
+	if not got then return false end
+	return viewer ~= false
+end
+
 -- The tooltip of a buy list row: the item, then what each plan needs of it and what you hold.
 local function RowTip(r, hint)
 	return function(tip)
@@ -111,7 +137,13 @@ local function RowTip(r, hint)
 			local label = line == "queue" and L["Crafting queue"] or L["%s Leveling Guide"]:format(ns.Tips and ns.Tips.LineName(line) or "")
 			tip:AddDoubleLine(label, tostring(n), Color("LABEL"))
 		end
-		local where = ns.Pages and ns.Pages.HaveText(r.itemID)
+		local where, have = nil, nil
+		if ns.Pages then where, have = ns.Pages.HaveText(r.itemID) end
+		-- DaylightUI's bags (1.8.3) add every character's bags and bank to an item's tooltip when an
+		-- alt holds it in theirs: then only the mail is said here, which DaylightUI doesn't count.
+		if where and have and (have.altHeld or 0) > 0 and DuiListsHoldings() then
+			where = have.mail > 0 and L["%d in the mail"]:format(have.mail) or nil
+		end
 		if where then tip:AddLine(L["You have %s"]:format(where), Color("TEXT")) end
 	end
 end
@@ -210,6 +242,12 @@ local function PlaceTab(p, host, folded)
 	t:Show()
 end
 
+-- A window's main action in DaylightUI's look (its Accept, Create, Train): a lifted band, green
+-- text and two lights circling its edge. Only with a DaylightUI that has it (1.8 on).
+local function Main(button)
+	if type(API.MainButton) == "function" then pcall(API.MainButton, button, true) end
+end
+
 local function NewPanel(name, title, key)
 	local p = CreateFrame("Frame", name, UIParent)
 	p.key, p.label = key, title
@@ -227,9 +265,17 @@ local function NewPanel(name, title, key)
 	p.doc = Doc.New(p, { pad = 10, width = WIDTH })
 	p.doc.scroll:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -HEAD + 6)
 	p.doc.scroll:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, FOOT)
+	-- (The total sits beside the button, wrapping onto a second line rather than running under it:
+	-- FitFoot sizes both.)
 	p.total = Doc.Text(p, "small")
-	p.total:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 14, 17)
+	p.total:SetPoint("LEFT", p, "BOTTOMLEFT", 14, 22)
+	p.total:SetJustifyH("LEFT")
+	p.total:SetWordWrap(true)
+	p.total:SetMaxLines(2)
+	p.total:SetWidth(WIDTH - 28)
 	p.button = API.Button(p, "", 24)
+	-- (Buy all here and Learn all are the panel's main action; the auction house's list isn't.)
+	if key ~= "auction" then Main(p.button) end
 	p.button:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", -12, 10)
 	p.line = p:CreateTexture(nil, "ARTWORK")
 	p.line:SetHeight(1)
@@ -241,6 +287,15 @@ local function NewPanel(name, title, key)
 		if not Visible(self.host) then self:Hide() end
 	end)
 	return p
+end
+
+-- The footer's button fitted to its words (at least `least` wide), and the total beside it given
+-- the rest of the footer.
+local function FitFoot(p, least)
+	p.button.FitWidth(least)
+	local room = WIDTH - 28
+	if p.button:IsShown() then room = room - p.button:GetWidth() - 10 end
+	p.total:SetWidth(math.max(40, room))
 end
 
 -- Places a panel by its host: under it (side = "below") or beside it, wherever there's room.
@@ -409,6 +464,7 @@ local function BuildConfirm()
 	f.cost = Doc.Text(f, "body")
 	f.cost:SetPoint("TOP", f.what, "BOTTOM", 0, -8)
 	f.yes = API.Button(f, L["Yes"], 26)
+	Main(f.yes)
 	f.yes:SetWidth(90)
 	f.yes:SetPoint("BOTTOMRIGHT", f, "BOTTOM", -6, 18)
 	f.no = API.Button(f, L["No"], 26)
@@ -419,19 +475,33 @@ local function BuildConfirm()
 	return f
 end
 
--- Asks before buying: what (a line of words), total (copper), onYes(). Over `owner`'s middle.
-local function Confirm(owner, what, total, onYes)
+-- Asks before buying: what (a line of words), total (copper; nil for none: not a purchase),
+-- onYes(). Over `owner`'s middle. opts: title (in place of "Are you sure?"), yes (the Yes button's
+-- word), warn (the question in the warning ink).
+local function Confirm(owner, what, total, onYes, opts)
 	confirm = confirm or BuildConfirm()
 	local f = confirm
 	local money = GetMoney and GetMoney() or 0
-	local short = total > money
+	local short = total ~= nil and total > money
+	f.title:SetText(opts and opts.title or L["Are you sure?"])
+	f.title:SetWidth(228)
+	f.title:SetWordWrap(true)
 	f.what:SetText(what)
-	f.what:SetTextColor(Color("TEXT"))
-	f.cost:SetText(L["Total Cost: %s"]:format(Calc.Money(total)))
-	f.cost:SetTextColor(Color(short and "BAD" or "VALUE"))
+	f.what:SetTextColor(Color(opts and opts.warn and "WARN" or "TEXT"))
+	if total then
+		f.cost:SetText(L["Total Cost: %s"]:format(Calc.Money(total)))
+		f.cost:SetTextColor(Color(short and "BAD" or "VALUE"))
+		f.cost:Show()
+	else
+		f.cost:SetText("")
+		f.cost:Hide()
+	end
 	f.title:SetTextColor(Color("VALUE"))
+	f.yes.text:SetText(opts and opts.yes or L["Yes"])
+	f.yes:SetWidth(math.max(90, math.ceil(f.yes.text:GetStringWidth()) + 24))
 	-- (Top 18, the title, 12, the question, 8, the cost, 20 clear above the buttons, 18 under them.)
-	f:SetHeight(134 + math.ceil(f.what:GetStringHeight()))
+	local titleExtra = math.max(0, math.ceil(f.title:GetStringHeight()) - 16)
+	f:SetHeight((total and 134 or 110) + titleExtra + math.ceil(f.what:GetStringHeight()))
 	f.yes.SetOff(short)
 	f.yes:SetScript("OnClick", function()
 		f:Hide()
@@ -447,6 +517,7 @@ local function Confirm(owner, what, total, onYes)
 	end
 	f:Show()
 end
+Shop.Confirm = Confirm
 
 local function VendorHost()
 	return FirstShown({
@@ -507,9 +578,9 @@ function Shop.Vendor()
 	vendor.title:SetTextColor(Color(#here > 0 and "VALUE" or "OFF"))
 	vendor.total:SetTextColor(Color(#here > 0 and "VALUE" or "OFF"))
 	vendor.button.text:SetText(L["Buy all here"])
-	vendor.button:SetWidth(120)
 	-- (Nothing sold here: the footer says so, no button to press.)
 	vendor.button:SetShown(#here > 0)
+	FitFoot(vendor, 120)
 	local money = GetMoney and GetMoney() or 0
 	vendor.button.SetOff(#here == 0 or cost <= 0)
 	vendor.button:SetScript("OnClick", function()
@@ -622,7 +693,6 @@ function Shop.Auction()
 	local api = type(A) == "table" and type(A.API) == "table" and A.API.v1
 	if type(api) == "table" and type(api.CreateShoppingList) == "function" and type(api.ConvertToSearchString) == "function" then
 		auction.button.text:SetText(L["Auctionator list"])
-		auction.button:SetWidth(140)
 		auction.button.SetOff(false)
 		auction.button:Show()
 		auction.button:SetScript("OnClick", function()
@@ -644,6 +714,7 @@ function Shop.Auction()
 	else
 		auction.button:Hide()
 	end
+	FitFoot(auction, 140)
 	return true
 end
 
@@ -832,8 +903,8 @@ function Shop.Trainer()
 	trainer.total:SetText(#learnAll > 0 and Calc.Money(learnCost) or "")
 	trainer.total:SetTextColor(Color("VALUE"))
 	trainer.button.text:SetText(L["Learn all"])
-	trainer.button:SetWidth(110)
 	trainer.button:SetShown(#rec > 0)
+	FitFoot(trainer, 110)
 	trainer.line:SetShown(#rec > 0)
 	trainer.button.SetOff(#learnAll == 0 or (GetMoney and GetMoney() < learnCost))
 	trainer.button:SetScript("OnClick", function()

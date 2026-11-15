@@ -200,6 +200,72 @@ local function PlaceText(place)
 	return place.zone
 end
 
+-- A standing's word in the game's own reputation colors (FACTION_BAR_COLORS, as on the reputation
+-- bars: Hated and Hostile red, Unfriendly orange, Neutral yellow, Friendly to Exalted green), Blizzard's values if the table isn't there.
+local REP_COLORS = {
+	{ r = 0.8, g = 0.3, b = 0.22 }, { r = 0.8, g = 0.3, b = 0.22 }, { r = 0.75, g = 0.27, b = 0 },
+	{ r = 0.9, g = 0.7, b = 0 }, { r = 0, g = 0.6, b = 0.1 }, { r = 0, g = 0.6, b = 0.1 },
+	{ r = 0, g = 0.6, b = 0.1 }, { r = 0, g = 0.6, b = 0.1 },
+}
+local function Standing(id)
+	local word = Where.StandingName(id)
+	local set = type(_G.FACTION_BAR_COLORS) == "table" and _G.FACTION_BAR_COLORS or REP_COLORS
+	local c = set[id] or REP_COLORS[id]
+	if type(c) ~= "table" or type(c.r) ~= "number" then return word end
+	return ("|cff%02x%02x%02x%s|r"):format(math.floor(c.r * 255 + 0.5), math.floor(c.g * 255 + 0.5), math.floor(c.b * 255 + 0.5), word)
+end
+Pages.Standing = Standing
+
+-- "Nightclaw Druids: Friendly (Current Rep: Neutral)", for a list's line, the standings in their
+-- reputation colors.
+function Pages.RepText(rep)
+	local need = Standing(rep.standing)
+	if rep.mine then
+		return L["%s: %s (Current Rep: %s)"]:format(rep.name, need, Standing(rep.mine))
+	end
+	return L["%s: %s"]:format(rep.name, need)
+end
+
+-- The reputation a recipe asks for, on a line of its own: met (good ink), not yet (warning ink),
+-- or a faction you haven't met; the standings in their reputation colors.
+function Pages.RepLine(d, rep, indent)
+	local need = Standing(rep.standing)
+	local text, ink
+	if not rep.mine then
+		text, ink = L["Needs %s with %s; you haven't met them yet."]:format(need, rep.name), "WARN"
+	else
+		text = L["Needs %s with %s (Current Rep: %s)."]:format(need, rep.name, Standing(rep.mine))
+		ink = rep.mine >= rep.standing and "GOOD" or "WARN"
+	end
+	d:Line(text, "small", ink, indent)
+end
+
+-- A recipe's (or blueprint's) source groups: each titled, its places listed (a click on one with a
+-- spot on the map sets a waypoint), the reputation it asks for with your standing.
+function Pages.SourceGroups(d, groups, indent)
+	indent = indent or 0
+	for _, g in ipairs(groups) do
+		d:Line(g.title, "small", "LABEL", indent)
+		if g.kind == "rep" then
+			local rep, waiting = Where.Rep(g.item)
+			if waiting then d.waiting[g.item] = true end
+			if rep then Pages.RepLine(d, rep, indent + 4) end
+		end
+		for _, l in ipairs(g.lines) do
+			local located = l.place and l.place.mapID
+			d:Row({ indent = indent, left = l.name, leftInk = "TEXT", right = l.note or "", rightInk = "VALUE",
+				sub = PlaceText(l.place), subInk = located and "ACCENT" or "OFF",
+				tip = (located and function(tip)
+					tip:SetText(l.name)
+					tip:AddLine(PlaceText(l.place), 1, 1, 1)
+					tip:AddLine(L["Click for a waypoint."], Color("LABEL"))
+				end) or (l.item and ItemTip(l.item)) or nil,
+				onClick = located and function() Where.Go(l.name, l.place) end or nil })
+		end
+		if g.more > 0 then d:Line(L["and %d more"]:format(g.more), "tiny", "OFF", indent + 4) end
+	end
+end
+
 function Pages.Missing(d, ctx)
 	local st = d.state
 	st.open = st.open or {}
@@ -231,7 +297,13 @@ function Pages.Missing(d, ctx)
 				end })
 			break
 		end
+		-- The reputation it asks for (Polestar's data; for a recipe no data knows, its tooltip's).
+		local rep, waiting
+		if e.item and (e.unknown or e.hasRep) then rep, waiting = Where.Rep(e.item) end
+		if waiting then d.waiting[e.item] = true end
 		local sub = e.summary or ""
+		if rep and e.unknown then sub = L["Reputation"] end
+		if rep then sub = sub .. (sub ~= "" and " · " or "") .. Pages.RepText(rep) end
 		if e.level then sub = sub .. (sub ~= "" and " · " or "") .. L["Level %d"]:format(e.level) end
 		d:Row({ left = e.name, leftInk = e.reachable and "VALUE" or "OFF",
 			right = e.required and L["Skill %d"]:format(e.required) or "", rightInk = e.reachable and "GOOD" or "OFF",
@@ -242,24 +314,13 @@ function Pages.Missing(d, ctx)
 				ctx.redraw()
 			end })
 		if st.open[e.spell] then
-			if e.unknown then
+			if e.unknown and rep then
+				Pages.RepLine(d, rep, 12)
+				d:Line(L["The recipe data doesn't say where yet: look for that faction's vendor."], "small", "OFF", 12)
+			elseif e.unknown then
 				d:Line(L["Where to get this isn't in the recipe data yet."], "small", "OFF", 12)
 			end
-			for _, g in ipairs(e.groups) do
-				d:Line(g.title, "small", "LABEL", 12)
-				for _, l in ipairs(g.lines) do
-					local located = l.place and l.place.mapID
-					d:Row({ indent = 12, left = l.name, leftInk = "TEXT", right = l.note or "", rightInk = "VALUE",
-						sub = PlaceText(l.place), subInk = located and "ACCENT" or "OFF",
-						tip = located and function(tip)
-							tip:SetText(l.name)
-							tip:AddLine(PlaceText(l.place), 1, 1, 1)
-							tip:AddLine(L["Click for a waypoint."], Color("LABEL"))
-						end or nil,
-						onClick = located and function() Where.Go(l.name, l.place) end or nil })
-				end
-				if g.more > 0 then d:Line(L["and %d more"]:format(g.more), "tiny", "OFF", 16) end
-			end
+			Pages.SourceGroups(d, e.groups, 12)
 			d:Gap(6)
 		end
 	end
@@ -435,6 +496,7 @@ local function MaterialRow(d, itemID, need, indent)
 		rightInk = done and "GOOD" or "WARN", sub = #parts > 0 and table.concat(parts, " · ") or nil,
 		subInk = done and "TEXT" or "WARN", tip = ItemTip(itemID) })
 end
+Pages.MaterialRow = MaterialRow
 
 -- The step you're on, as a card: what to make and how many, its progress, its materials, and
 -- buttons to make it, queue it or look at it.

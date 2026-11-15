@@ -7,6 +7,7 @@ ignore = { "212/_.*", "213/_.*" }
 
 -- Globals this addon sets: its saved variables and slash commands.
 globals = {
+	"StaticPopupDialogs",
 	"DaylightRecipesDB",
 	"SLASH_DAYLIGHTRECIPES1",
 	"SLASH_DAYLIGHTRECIPES2",
@@ -22,11 +23,14 @@ read_globals = {
 	"strcmputf8i",
 	"UnitChannelInfo",
 	"C_Spell",
+	"C_SkillInfo",
 	"issecretvalue",
 	"UnitCastingInfo",
 	"C_Cursor",
 	"ClearCursor",
 	"StaticPopup_Hide",
+	"StaticPopup_Show",
+	"ReloadUI",
 	"CursorHasItem",
 	"GetTrainerServiceStepIndex",
 	"IsPlayerSpell",
@@ -53,6 +57,7 @@ read_globals = {
 	"IsShiftKeyDown",
 	"ATTACHMENTS_MAX_RECEIVE",
 	"BANK_CONTAINER",
+	"C_AddOns",
 	"C_AuctionHouse",
 	"C_Bank",
 	"C_Container",

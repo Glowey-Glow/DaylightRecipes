@@ -10,6 +10,7 @@ ignore:
   - .gitattributes
   - .pkgmeta
   - .luacheckrc
+  - Tools
 
 manual-changelog:
   filename: CHANGELOG.md

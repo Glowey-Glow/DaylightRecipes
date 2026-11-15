@@ -38,6 +38,9 @@ local listFrame, listRows, listThumb, search, filterButtons
 local detail, craftBar, pageDoc, pageSearch
 local altDoc
 local alt               -- { guid, line } while an alt's profession is shown
+local gather            -- the game's skill line of a gathering profession of yours while its page is shown
+                        -- (CAMP: the camping page, every profession's camping items)
+local CAMP = "camp"
 
 local function DB()
 	DaylightRecipesDB = type(DaylightRecipesDB) == "table" and DaylightRecipesDB or {}
@@ -51,7 +54,16 @@ local function TS(name, ...)
 	return Craft.TS(name, ...)
 end
 
-function Window.Width() return W * (ns.Get("winScale") or 1) end
+-- The window's scale: the "Window size" setting, made smaller when the window wouldn't fit on the
+-- screen at it (a large setting with a large UI scale), so no part of it is ever off screen.
+local function Scale()
+	local s = ns.Get("winScale") or 1
+	local sw, sh = UIParent:GetWidth(), UIParent:GetHeight()
+	if sw and sw > 0 and sh and sh > 0 then s = math.min(s, sw / W, sh / H) end
+	return s
+end
+
+function Window.Width() return W * Scale() end
 function Window.Shown() return win ~= nil and win:IsShown() end
 
 -- ---------------------------------------------------------------------------------------------
@@ -391,6 +403,27 @@ local function DetailPage(d)
 	end
 end
 
+-- The bar's buttons fitted to their words (longer in some languages), never narrower than their
+-- usual widths. When Queue, the count and Create All don't fit in one row beside Create, the count
+-- and Queue go on a row of their own above (true: two rows).
+local LEAST = { make = 96, all = 120, queue = 76, stop = 110 }
+local LIFT = 32           -- how far above the bottom row the second row sits
+local function FitButtons(cb)
+	for key, least in pairs(LEAST) do cb[key].FitWidth(least) end
+	local w = cb:GetWidth()
+	if not w or w <= 0 then w = W - SIDE - LIST - 1 end
+	local need = PAD + cb.make:GetWidth() + 8 + cb.all:GetWidth() + 12 + cb.plus:GetWidth() + 4
+		+ countBox:GetWidth() + 4 + cb.minus:GetWidth() + 8 + cb.queue:GetWidth() + PAD
+	local two = need > w
+	cb.plus:ClearAllPoints()
+	if two then
+		cb.plus:SetPoint("RIGHT", cb, "BOTTOMRIGHT", -PAD, BAR / 2 + LIFT)
+	else
+		cb.plus:SetPoint("RIGHT", cb.all, "LEFT", -12, 0)
+	end
+	return two
+end
+
 local function PaintCraftBar()
 	if not craftBar then return end
 	local spell = S.recipe
@@ -399,7 +432,7 @@ local function PaintCraftBar()
 	-- (A Stop that can't be put away in a fight stays drawn where it is, so what you see is what
 	-- a click does.)
 	local held = InCombatLockdown() and Craft.StopShown()
-	if not held and (S.mode ~= "win" or Linked() or not spell or tab ~= "recipes" or alt) then
+	if not held and (S.mode ~= "win" or Linked() or not spell or tab ~= "recipes" or alt or gather) then
 		cb:Hide()
 		Craft.PlaceStop(nil)
 		return
@@ -413,10 +446,11 @@ local function PaintCraftBar()
 	local blocked = type(info) == "table" and info.disabled == true
 	-- An enchant: its item row above the buttons (the item it goes on, Auto-replace).
 	local ench = cb.ench
+	local base = enchant and BAR + ENCH or BAR
+	cb:SetHeight(base)
 	if enchant then
 		local t = Craft.EnchantTarget(spell)
 		ench:Show()
-		cb:SetHeight(BAR + ENCH)
 		ench.icon:SetTexture(t and t.icon or EMPTY_SLOT)
 		ench.icon:SetDesaturated(t == nil)
 		ench.name:SetText(t and t.name or L["Drag an item here"])
@@ -428,7 +462,6 @@ local function PaintCraftBar()
 	else
 		ench:Hide()
 		ench.target = nil
-		cb:SetHeight(BAR)
 	end
 	-- An enchant run between two enchants: Next (one enchant a click) and Done in place of the buttons.
 	if making and making.paused then
@@ -449,6 +482,7 @@ local function PaintCraftBar()
 		cb.all.text:SetText(L["Done"])
 		cb.all.SetOff(false)
 		cb.all:Show()
+		FitButtons(cb)
 		return
 	end
 	if making or held then
@@ -468,6 +502,7 @@ local function PaintCraftBar()
 		cb.minus:Hide()
 		cb.plus:Hide()
 		cb.stop:Show()
+		FitButtons(cb)
 		Craft.PlaceStop(cb.stop)
 		return
 	end
@@ -482,6 +517,7 @@ local function PaintCraftBar()
 	cb.plus:Show()
 	cb.all:Show()
 	cb.all.text:SetText(can > 0 and L["%s All %d"]:format(verb, can) or L["%s All"]:format(verb))
+	if FitButtons(cb) then cb:SetHeight(base + LIFT) end
 	-- (An enchant with no item yet: the game would ask for a click on one, once; with one kept,
 	-- as many as asked go on it.)
 	local noItem = enchant and not ench.target
@@ -568,16 +604,16 @@ local function BuildEnchantRow(cb)
 		if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
 	end)
 	row.slot = slot
+	-- (The name and hint run up to the Auto-replace label, anchored below once it's made.)
 	row.name = Text(row, "body")
 	row.name:SetPoint("TOPLEFT", slot, "TOPRIGHT", 10, -2)
 	row.name:SetJustifyH("LEFT")
 	row.name:SetWordWrap(false)
-	row.name:SetWidth(200)
 	row.hint = Text(row, "small")
 	row.hint:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -3)
 	row.hint:SetJustifyH("LEFT")
-	row.hint:SetWidth(220)
-	row.hint:SetWordWrap(false)
+	row.hint:SetWordWrap(true)
+	row.hint:SetMaxLines(2)
 
 	row.auto = API.Switch(row)
 	row.auto:SetPoint("RIGHT", row, "RIGHT", -PAD, -2)
@@ -599,6 +635,8 @@ local function BuildEnchantRow(cb)
 	row.autoLabel:SetPoint("RIGHT", row.auto, "LEFT", -8, 0)
 	row.autoLabel:SetText(L["Auto-replace"])
 	row.autoLabel:SetTextColor(Color("LABEL"))
+	row.name:SetPoint("RIGHT", row.autoLabel, "LEFT", -12, 0)
+	row.hint:SetPoint("RIGHT", row.autoLabel, "LEFT", -12, 0)
 	return row
 end
 
@@ -612,6 +650,8 @@ local function BuildCraftBar(parent)
 	line:SetColorTexture(1, 1, 1, 0.06)
 
 	cb.make = API.Button(cb, L["Create"], 26)
+	-- (Create in DaylightUI's main-action look, as on its own profession window: 1.8 on.)
+	if type(API.MainButton) == "function" then pcall(API.MainButton, cb.make, true) end
 	cb.make:SetWidth(96)
 	-- (The buttons sit on the bar's bottom row: an enchant's item row goes above them.)
 	cb.make:SetPoint("RIGHT", cb, "BOTTOMRIGHT", -PAD, BAR / 2)
@@ -731,7 +771,14 @@ local function SideRow()
 			self.wash:Hide()
 			if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
 		end)
-		r:SetScript("OnClick", function(self) if self.onClick then self.onClick() end end)
+		r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+		r:SetScript("OnClick", function(self, button)
+			if button == "RightButton" then
+				if self.onRight then self.onRight(self) end
+				return
+			end
+			if self.onClick then self.onClick() end
+		end)
 		sideRows[sideUsed] = r
 	end
 	r:ClearAllPoints()
@@ -752,12 +799,16 @@ local function SideHeading(text)
 	r.ground:Hide()
 	r.edge:Hide()
 	r.onClick, r.tip = nil, nil
+	-- (A heading wraps onto more lines rather than being cut off, its row as tall as it.)
 	r.name:ClearAllPoints()
-	r.name:SetPoint("LEFT", r, "LEFT", 14, 0)
-	r.name:SetPoint("RIGHT", r, "RIGHT", -10, 0)
+	r.name:SetPoint("TOPLEFT", r, "TOPLEFT", 14, -2)
+	r.name:SetWidth(SIDE - 24)
+	r.name:SetWordWrap(true)
 	r.name:SetText(text)
 	r.name:SetTextColor(Color("LABEL"))
-	sideY = sideY + 20
+	local h = math.max(18, math.ceil(r.name:GetStringHeight()) + 4)
+	r:SetHeight(h)
+	sideY = sideY + h + 2
 end
 
 -- o: icon, name, nameColor {r,g,b}, sub, value (0-1 for the bar), picked, onClick, tip
@@ -767,7 +818,7 @@ local function SideEntry(o)
 	r:SetHeight(h)
 	r:SetPoint("TOPLEFT", side, "TOPLEFT", 0, -sideY)
 	r:SetPoint("RIGHT", side, "RIGHT", 0, 0)
-	r.onClick, r.tip = o.onClick, o.tip
+	r.onClick, r.tip, r.onRight = o.onClick, o.tip, o.onRight
 	local x = 12
 	if o.icon then
 		r.icon:SetTexture(o.icon)
@@ -777,6 +828,8 @@ local function SideEntry(o)
 		r.icon:Hide()
 	end
 	r.name:ClearAllPoints()
+	r.name:SetWidth(0)
+	r.name:SetWordWrap(false)
 	r.name:SetPoint("TOPLEFT", r, "TOPLEFT", x, -7)
 	r.name:SetPoint("RIGHT", r, "RIGHT", -10, 0)
 	r.name:SetText(o.name)
@@ -817,18 +870,22 @@ local function SideEntry(o)
 	sideY = sideY + h + 2
 end
 
--- Your professions now: { name, icon, skill, max, line }, those with recipes first.
+-- Your professions now: { name, icon, skill, max, line, game, crafts }, those with recipes first.
+-- line: the data's skill line (the game's own when the data doesn't cover it); game: the game's
+-- line, the one OpenTradeSkill takes; crafts: the data has recipes for it. The rest (Herbalism,
+-- Skinning, Fishing) have no trade skill window: a click on one shows its own page (GatherPage).
 local function MyProfessions()
 	local out = {}
 	if type(GetProfessions) ~= "function" or type(GetProfessionInfo) ~= "function" then return out end
 	local list = { GetProfessions() }
-	for i = 1, 6 do
+	for i = 1, 7 do
 		local index = list[i]
 		if index then
-			local ok, name, icon, skill, max, _, _, line = pcall(GetProfessionInfo, index)
+			local ok, name, icon, skill, max, _, spellOffset, line = pcall(GetProfessionInfo, index)
 			if ok and name then
-				out[#out + 1] = { name = name, icon = icon, skill = skill or 0, max = max or 0, line = line,
-					crafts = line ~= nil and ns.LINES[line] == true }
+				local data = ns.DataLine(line, name)
+				out[#out + 1] = { name = name, icon = icon, skill = skill or 0, max = max or 0, line = data or line,
+					game = line, crafts = data ~= nil, offset = spellOffset, index = index, primary = i <= 2 }
 			end
 		end
 	end
@@ -840,6 +897,74 @@ local function MyProfessions()
 end
 Window.MyProfessions = MyProfessions
 
+local CAMP_ICON = 279981     -- the Basic Campfire Kit's icon, for the camping page
+
+-- ---------------------------------------------------------------------------------------------
+-- Unlearning a primary profession
+-- ---------------------------------------------------------------------------------------------
+-- As the game's professions book does it (its Unlearn button: StaticPopup "UNLEARN_SKILL", whose
+-- yes calls AbandonSkill(skillLine)), from a right-click on the profession on the left, behind our
+-- "Are you sure?" box. Only the two primary professions: the book offers none for Cooking, First
+-- Aid and Fishing. Once the game drops it, what we kept of it goes too (Forgotten).
+
+local unlearning        -- the game's skill line just unlearned, until the game says it's gone
+
+local function Abandon() return (C_SkillInfo and C_SkillInfo.AbandonSkill) or _G.AbandonSkill end
+
+-- The profession is gone from your list: its saved skill, recipes, Leveling Guide, queue entries
+-- and reminders are forgotten, and the window shows another page.
+local function Forgotten(p)
+	if ns.Store then ns.Store.ForgetProfession(p.line) end
+	if ns.Queue then ns.Queue.ForgetLine(p.line) end
+	if ns.Tips and ns.Tips.ForgetLine then ns.Tips.ForgetLine(p.line) end
+	if gather == p.game then gather = nil end
+	if S.line == p.line then
+		S.recipe = nil
+		if ns.Where then ns.Where.ForgetKnown() end
+	end
+	if DaylightRecipesDB and DaylightRecipesDB.lastLine == p.line then DaylightRecipesDB.lastLine = nil end
+	if ns.Shop then ns.Shop.Refresh() end
+	ns.Changed()
+end
+
+function Window.Unlearn(p)
+	local abandon = Abandon()
+	if not p or type(abandon) ~= "function" then return end
+	local owner = win and win:IsShown() and win or nil
+	ns.Shop.Confirm(owner, L["Unlearn %s? Your skill in it and every %s recipe you know are lost. Learning it again starts over at skill 1."]:format(p.name, p.name),
+		nil, function()
+			-- (Its trade skill open: closed first, as the game's book is when it unlearns.)
+			if ns.state.mode == "win" and ns.state.line == p.line and ns.Take then ns.Take.Close() end
+			unlearning = p
+			local ok = pcall(abandon, p.game)
+			if not ok then unlearning = nil end
+		end, { title = L["Unlearn %s"]:format(p.name), yes = L["Unlearn"], warn = true })
+end
+
+local function UnlearnMenu(owner, p)
+	API.Menu(owner, { "unlearn" }, { unlearn = L["Unlearn"] }, nil, function(key)
+		if key == "unlearn" then Window.Unlearn(p) end
+	end, nil, { atCursor = true })
+end
+
+-- The game took it off your professions: forgotten here too, and the window stays up on what's
+-- left (it closes with a trade skill otherwise).
+local unlearnEvents = CreateFrame("Frame")
+unlearnEvents:RegisterEvent("SKILL_LINES_CHANGED")
+unlearnEvents:SetScript("OnEvent", function()
+	local p = unlearning
+	if not p then return end
+	for _, q in ipairs(MyProfessions()) do
+		if q.game == p.game then return end
+	end
+	unlearning = nil
+	Forgotten(p)
+	C_Timer.After(0.1, function()
+		if win and not win:IsShown() then win:Show() end
+		Window.Render()
+	end)
+end)
+
 local function PaintSide()
 	if not side then return end
 	for i = 1, #sideRows do sideRows[i]:Hide() end
@@ -850,11 +975,31 @@ local function PaintSide()
 		SideHeading(L["You have no profession yet."])
 	end
 	for _, p in ipairs(mine) do
-		local picked = not alt and S.mode == "win" and not Linked() and p.line == S.line
-		SideEntry({ icon = p.icon, name = p.name, off = not p.crafts,
+		local picked
+		if gather then
+			picked = not alt and gather == p.game
+		else
+			picked = not alt and S.mode == "win" and not Linked() and p.line == S.line
+		end
+		-- (One with recipes opens its trade skill; a gathering one shows its own page.)
+		SideEntry({ icon = p.icon, name = p.name,
 			sub = p.max > 0 and ("%d / %d"):format(p.skill, p.max) or "",
 			value = p.max > 0 and p.skill / p.max or nil, picked = picked,
-			onClick = p.crafts and function() Window.OpenProfession(p.line) end or nil })
+			onClick = function()
+				if p.crafts then Window.OpenProfession(p.line, p.game) else Window.ShowGather(p.game) end
+			end,
+			-- (A primary profession can be unlearned, as in the game's professions book: right-click.)
+			tip = p.primary and function(tip)
+				tip:SetText(p.name)
+				tip:AddLine(L["Right-click: unlearn"], Color("LABEL"))
+			end or nil,
+			onRight = p.primary and function(owner) UnlearnMenu(owner, p) end or nil })
+	end
+	-- Every profession's camping items (Camp.lua).
+	if ns.Camp and ns.Camping and #ns.Camping > 0 then
+		SideEntry({ icon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(CAMP_ICON) or nil,
+			name = L["Camping"], sub = L["All professions"],
+			picked = not alt and gather == CAMP, onClick = function() Window.ShowGather(CAMP) end })
 	end
 	-- Your alts' professions on this realm, from the last time each opened them.
 	local alts = {}
@@ -934,6 +1079,121 @@ local function AltPage(d)
 end
 
 -- ---------------------------------------------------------------------------------------------
+-- A gathering profession of yours
+-- ---------------------------------------------------------------------------------------------
+-- Herbalism, Skinning and Fishing have no trade skill window, and the recipe data has nothing for
+-- them: their page shows the skill, the rank and when the next one is trained. A profession the
+-- data covers whose trade skill the game wouldn't open (OpenProfession) shows here too, with how
+-- to open it.
+
+local SMELTING = 2656
+
+-- Fishing's Expert rank is a book, sold in Booty Bay, and its Artisan rank a quest from Nat Pagle in
+-- Dustwallow Marsh (the fishing trainers of the capitals send you), by the cap they lift.
+local FISHING = 356
+local FISHING_RANKS = {
+	[150] = { item = 16083, npc = 2626, skill = 125, level = 20, rank = 225 },
+	[225] = { quest = 6607, npc = 12919, skill = 225, level = 35, rank = 300 },
+}
+
+-- Where Fishing's next rank comes from, with a click to set a waypoint to who has it.
+local function FishingRank(d, r, now)
+	local Plan = ns.Plan
+	local name = Plan and Plan.RankName(r.rank) or L["the next rank"]
+	local text
+	if r.item then
+		text = L["%s is a book, not a trainer rank: buy %s and read it (skill %d, level %d)."]:format(name,
+			Doc.ItemName(r.item, d), r.skill, r.level)
+	else
+		local title = C_QuestLog and C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(r.quest)
+		if type(title) ~= "string" or title == "" then
+			title = ns.PolestarNames and ns.PolestarNames.quest[r.quest] or L["Quest %d"]:format(r.quest)
+		end
+		text = L["%s comes from a quest, not a trainer: \"%s\" (skill %d, level %d); the fishing trainer in your capital sends you."]:format(
+			name, title, r.skill, r.level)
+	end
+	d:Line(text, now and "body" or "small", now and "WARN" or "TEXT")
+	local who, place
+	if ns.Where then who, place = ns.Where.Npc(r.npc) end
+	if who then
+		local located = place and place.mapID
+		d:Row({ left = who, leftInk = "TEXT", sub = place and (located and ("%s (%d, %d)"):format(place.zone, place.x + 0.5, place.y + 0.5)
+			or place.zone) or nil, subInk = located and "ACCENT" or "OFF",
+			tip = located and function(tip)
+				tip:SetText(who)
+				tip:AddLine(L["Click for a waypoint."], Color("LABEL"))
+			end or nil,
+			onClick = located and function() ns.Where.Go(who, place) end or nil })
+	end
+end
+
+local function GatherEntry()
+	for _, p in ipairs(MyProfessions()) do
+		if p.game == gather then return p end
+	end
+end
+
+local function GatherPage(d)
+	local p = GatherEntry()
+	if not p then
+		d:Line(L["You don't have that profession any more."], "body", "OFF")
+		return
+	end
+	local Plan = ns.Plan
+	local skill, cap = p.skill or 0, p.max or 0
+	d:Heading(L["Skill"])
+	local rank = cap > 0 and Plan and Plan.RankName(cap)
+	if rank then
+		d:Line(L["%s: skill %d of %d."]:format(rank, skill, cap), "body", "VALUE")
+	elseif cap > 0 then
+		d:Line(L["Skill %d of %d."]:format(skill, cap), "body", "VALUE")
+	else
+		d:Line(L["Skill %d."]:format(skill), "body", "VALUE")
+	end
+	d:Bar(cap > 0 and skill / cap or 0)
+	-- The next rank: trained at the cap, from a trainer of this profession. Fishing's Expert is a book
+	-- and its Artisan a quest (FISHING_RANKS).
+	local book = p.game == FISHING and FISHING_RANKS[cap]
+	if book and cap < 300 then
+		FishingRank(d, book, skill >= cap)
+		if skill >= cap then d:Line(L["You're capped at %d until you do."]:format(cap), "small", "TEXT") end
+	elseif cap > 0 and cap < 300 then
+		local nextCap = cap + 75
+		local name = Plan and Plan.RankName(nextCap) or L["the next rank"]
+		local level = Plan and Plan.RankLevel(nextCap)
+		if skill >= cap then
+			d:Line(level and L["Train %s at a %s trainer (it asks level %d)."]:format(name, p.name, level)
+				or L["Train %s at a %s trainer."]:format(name, p.name), "body", "WARN")
+			d:Line(L["You're capped at %d until you do."]:format(cap), "small", "TEXT")
+		else
+			d:Line(level and L["At %d: train %s (level %d)."]:format(cap, name, level)
+				or L["At %d: train %s."]:format(cap, name), "small", "TEXT")
+		end
+	elseif cap >= 300 and skill >= cap then
+		d:Line(L["%s is at its top skill."]:format(p.name), "small", "GOOD")
+	end
+	if p.crafts then
+		d:Heading(L["Recipes"])
+		-- (The game wouldn't open it from here: its own spell does.)
+		local spell = p.line == 186 and ns.SpellName(SMELTING) or p.name
+		d:Line(L["Cast %s from your spellbook to open its recipes here."]:format(spell or p.name), "small", "TEXT")
+	elseif ns.Camp and ns.Camp.Has(p.game) then
+		-- (Its only recipes are its camping items: no recipe list, Leveling Guide or Missing tab.)
+		d:Line(L["%s's skill rises as you gather; its only recipes are its camping items, below."]:format(p.name), "small", "TEXT")
+		ns.Camp.Section(d, p.game, Window.Render)
+	else
+		d:Heading(L["Recipes"])
+		d:Line(L["%s has no recipes: its skill rises as you gather, so there's no recipe list, Leveling Guide or missing recipes for it."]:format(p.name),
+			"small", "TEXT")
+	end
+end
+
+-- Every profession's camping items, in place of a profession's page.
+local function CampPage(d)
+	if ns.Camp then ns.Camp.Page(d, Window.Render) end
+end
+
+-- ---------------------------------------------------------------------------------------------
 -- Building
 -- ---------------------------------------------------------------------------------------------
 
@@ -944,7 +1204,7 @@ local TABS = { { "recipes", L["Recipes"] }, { "guide", L["Leveling Guide"] }, { 
 
 local function PaintTabs()
 	for _, b in ipairs(tabButtons) do
-		b:SetShown(not alt)
+		b:SetShown(not alt and not gather)
 		local on = b.key == tab
 		if on then
 			b.text:SetTextColor(Color("VALUE"))
@@ -998,7 +1258,7 @@ local function Build()
 		PaintCraftBar()
 	end)
 	win:Hide()
-	win:SetScale(ns.Get("winScale") or 1)
+	win:SetScale(Scale())
 	ns.SkinWindow(win)
 	Place()
 	-- Esc closes it like any window (and ends the trade skill with it).
@@ -1011,6 +1271,8 @@ local function Build()
 
 	local close = API.Close(win, function() win:Hide() end)
 	close:SetPoint("TOPRIGHT", win, "TOPRIGHT", -10, -10)
+	-- (Beside the X: the swap button, back to the game's or DaylightUI's profession window.)
+	if ns.Swap then ns.Swap.OnWindow(win, close) end
 
 	-- Left: the professions.
 	side = CreateFrame("Frame", nil, win)
@@ -1128,7 +1390,7 @@ local function Build()
 	craftBar:SetPoint("BOTTOMLEFT", body, "BOTTOMLEFT", LIST + 1, 0)
 	craftBar:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", 0, 0)
 
-	detail = Doc.New(body, { pad = 18 })
+	detail = Doc.New(body, { pad = 18, redraw = function() Window.Render() end })
 	detail.scroll:SetPoint("TOPLEFT", body, "TOPLEFT", LIST + 1, -4)
 	detail.scroll:SetPoint("BOTTOMRIGHT", craftBar, "TOPRIGHT", 0, 0)
 
@@ -1145,9 +1407,9 @@ local function Build()
 		end })
 	pageSearch:SetPoint("TOPLEFT", body, "TOPLEFT", PAD, -10)
 	pageSearch:SetWidth(320)
-	pageDoc = Doc.New(body, { pad = 24 })
+	pageDoc = Doc.New(body, { pad = 24, redraw = function() Window.Render() end })
 
-	altDoc = Doc.New(body, { pad = 24 })
+	altDoc = Doc.New(body, { pad = 24, redraw = function() Window.Render() end })
 	altDoc.search = API.Input(body, { search = true, hint = L["Search their recipes"],
 		onChange = function(text)
 			text = ns.Fold(text)
@@ -1157,8 +1419,6 @@ local function Build()
 		end })
 	altDoc.search:SetPoint("TOPLEFT", body, "TOPLEFT", PAD, -10)
 	altDoc.search:SetWidth(320)
-	altDoc.scroll:SetPoint("TOPLEFT", body, "TOPLEFT", 0, -46)
-	altDoc.scroll:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", 0, 8)
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -1188,6 +1448,36 @@ local function PaintHead()
 		headSkill:SetTextColor(Color("LABEL"))
 		headNote:SetText(L["As of their last visit"])
 		headNote:SetTextColor(Color("OFF"))
+		return
+	end
+	if gather == CAMP then
+		local icon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(CAMP_ICON) or nil
+		headIcon:SetTexture(icon)
+		headIcon:SetShown(icon ~= nil)
+		headName:SetText(L["Camping"])
+		headName:SetTextColor(Color("VALUE"))
+		headBar:Hide()
+		headSkill:SetText("")
+		headNote:SetText("")
+		return
+	end
+	if gather then
+		local p = GatherEntry()
+		headIcon:SetTexture(p and p.icon or nil)
+		headIcon:SetShown(p ~= nil and p.icon ~= nil)
+		headName:SetText(p and p.name or L["Profession"])
+		headName:SetTextColor(Color("VALUE"))
+		if p and p.max > 0 then
+			headBar:SetMinMaxValues(0, p.max)
+			headBar:SetValue(p.skill)
+			headBar:Show()
+			headSkill:SetText(("%d / %d"):format(p.skill, p.max))
+			headSkill:SetTextColor(Color("LABEL"))
+		else
+			headBar:Hide()
+			headSkill:SetText("")
+		end
+		headNote:SetText("")
 		return
 	end
 	local open = S.mode == "win"
@@ -1238,7 +1528,8 @@ function Window.Render()
 	PaintHead()
 	PaintSide()
 	PaintTabs()
-	local recipes = not alt and tab == "recipes"
+	local other = alt ~= nil or gather ~= nil     -- an alt's profession or a gathering one: no tabs
+	local recipes = not other and tab == "recipes"
 	local open = S.mode == "win"
 	search:SetShown(recipes)
 	for _, b in ipairs(filterButtons) do
@@ -1248,12 +1539,16 @@ function Window.Render()
 	listFrame:SetShown(recipes)
 	body.listEdge:SetShown(recipes)
 	detail.scroll:SetShown(recipes)
-	pageSearch:SetShown(not alt and tab == "missing")
-	pageDoc.scroll:SetShown(not alt and not recipes)
-	altDoc.scroll:SetShown(alt ~= nil)
+	pageSearch:SetShown(not other and tab == "missing")
+	pageDoc.scroll:SetShown(not other and not recipes)
+	altDoc.scroll:SetShown(other)
 	altDoc.search:SetShown(alt ~= nil)
-	if alt then
-		Draw(altDoc, AltPage)
+	if other then
+		-- (A gathering profession's page has no search above it.)
+		altDoc.scroll:ClearAllPoints()
+		altDoc.scroll:SetPoint("TOPLEFT", body, "TOPLEFT", 0, alt and -46 or -4)
+		altDoc.scroll:SetPoint("BOTTOMRIGHT", body, "BOTTOMRIGHT", 0, 8)
+		Draw(altDoc, alt and AltPage or (gather == CAMP and CampPage) or GatherPage)
 		PaintCraftBar()
 		return
 	end
@@ -1292,9 +1587,9 @@ function Window.Dirty()
 end
 
 function Window.SetTab(key)
-	if tab == key and not alt then return end
+	if tab == key and not alt and not gather then return end
 	tab = key
-	alt = nil
+	alt, gather = nil, nil
 	if pageDoc then pageDoc:Top() end
 	Window.Render()
 end
@@ -1322,11 +1617,11 @@ end
 
 -- Whether a page showing prices, your materials or the plan is up.
 function Window.ShowingPlan()
-	return Window.Shown() and not alt and tab ~= "missing"
+	return Window.Shown() and not alt and not gather and tab ~= "missing"
 end
 
 function Window.ShowingMissing()
-	return Window.Shown() and not alt and tab == "missing"
+	return Window.Shown() and not alt and not gather and tab == "missing"
 end
 
 function Window.CraftChanged(afterFight)
@@ -1345,7 +1640,7 @@ local closing = 0       -- counts closings: one put off a frame is dropped if a 
 function Window.SessionStarted()
 	if not win then Build() end
 	closing = closing + 1
-	alt = nil
+	alt, gather = nil, nil
 	S.mode = "win"
 	if ns.Where then ns.Where.ForgetKnown() end
 	ns.ReadProfession()
@@ -1384,24 +1679,40 @@ listEvents:SetScript("OnEvent", function()
 	if S.mode == "win" and Window.Shown() then Window.Dirty() end
 end)
 
--- Opens one of your professions (a click: the game asks for one to open a trade skill).
-function Window.OpenProfession(line)
+-- Opens one of your professions (a click: the game asks for one to open a trade skill). line: the
+-- data's skill line; game: the game's own for it, the one the game opens (the same, mostly).
+function Window.OpenProfession(line, game)
 	if not line then return end
+	game = game or line
 	if S.mode == "win" and S.line == line and not Linked() then
-		if alt then
-			alt = nil
+		if alt or gather then
+			alt, gather = nil, nil
 			Window.Render()
 		end
 		return
 	end
-	alt = nil
-	local ok, opened = pcall(C_TradeSkillUI.OpenTradeSkill, line)
-	if not ok or opened == false then ns.Print(L["The game didn't open that profession."]) end
+	alt, gather = nil, nil
+	local ok, opened = pcall(C_TradeSkillUI.OpenTradeSkill, game)
+	if not ok or opened == false then
+		-- (Its page says how to open it instead, with its skill and rank.)
+		ns.Print(L["The game didn't open that profession."])
+		Window.ShowGather(game)
+	end
 end
 
 function Window.ShowAlt(guid, line)
-	alt = { guid = guid, line = line }
+	alt, gather = { guid = guid, line = line }, nil
 	if altDoc then altDoc:Top() end
+	Window.Render()
+end
+
+-- A gathering profession of yours (by the game's skill line): its page, in place of the tabs.
+function Window.ShowGather(game)
+	if not game then return end
+	alt, gather = nil, game
+	if not win then Build() end
+	if altDoc then altDoc:Top() end
+	if not win:IsShown() then win:Show() end
 	Window.Render()
 end
 
@@ -1417,13 +1728,16 @@ function Window.Toggle()
 		return
 	end
 	local last = DaylightRecipesDB and DaylightRecipesDB.lastLine
-	if not last then
-		for _, p in ipairs(MyProfessions()) do
-			if p.crafts then last = p.line break end
+	local game = last
+	for _, p in ipairs(MyProfessions()) do
+		-- (The game's own line for the one last open, else your first with recipes.)
+		if (last and p.line == last) or (not last and p.crafts) then
+			game = p.game
+			break
 		end
 	end
-	if last then
-		local ok, opened = pcall(C_TradeSkillUI.OpenTradeSkill, last)
+	if game then
+		local ok, opened = pcall(C_TradeSkillUI.OpenTradeSkill, game)
 		if ok and opened ~= false then return end
 	end
 	-- No profession to open: the window shows your professions and alts anyway.
@@ -1437,7 +1751,7 @@ end
 
 function Window.Rescale()
 	if not win then return end
-	local old, new = win:GetScale(), ns.Get("winScale") or 1
+	local old, new = win:GetScale(), Scale()
 	local left, top = win:GetLeft(), win:GetTop()
 	win:SetScale(new)
 	if left and top then
@@ -1448,3 +1762,12 @@ function Window.Rescale()
 	if ns.Take then ns.Take.Rewidth() end
 	PaintCraftBar()
 end
+
+-- The screen got smaller or larger (the UI scale, the game's window): the window fits it again.
+local screen = CreateFrame("Frame")
+screen:RegisterEvent("UI_SCALE_CHANGED")
+screen:RegisterEvent("DISPLAY_SIZE_CHANGED")
+screen:SetScript("OnEvent", function()
+	-- (A frame later: UIParent takes its new size after the event.)
+	C_Timer.After(0, Window.Rescale)
+end)

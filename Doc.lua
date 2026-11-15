@@ -115,13 +115,14 @@ local function MakeRow(child)
 	r.icon = r:CreateTexture(nil, "ARTWORK")
 	r.icon:SetSize(16, 16)
 	r.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	-- (Its texts wrap onto more lines rather than being cut off: D:Row sizes the row to them.)
 	r.left = Doc.Text(r, "body")
 	r.left:SetJustifyH("LEFT")
-	r.left:SetWordWrap(false)
+	r.left:SetWordWrap(true)
 	r.right = Doc.Text(r, "body", "RIGHT")
 	r.sub = Doc.Text(r, "small")
 	r.sub:SetJustifyH("LEFT")
-	r.sub:SetWordWrap(false)
+	r.sub:SetWordWrap(true)
 	r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	r:SetScript("OnEnter", function(self)
 		if self.onClick or self.onDouble or self.tip then self.wash:Show() end
@@ -164,11 +165,15 @@ local function FitThumb(d)
 end
 
 -- A new doc in `parent` (placed by the caller: d.scroll is the frame to anchor). opts.pad: the
--- page's side margin (14); opts.width: its width, for a doc that's always as wide.
+-- page's side margin (14); opts.width: its width, for a doc that's always as wide; opts.redraw: draws
+-- its owner again (only that one: not every window and panel of ours) after a change of width;
+-- opts.idle: true while that redraw would draw nothing (a folded pane), then it's skipped.
 function Doc.New(parent, opts)
 	local d = setmetatable({}, D)
 	d.pad = opts and opts.pad or 14
 	d.fixed = opts and opts.width or nil   -- its width, when it never changes
+	d.redraw = opts and opts.redraw or nil
+	d.idle = opts and opts.idle or nil
 	d.pools, d.waiting, d.y, d.width = {}, {}, 0, 200
 	d.state = {}            -- the pages' own memory for this doc (open rows, how many shown...)
 	local scroll = CreateFrame("ScrollFrame", nil, parent)
@@ -183,8 +188,19 @@ function Doc.New(parent, opts)
 		FitThumb(d)
 	end)
 	scroll:SetScript("OnScrollRangeChanged", function() FitThumb(d) end)
+	-- (Wider or narrower than the page was drawn at: drawn again, so its text wraps to the new width.)
 	scroll:SetScript("OnSizeChanged", function(_, w)
-		if w and w > 0 then child:SetWidth(w) end
+		if not w or w <= 0 then return end
+		child:SetWidth(w)
+		if d.fixed or not d.drawn or not d.redraw then return end
+		-- (Once it settles: a pane sliding open changes width every frame.)
+		d.sized = (d.sized or 0) + 1
+		local serial = d.sized
+		C_Timer.After(0.1, function()
+			if serial ~= d.sized or not scroll:IsVisible() then return end
+			if d.idle and d.idle() then return end
+			if math.abs(scroll:GetWidth() - d.width) >= 1 then d.redraw() end
+		end)
 	end)
 	local thumb = scroll:CreateTexture(nil, "OVERLAY")
 	thumb:SetWidth(3)
@@ -222,6 +238,7 @@ end
 
 function D:Finish()
 	self:Gap(8)
+	self.drawn = true
 	self.child:SetHeight(math.max(1, self.y))
 	local scroll = self.scroll
 	local range = scroll:GetVerticalScrollRange() or 0
@@ -272,9 +289,8 @@ function D:Row(o)
 	local child = self.child
 	local r = self:Take("row", function() return MakeRow(child) end)
 	local indent = o.indent or 0
-	local h = o.sub and 34 or 20
+	local w = self.width - self.pad * 2 + 8 - indent
 	r:SetPoint("TOPLEFT", child, "TOPLEFT", self.pad - 4 + indent, -self.y)
-	r:SetSize(self.width - self.pad * 2 + 8 - indent, h)
 	r.onClick, r.tip, r.link, r.rightClick, r.onDouble = o.onClick, o.tip, o.link, o.rightClick, o.onDouble
 	if o.marked then
 		local ar, ag, ab = API.Accent()
@@ -297,22 +313,40 @@ function D:Row(o)
 	else
 		r.icon:Hide()
 	end
-	r.right:SetPoint("TOPRIGHT", r, "TOPRIGHT", -4, -3)
+	-- The right text on one line, or wrapped in the right half of the row when it's longer; the left
+	-- one wraps in what's left of the row, and the sub line under both across the row. The row is
+	-- as tall as they are (one line each: 20, with a sub line: 34).
+	local inner = w - x - 4
+	r.right:SetWidth(0)
+	r.right:SetWordWrap(false)
 	r.right:SetText(o.right or "")
 	r.right:SetTextColor(Color(o.rightInk or "VALUE"))
+	local rw = (o.right and o.right ~= "") and math.ceil(r.right:GetStringWidth()) or 0
+	local half = math.floor(inner / 2)
+	if rw > half then
+		r.right:SetWidth(half)
+		r.right:SetWordWrap(true)
+		rw = half
+	end
+	r.right:SetPoint("TOPRIGHT", r, "TOPRIGHT", -4, -3)
 	r.left:SetPoint("TOPLEFT", r, "TOPLEFT", x, -3)
-	r.left:SetPoint("RIGHT", r.right, "LEFT", -8, 0)
+	r.left:SetWidth(math.max(20, inner - (rw > 0 and rw + 8 or 0)))
 	r.left:SetText(o.left or "")
 	r.left:SetTextColor(Color(o.leftInk or "VALUE"))
+	local top = 3 + math.max(math.ceil(r.left:GetStringHeight()), rw > 0 and math.ceil(r.right:GetStringHeight()) or 0)
+	local h
 	if o.sub then
-		r.sub:SetPoint("TOPLEFT", r.left, "BOTTOMLEFT", 0, -3)
-		r.sub:SetPoint("RIGHT", r, "RIGHT", -4, 0)
+		r.sub:SetPoint("TOPLEFT", r, "TOPLEFT", x, -(top + 3))
+		r.sub:SetWidth(math.max(20, inner))
 		r.sub:SetText(o.sub)
 		r.sub:SetTextColor(Color(o.subInk or "TEXT"))
 		r.sub:Show()
+		h = math.max(34, top + 3 + math.ceil(r.sub:GetStringHeight()) + 4)
 	else
 		r.sub:Hide()
+		h = math.max(20, top + 4)
 	end
+	r:SetSize(w, h)
 	self.y = self.y + h + 2
 	return r
 end
@@ -322,22 +356,36 @@ function D:Buttons(list, indent)
 	local child = self.child
 	local left = self.pad + (indent or 0)
 	local x = left
+	local tall = 24          -- the tallest button on this line
 	for _, spec in ipairs(list) do
 		local b = self:Take("button", function() return API.Button(child, "", 24) end)
+		b:SetHeight(24)
+		b.text:SetWidth(0)
+		b.text:SetWordWrap(false)
 		b.text:SetText(spec.text or "")
 		if spec.width then b:SetWidth(spec.width) else b.FitWidth(64) end
+		-- (Words wider than the page: the button as wide as the page, its words on two lines or more.)
+		local most = self.width - self.pad - left
+		if most > 40 and b:GetWidth() > most then
+			b:SetWidth(most)
+			b.text:SetWidth(most - 16)
+			b.text:SetWordWrap(true)
+			b:SetHeight(math.max(24, math.ceil(b.text:GetStringHeight()) + 10))
+		end
 		-- (Past the page's edge: on to a new line.)
 		if x > left and x + b:GetWidth() > self.width - self.pad then
 			x = left
-			self.y = self.y + 30
+			self.y = self.y + tall + 6
+			tall = 24
 		end
+		tall = math.max(tall, b:GetHeight())
 		b:SetPoint("TOPLEFT", child, "TOPLEFT", x, -self.y)
 		b:SetScript("OnClick", function() if spec.onClick then spec.onClick() end end)
 		b.SetOff(spec.off == true)
 		if b.SetActive then b.SetActive(spec.active == true) end
 		x = x + b:GetWidth() + 6
 	end
-	self.y = self.y + 30
+	self.y = self.y + tall + 6
 end
 
 function D:Bar(value)

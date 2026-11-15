@@ -122,7 +122,7 @@ local function Build()
 	root.search:SetPoint("TOPLEFT", root, "TOPLEFT", PAD, -44)
 	root.search:SetPoint("TOPRIGHT", root, "TOPRIGHT", -PAD, -44)
 
-	doc = Doc.New(root, { pad = PAD })
+	doc = Doc.New(root, { pad = PAD, redraw = function() Pane.Render() end, idle = Folded })
 	doc.scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", 0, 10)
 end
 
@@ -134,6 +134,13 @@ local function Host()
 		duiPane = me.AttachCraftPane(shownWidth)
 	end
 	return duiPane
+end
+
+-- The window DaylightUI's docked pane hangs on (DaylightUI's profession window), once it exists.
+function Pane.HostWindow()
+	local parent = duiPane and duiPane:GetParent()
+	if parent and parent ~= UIParent then return parent end
+	return nil
 end
 
 function Pane.AttachMogul(win)
@@ -199,6 +206,13 @@ function Pane.Render()
 	if S.name and (S.max or 0) > 0 then
 		root.skill:SetText(Hex(Color("LABEL")) .. S.name .. "|r  " .. S.skill .. " / " .. S.max)
 		root.skill:SetTextColor(Color("VALUE"))
+		-- (Too long for the room right of the tabs, in a narrow pane: the skill alone, or nothing when
+		-- even that would run into them; the profession window beside shows it too.)
+		local tabs = PAD - 8
+		for i, b in ipairs(root.tabs) do tabs = tabs + b:GetWidth() + (i > 1 and 2 or 0) end
+		local room = (shownWidth or TargetWidth()) - PAD - tabs - 8
+		if root.skill:GetStringWidth() > room then root.skill:SetText(S.skill .. " / " .. S.max) end
+		if root.skill:GetStringWidth() > room then root.skill:SetText("") end
 	else
 		root.skill:SetText("")
 	end

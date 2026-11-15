@@ -8,12 +8,13 @@ Requires **DaylightUI**. Works on its own: it keeps its own Auction House prices
 
 ## The window
 Open any profession and Daylight Recipes' window takes the place of the game's (and DaylightUI's or Mogul's).
-- **Your professions on the left** (click one to open it), with your alts' below: see what each alt knows.
+- **Your professions on the left** (click one to open it), with your alts' below: see what each alt knows. Herbalism, Skinning and Fishing open their own page (skill, rank, where to train next) and a **Camping** entry lists every profession's camping items. Right-click a main profession to **unlearn** it.
+- **Swap button** beside the X: switch to the game's profession window and back any time.
 - **Recipes:** search, "Can make" and "Skill-ups" filters, folding categories and how many you can make. The picked recipe shows its skill-up chance, what its materials cost and what you hold of them (bags, bank, mail, alts), what it's worth, and Create / Create All / Queue.
 - **Leveling Guide:** pick your goal (150, 225, 300) and what the route aims for (cheapest materials, or after vendoring, disenchanting or selling what you make). The step you're on comes as a card: what to make and how many, its materials, and Make / Queue / Show recipe. Then every next step, numbered, with when to train each rank, and the rods and tools you'll need made along the way.
 - **Materials:** everything the route needs, what you hold, and what's left to buy.
 - **Queue:** queue recipes from anywhere, then "Craft next".
-- **Missing:** every recipe you don't know yet, where to get it, nearest first, with waypoints.
+- **Missing:** every recipe you don't know yet, where to get it, nearest first, with waypoints, including reputation recipes ("Nightclaw Druids: Friendly (Current Rep: Neutral)", in the game's reputation colors).
 - `/recipes` opens it on your last profession, even away from a crafting station.
 
 ## Where you shop and train
@@ -40,4 +41,4 @@ DaylightUI options > **Plugins > Recipes**. Prefer DaylightUI's or Mogul's own p
 
 ---
 
-*Daylight Recipes is free software under the GNU General Public License v3. Recipe and source data from ForeverRecipes (GPL-3.0).*
+*Daylight Recipes is free software under the GNU General Public License v3. Recipe and source data from ForeverRecipes (GPL-3.0); more recipe sources, reputation and camping data from Polestar (GPL-3.0).*

@@ -4,7 +4,7 @@
 ## Author: Glowey
 ## X-License: GPL-3.0-or-later
 ## X-Curse-Project-ID: 1801403
-## X-Credits: Recipe, source and disenchant data from ForeverRecipes by Ismail (GPL-3.0), built from ForeverDB.app and CMaNGOS Classic DB.
+## X-Credits: Recipe, source and disenchant data from ForeverRecipes by Ismail (GPL-3.0), built from ForeverDB.app and CMaNGOS Classic DB. Recipe sources, reputation and camping data from Polestar by the Polestar authors (GPL-3.0).
 ## Version: @project-version@
 ## Dependencies: DaylightUI
 ## OptionalDeps: DaylightMogul, TomTom
@@ -13,6 +13,7 @@
 Data\Recipes.lua
 Data\Sources.lua
 Data\Npcs.lua
+Data\Polestar.lua
 Data\Disenchant.lua
 Locales\Locales.lua
 Locales\deDE.lua
@@ -31,8 +32,10 @@ Queue.lua
 Tips.lua
 Doc.lua
 Pages.lua
+Camp.lua
 Pane.lua
 Craft.lua
 Window.lua
 Take.lua
 Shop.lua
+Swap.lua

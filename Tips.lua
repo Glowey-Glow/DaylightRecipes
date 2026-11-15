@@ -16,13 +16,13 @@ ns.Tips = Tips
 
 local NAMES = { [164] = L["Blacksmithing"], [165] = L["Leatherworking"], [171] = L["Alchemy"], [185] = L["Cooking"],
 	[186] = L["Mining"], [197] = L["Tailoring"], [202] = L["Engineering"], [333] = L["Enchanting"], [129] = L["First Aid"],
-	[40] = L["Poisons"] }
+	[40] = L["Poisons"], [182] = L["Herbalism"], [393] = L["Skinning"], [356] = L["Fishing"] }
 
 -- A profession's name in the client's language: the name of its own spell (the one learning it
 -- gives you; every rank shares the name), else the game's name for the skill line, else the English
 -- one above. Kept once found: it never changes in a session.
 local LINE_SPELL = { [164] = 2018, [165] = 2108, [171] = 2259, [185] = 2550, [186] = 2575, [197] = 3908,
-	[202] = 4036, [333] = 7411, [129] = 3273, [40] = 2842 }
+	[202] = 4036, [333] = 7411, [129] = 3273, [40] = 2842, [182] = 2366, [393] = 8613, [356] = 7620 }
 local lineNames = {}
 local function Usable(name) return type(name) == "string" and name ~= "" and name or nil end
 local function LineName(line)
@@ -194,6 +194,14 @@ function Tips.SkillUp(line, from, skill, max)
 	end
 end
 
+-- A profession unlearned: learned again, its reminders are said again from skill 1.
+function Tips.ForgetLine(line)
+	local prefix = tostring(line) .. ":"
+	for key in pairs(told) do
+		if key:sub(1, #prefix) == prefix then told[key] = nil end
+	end
+end
+
 -- ---------------------------------------------------------------------------------------------
 -- The mark on "Craft next"'s pick in DaylightUI's recipe list
 -- ---------------------------------------------------------------------------------------------
@@ -211,7 +219,6 @@ local function Best()
 	end
 	return best
 end
-Tips.Best = Best
 Tips.Best = Best
 
 local marks = setmetatable({}, { __mode = "k" })

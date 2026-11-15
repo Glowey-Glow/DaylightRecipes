@@ -688,3 +688,5 @@ end
 
 -- Rank names for a cap (for text).
 function Plan.RankName(cap) return RANK_SHOWN[cap] end
+-- The character level a rank asks (nil for Apprentice).
+function Plan.RankLevel(cap) return RANK_LEVEL[cap] end

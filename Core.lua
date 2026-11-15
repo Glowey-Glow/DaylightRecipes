@@ -9,7 +9,8 @@
 --   Missing: every recipe of the open profession you don't know yet, with where it's taught,
 --            sold, dropped or given, and a waypoint to it.
 -- The recipe, source and disenchant tables in Data/ are ForeverRecipes' (GPL-3.0, by Ismail),
--- built from ForeverDB.app and CMaNGOS Classic DB, unchanged. This plugin is GPL-3.0 too
+-- built from ForeverDB.app and CMaNGOS Classic DB, unchanged; Data/Polestar.lua is generated from
+-- Polestar's data (GPL-3.0) by Tools/polestar.py. This plugin is GPL-3.0 too
 -- (LICENSE.md). Built on DaylightUI.API only.
 
 local ADDON, ns = ...
@@ -160,6 +161,22 @@ end
 ns.LINES = { [164] = true, [165] = true, [171] = true, [185] = true, [186] = true, [197] = true,
 	[202] = true, [333] = true, [129] = true, [40] = true }
 
+-- The data's skill line for a profession the game gives by its line and name: the line itself when
+-- the data covers it, else the data's profession of that name (a client numbering a line its own
+-- way). Mining's trade skill may go by Smelting, its crafting spell. Nil for a profession the data
+-- has no recipes for (Herbalism, Skinning, Fishing).
+local SMELTING = 2656
+function ns.DataLine(line, name)
+	if type(line) == "number" and ns.LINES[line] then return line end
+	if type(name) ~= "string" or name == "" or not ns.Tips then return nil end
+	local folded = ns.Fold(name)
+	for l in pairs(ns.LINES) do
+		if ns.Fold(ns.Tips.LineName(l)) == folded then return l end
+	end
+	if ns.Fold(ns.SpellName(SMELTING) or "") == folded then return 186 end
+	return nil
+end
+
 -- mode: "win" (our own window), "dui" (DaylightUI's window) or "mogul" (DaylightMogul's), nil while
 -- none is open.
 local S = { mode = nil, line = nil, name = nil, skill = 0, max = 0, linked = false, recipe = nil }
@@ -195,6 +212,8 @@ function ns.ReadProfession()
 		end
 	end
 	local name = type(info) == "table" and info.professionName or nil
+	-- (No line the data knows: matched by the profession's name instead.)
+	if not line and type(info) == "table" and type(name) == "string" then line = ns.DataLine(nil, name) end
 	local skill = type(info) == "table" and tonumber(info.skillLevel) or 0
 	local max = type(info) == "table" and tonumber(info.maxSkillLevel) or 0
 	local linked = Ask("IsTradeSkillLinked") == true or Ask("IsTradeSkillGuild") == true
@@ -349,6 +368,11 @@ events:SetScript("OnEvent", function(_, event, itemID)
 	elseif event == "TRADE_SKILL_CLOSE" then
 		if S.mode == "mogul" then S.mode = nil end
 	elseif event == "TRADE_SKILL_LIST_UPDATE" or event == "SKILL_LINES_CHANGED" or event == "NEW_RECIPE_LEARNED" then
+		-- (A skill-up while you gather: the window's list of professions and a gathering page show it,
+		-- with no trade skill open. Only drawn when the window is up.)
+		if event == "SKILL_LINES_CHANGED" and ns.Window and ns.Window.Shown() and not S.mode then
+			ns.Changed()
+		end
 		if not S.mode then return end
 		-- (The list updates on every bag change and craft; the known recipes are only read again
 		-- when the game says one was learned. A new profession reads them anew by itself.)
@@ -386,6 +410,7 @@ local function FollowOpacity(get) return get("duiOpacity") ~= false end
 
 local WINDOWS = {
 	recipes = L["Recipes window"],
+	game = L["The game's window"],
 	pane = L["Docked pane"],
 }
 
@@ -394,8 +419,8 @@ local pages = {
 	  desc = L["Your profession window, leveling plan and missing recipes."],
 	  groups = {
 		{ label = L["Profession window"], items = {
-			{ type = "dropdown", key = "window", label = L["Profession window"], values = WINDOWS,
-			  desc = L["Daylight Recipes' own large window in place of the game's (and DaylightUI's or DaylightMogul's), or theirs with a pane beside it."] },
+			{ type = "dropdown", key = "window", label = L["Profession window"], values = WINDOWS, order = { "recipes", "game", "pane" },
+			  desc = L["Recipes window: Daylight Recipes' own (DaylightUI's profession window is switched off for it). The game's window: Blizzard's own, as the swap button beside the X picks. Docked pane: DaylightUI's or DaylightMogul's window with a pane beside it (DaylightUI's comes back after a reload)."] },
 			{ type = "slider", key = "winScale", label = L["Window size"], min = 0.7, max = 1.2, step = 0.05,
 			  desc = L["How large Daylight Recipes' window is."], disabled = WindowOff },
 			{ type = "slider", key = "paneWidth", label = L["Pane width"], min = 260, max = 400, step = 10,
@@ -450,6 +475,7 @@ me.On("SettingChanged", function(scope, path)
 	end
 	if path == "window" then
 		if ns.Take then ns.Take.Recheck() end
+		if ns.Swap then ns.Swap.Picked(ns.Get("window")) end
 		return
 	end
 	if path == "winScale" then

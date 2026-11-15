@@ -81,12 +81,15 @@ end
 
 -- The game window back where it was (the game's, or DaylightUI's to show again), with the panel
 -- width it had. inFight: only the parent (a hidden window, as a fight starts: the width waits).
-local function Release(inFight)
+-- toGame: to the screen itself, never back under DaylightUI's (or DaylightMogul's) holder: the
+-- game's own window is the one wanted ("The game's window", the swap button). They read it moved
+-- under another parent as taken (their "Away" rule) and step aside, as they do for ours.
+local function Release(inFight, toGame)
 	local f = Game()
 	if not f or not holding then return false end
 	if not inFight and InCombatLockdown() then return false end
 	holding = false
-	if f:GetParent() == veil then f:SetParent(before or UIParent) end
+	if f:GetParent() == veil then f:SetParent(toGame and UIParent or before or UIParent) end
 	before = nil
 	-- (In a fight the width can't be written: it is once the fight ends.)
 	if InCombatLockdown() then
@@ -97,7 +100,7 @@ local function Release(inFight)
 	end
 	return true
 end
-function Take.Release() return Release(false) end
+function Take.Release() return Release(false, ns.Get("window") == "game") end
 
 function Take.Holding() return holding end
 
@@ -118,6 +121,19 @@ function Take.Close()
 	end
 end
 
+-- "The game's window": a profession opened while DaylightUI's own window is still running this
+-- session (it is switched off at the next login) is parked by DaylightUI under its holder. Handed
+-- to the screen a frame later, so DaylightUI steps aside (its "Away" rule) and the game's own
+-- window shows. Out of combat only (the panel's parent can't be set in a fight).
+function Take.ToScreen()
+	if ns.Get("window") ~= "game" then return end
+	C_Timer.After(0, function()
+		local f = Game()
+		if not f or InCombatLockdown() or ns.Get("window") ~= "game" then return end
+		if f:GetParent() ~= UIParent then f:SetParent(UIParent) end
+	end)
+end
+
 -- A session that belongs in our window, held (or to be held once the fight ends).
 local function Start()
 	ours = Take.Wanted() and Take.Ours()
@@ -125,6 +141,7 @@ local function Start()
 		-- (Ours was held for the last profession: the game's or DaylightUI's window shows this one.)
 		Take.Release()
 		if ns.Window then ns.Window.SessionEnded() end
+		Take.ToScreen()
 		return
 	end
 	-- (In a fight the game's own window shows it: ours takes over once the fight ends.)
@@ -148,7 +165,7 @@ local function ReleaseAfter()
 	C_Timer.After(0, function()
 		local f = Game()
 		if open or not f or f:IsShown() then return end
-		Release(false)
+		Release(false, ns.Get("window") == "game")
 	end)
 end
 
@@ -175,7 +192,7 @@ events:SetScript("OnEvent", function(_, event)
 		-- fight (a profession, the book, an NPC's crafting) shows as the game's own. (The lockdown
 		-- may already be on here: a hidden window's parent can still be set.)
 		local f = Game()
-		if holding and f and not f:IsShown() then Release(true) end
+		if holding and f and not f:IsShown() then Release(true, ns.Get("window") == "game") end
 	elseif event == "PLAYER_REGEN_ENABLED" then
 		if widthOwed and not holding then
 			widthOwed = false

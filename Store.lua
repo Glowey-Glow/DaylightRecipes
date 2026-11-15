@@ -73,6 +73,17 @@ function Store.SaveProfession(line, skill, max)
 	c.prof[line] = { skill = skill or 0, max = max or 0 }
 end
 
+-- A profession this character unlearned: its skill, known recipes and Leveling Guide are forgotten
+-- (its alts' view, the buy lists and the trainer's list read them).
+function Store.ForgetProfession(line)
+	local c = Store.Char()
+	if not c or not line then return end
+	if type(c.prof) == "table" then c.prof[line] = nil end
+	if type(c.known) == "table" then c.known[line] = nil end
+	if type(c.plans) == "table" then c.plans[line] = nil end
+	Store.version = Store.version + 1
+end
+
 -- set: spell -> true, every recipe of `line` this character knows.
 function Store.SaveKnown(line, set)
 	if not line or type(set) ~= "table" then return end
@@ -250,7 +261,8 @@ end
 -- each alt on this realm and faction ({ { name, count } }, most first). Totals.
 function Store.Count(itemID)
 	local c = Store.Char()
-	local out = { bags = 0, bank = 0, mail = 0, alts = {}, altTotal = 0 }
+	-- (altHeld: the alts' bags and bank only, without their mail: what DaylightUI's bag tooltip counts.)
+	local out = { bags = 0, bank = 0, mail = 0, alts = {}, altTotal = 0, altHeld = 0 }
 	if not c then return out end
 	out.bags = (c.bags and c.bags[itemID]) or 0
 	out.bank = (c.bank and c.bank[itemID]) or 0
@@ -258,11 +270,12 @@ function Store.Count(itemID)
 	out.bank = out.bank + ((shared and shared[itemID]) or 0)
 	out.mail = (c.mail and c.mail[itemID]) or 0
 	for _, alt in pairs(Store.Alts()) do
-		local n = ((alt.bags and alt.bags[itemID]) or 0) + ((alt.bank and alt.bank[itemID]) or 0)
-			+ ((alt.mail and alt.mail[itemID]) or 0)
+		local held = ((alt.bags and alt.bags[itemID]) or 0) + ((alt.bank and alt.bank[itemID]) or 0)
+		local n = held + ((alt.mail and alt.mail[itemID]) or 0)
 		if n > 0 then
 			out.alts[#out.alts + 1] = { name = alt.name or "?", count = n }
 			out.altTotal = out.altTotal + n
+			out.altHeld = out.altHeld + held
 		end
 	end
 	table.sort(out.alts, function(a, b) return a.count > b.count end)
