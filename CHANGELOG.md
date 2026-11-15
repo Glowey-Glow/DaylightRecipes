@@ -1,5 +1,9 @@
 # Daylight Recipes
 
+## 2.0.2
+- On German, French, Spanish, Russian, Korean and Chinese clients, words the game already translates (like Apprentice, Journeyman, Search, Yes and No) use the game's own translation instead of our draft.
+- Item tooltips no longer show your alts' guide lines: only this character's own guides, for the professions it has learned.
+
 ## 2.0.1
 - Item tooltips only speak of the professions this character has learned: "Used in", "Known by" and your own guides' lines (your alts' guide lines stay).
 - Daylight Recipes speaks German, French, Spanish, Russian, Korean and Simplified Chinese (machine drafts, corrections welcome).

@@ -26,12 +26,12 @@ Open any profession and Daylight Recipes' window takes the place of the game's (
 Drag a cheap item into the slot and level on it: enchant after enchant, with the game's "replace the enchant?" answered for you (Auto-replace, a switch).
 
 ## Around the game
-Item tooltips (what uses a material, what your guides need of it, and who on your account knows a recipe; only for the professions this character has learned), and trainer reminders in chat when a skill-up opens new recipes or you reach your rank's cap.
+Item tooltips (what uses a material, what your guides need of it, and who on your account knows a recipe; only for the professions this character has learned, and only this character's guides), and trainer reminders in chat when a skill-up opens new recipes or you reach your rank's cap.
 
 ---
 
 ## In your language
-Daylight Recipes speaks German, French, Spanish, Russian, Korean and Simplified Chinese (machine drafts, corrections welcome), and shows recipe, item, profession, zone and quest names in your game's language.
+Daylight Recipes speaks German, French, Spanish, Russian, Korean and Simplified Chinese (machine drafts, corrections welcome; words the game already translates use the game's own wording), and shows recipe, item, profession, zone and quest names in your game's language.
 
 ---
 

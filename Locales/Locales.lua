@@ -12,7 +12,52 @@ ns.LOCALE = GetLocale and GetLocale() or "enUS"
 if ns.LOCALE == "enGB" then ns.LOCALE = "enUS" end
 if ns.LOCALE == "esMX" then ns.LOCALE = "esES" end
 
-ns.L = setmetatable({}, { __index = function(_, key) return key end })
+-- Keys whose English is word for word one of the game's global strings (same case, punctuation
+-- and holes), in the same sense: on a non-English client the game's own translation stands in
+-- for ours, which stays as the fallback when the client lacks the global. English clients keep
+-- ours. Left out on purpose: same words in another sense (Missing, Recommended, Remove, Queued,
+-- Recipe, Poisons, Clear, Guide), "Recipes" (also the plugin's short name on DaylightUI's rail),
+-- and "Skill-ups" and "Auction House", whose game words are too long for where they sit.
+local ENGLISH = ns.LOCALE:sub(1, 2) == "en"
+local GAME = {
+	["%d%%"] = "PERCENTAGE_STRING",
+	["Apprentice"] = "APPRENTICE",
+	["Artisan"] = "ARTISAN",
+	["Cooking"] = "PROFESSIONS_COOKING",
+	["Create"] = "CREATE_PROFESSION",
+	["Disenchant"] = "ROLL_DISENCHANT",
+	["Done"] = "DONE",
+	["Drop"] = "BATTLE_PET_SOURCE_1",
+	["Enchant"] = "ENSCRIBE",
+	["Expert"] = "EXPERT",
+	["First Aid"] = "PROFESSIONS_FIRST_AID",
+	["Journeyman"] = "JOURNEYMAN",
+	["Later"] = "CHARACTER_UPGRADE_POPUP_LATER",
+	["Level %d"] = "UNIT_LEVEL_TEMPLATE",
+	["No"] = "NO",
+	["Other"] = "OTHER",
+	["Profession"] = "GUILD_ROSTER_DROPDOWN_PROFESSION",
+	["Professions"] = "TRADE_SKILLS",
+	["Quest"] = "BATTLE_PET_SOURCE_2",
+	["Search"] = "SEARCH",
+	["Total"] = "TOTAL",
+	["Vendor"] = "BATTLE_PET_SOURCE_3",
+	["Yes"] = "YES",
+}
+
+-- The game's text for a key in GAME, on a non-English client that has it; else nil.
+local function Game(key)
+	local global = not ENGLISH and GAME[key]
+	local v = global and _G[global]
+	if type(v) == "string" and v ~= "" then return v end
+	return nil
+end
+
+-- A language file's line for a key in GAME is kept only where the game has no text for it.
+ns.L = setmetatable({}, {
+	__index = function(_, key) return Game(key) or key end,
+	__newindex = function(t, key, value) rawset(t, key, Game(key) or value) end,
+})
 
 -- How each language picks a plural form:
 --   "one": a single form (Korean, Chinese);

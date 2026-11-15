@@ -1,6 +1,6 @@
 -- Help outside the pane:
 --   * Item tooltips (DaylightUI 1.7 and later): which professions use a material and in how many
---     recipes, what your plans need of it (yours, and your alts' on this realm), and for a recipe
+--     recipes, what your guides need of it (this character's only), and for a recipe
 --     item who on your account already knows it. Read from tables made once, so a tooltip filling
 --     several times a second costs a few lookups.
 --   * Trainer reminders: a chat line when a skill-up lets you learn new recipes at a trainer, and
@@ -138,25 +138,17 @@ local function ItemLines(lines, data)
 	end
 	local used = UsedText(itemID)
 	if used then lines.Line(L["Used in"], used) end
-	-- Plans: yours first, then your alts' on this realm.
+	-- Guides: this character's own, for the professions it has learned (alts' guides aren't shown).
 	local mine = ns.Store.Char()
-	-- (Your own guides for the professions you have; an alt's for the ones that alt has, which is
-	-- why it has a guide: what to mail them.)
-	local function planLines(c, who)
-		if type(c) ~= "table" or type(c.plans) ~= "table" then return end
-		local have = not who and Learned() or nil
-		for line, plan in pairs(c.plans) do
+	if type(mine) == "table" and type(mine.plans) == "table" then
+		local have = Learned()
+		for line, plan in pairs(mine.plans) do
 			local n = type(plan) == "table" and plan.need and plan.need[itemID]
-			if have and not have[line] then n = nil end
-			if n and n > 0 then
-				local label = who and L["%s's %s guide"]:format(who, LineName(line) or "")
-					or L["Your %s guide"]:format(LineName(line) or "")
-				lines.Line(label, L["%d (to %d)"]:format(n, plan.target or 0))
+			if n and n > 0 and have[line] then
+				lines.Line(L["Your %s guide"]:format(LineName(line) or ""), L["%d (to %d)"]:format(n, plan.target or 0))
 			end
 		end
 	end
-	planLines(mine, nil)
-	for _, alt in pairs(ns.Store.Alts()) do planLines(alt, alt.name) end
 end
 
 -- ---------------------------------------------------------------------------------------------

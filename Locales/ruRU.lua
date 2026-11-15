@@ -50,7 +50,6 @@ L["%s profit, after the 5%% cut"] = "прибыль %s после комисси
 L["%s total"] = "всего %s"
 L["%s%%"] = "%s%%"
 L["%s's %s"] = "%s: %s"
-L["%s's %s guide"] = "Руководство: %s, %s"
 L["%s's recipes"] = "Рецепты: %s"
 L["%s, %s each"] = "%s, %s за шт."
 L["... (%d in all)"] = "... (всего %d)"
