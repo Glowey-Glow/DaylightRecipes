@@ -16,5 +16,16 @@ Data\Npcs.lua
 Data\Disenchant.lua
 Core.lua
 Calc.lua
+Store.lua
+Prices.lua
 Where.lua
+Plan.lua
+Queue.lua
+Tips.lua
+Doc.lua
+Pages.lua
 Pane.lua
+Craft.lua
+Window.lua
+Take.lua
+Shop.lua

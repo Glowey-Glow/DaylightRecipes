@@ -13,8 +13,13 @@ local floor, max, min = math.floor, math.max, math.min
 local cache = {}   -- "kind:id" -> answer
 local NONE = {}
 
+-- Bumped whenever the answers are thrown away (prices, talents, reputation, a setting): the plan
+-- keys its own cache on it.
+Calc.version = 0
+
 function Calc.Forget()
 	cache = {}
+	Calc.version = Calc.version + 1
 end
 
 local function Kept(key, fn)
@@ -89,19 +94,60 @@ function Calc.Thresholds(spell)
 	return data[2]
 end
 
+-- The game's own word on a recipe you know: its difficulty (0 orange, 1 yellow, 2 green, 3 gray),
+-- whether it can still give points, and how many one craft gives. nil for one you don't know (the
+-- game only rates those) or a client without it.
+local function Live(spell)
+	local info = ns.Ask("GetRecipeInfo", spell)
+	if type(info) ~= "table" or not info.learned then return nil end
+	return info.relativeDifficulty, info.canSkillUp, tonumber(info.numSkillUps)
+end
+
+-- The game's color step for a recipe you know: 1 orange, 2 yellow, 3 green, 4 gray (nil otherwise).
+function Calc.Step(spell)
+	local color, canSkillUp = Live(spell)
+	if canSkillUp == false then return 4 end
+	if type(color) == "number" and color >= 0 and color <= 3 then return color + 1 end
+	return nil
+end
+
+-- Skill points one craft gives (some give two or more), 1 when the game doesn't say.
+function Calc.SkillUps(spell)
+	local _, _, n = Live(spell)
+	return (n and n > 0) and n or 1
+end
+
+-- The chance on yellow and green when the data's thresholds disagree with the game's color (the
+-- data is Classic's; Forever retuned some): a typical value for that color.
+local COLOR_GUESS = { [1] = 0.75, [2] = 0.25 }
+
 -- chance (0-1, talents in), base (without talents), state: "ok", "cap" (no points left at this
--- skill), "unknown" (no thresholds for it).
+-- skill), "unknown" (no thresholds for it). For a recipe you know, the game's own color decides:
+-- orange is a sure point, gray none; on yellow and green the thresholds give the odds.
 function Calc.Chance(spell, skill, cap)
-	local t = Calc.Thresholds(spell)
-	if not t then return nil, nil, "unknown" end
-	local yellow, grey = t[2], t[4]
+	if cap and cap > 0 and skill >= cap then return 0, 0, "cap" end
+	local color, canSkillUp = Live(spell)
+	if canSkillUp == false or color == 3 then return 0, 0, "ok" end
 	local base
-	if grey <= yellow then
-		base = skill < grey and 1 or 0
+	if color == 0 then
+		base = 1
 	else
-		base = max(0, min(1, (grey - skill) / (grey - yellow)))
+		local t = Calc.Thresholds(spell)
+		if t then
+			local yellow, grey = t[2], t[4]
+			if grey <= yellow then
+				base = skill < grey and 1 or 0
+			else
+				base = max(0, min(1, (grey - skill) / (grey - yellow)))
+			end
+			-- The game says yellow or green but the data says sure or none: the data is off here.
+			if color and COLOR_GUESS[color] and (base >= 1 or base <= 0) then base = COLOR_GUESS[color] end
+		elseif color and COLOR_GUESS[color] then
+			base = COLOR_GUESS[color]
+		else
+			return nil, nil, "unknown"
+		end
 	end
-	if cap and cap > 0 and skill >= cap then return 0, base, "cap" end
 	local overtime = Calc.Talents()
 	return min(1, base * (1 + overtime)), base, "ok"
 end
@@ -119,14 +165,21 @@ local function Mogul(itemID, source)
 	if ok and type(copper) == "number" and copper > 0 then return copper end
 end
 
+-- Whether Auction House prices are in use: DaylightMogul's when it's loaded, else our own (read
+-- while you browse, or by a scan from the Leveling Guide).
 function Calc.HasAH()
-	local M = _G.DaylightMogul
-	return ns.Get("useAH") and type(M) == "table" and type(M.API) == "table" and type(M.API.Price) == "function"
+	if not ns.Get("useAH") then return false end
+	if ns.Prices and ns.Prices.Mogul() then return true end
+	return ns.Prices ~= nil and ns.Prices.Has()
 end
 
 -- One item on the Auction House, or nil.
 function Calc.AH(itemID)
-	return Kept("ah:" .. itemID, function() return Mogul(itemID, ns.Get("priceSource") or "market") end)
+	return Kept("ah:" .. itemID, function()
+		if not ns.Get("useAH") then return nil end
+		if ns.Prices and not ns.Prices.Mogul() then return ns.Prices.Get(itemID) end
+		return Mogul(itemID, ns.Get("priceSource") or "market")
+	end)
 end
 
 local DISCOUNT = { [5] = 0.05, [6] = 0.10, [7] = 0.15, [8] = 0.20 }   -- friendly .. exalted
@@ -170,15 +223,26 @@ function Calc.Vendor(itemID)
 		end
 		local seen = Mogul(itemID, "vendorbuy")
 		if seen and (not best or seen < best) then best, who = seen, "Vendor" end
+		-- A vendor you've been to yourself (your discounts already in its price).
+		local visited, name
+		if ns.Store then visited, name = ns.Store.SeenVendor(itemID) end
+		if visited and (not best or visited < best) then best, who = visited, name or "Vendor" end
 		if best then return { unit = best, who = who } end
 	end)
 	if v then return v.unit, v.who end
 end
 
 -- The cheaper of the two: unit, "ah" | "vendor", the vendor's name.
+-- (A vendor wins over an Auction House a little cheaper but nearly sold out: a route needs more than
+-- a handful, and the vendor always has them.)
+local THIN = 10
 function Calc.Unit(itemID)
 	local vendor, who = Calc.Vendor(itemID)
 	local ah = Calc.AH(itemID)
+	if ah and vendor and ah < vendor and ns.Prices and ns.Prices.Quantity then
+		local q = ns.Prices.Quantity(itemID)
+		if q and q < THIN then ah = nil end
+	end
 	if ah and (not vendor or ah < vendor) then return ah, "ah" end
 	if vendor then return vendor, "vendor", who end
 end

@@ -10,19 +10,20 @@ ns.Where = Where
 
 local known       -- recipe -> true, this character's, for the open profession (read once per list)
 local knownCount = 0
-local stale = false       -- the game's list may have changed: read it again before it's next used
-local lastKey, lastList   -- the last missing list, and what it was made for
+local stale = false       -- a recipe may have been learned: read the known ones again before use
+local baseKey, base       -- the open profession's missing recipes (skill-independent), and their key
+local sources = {}        -- recipe -> its source groups (static data: made once per window opening)
 
 -- A new profession opened (or settings changed): everything is read again.
 function Where.ForgetKnown()
 	known, knownCount, stale = nil, 0, false
-	lastKey, lastList = nil, nil
+	baseKey, base = nil, nil
+	wipe(sources)
 end
 
--- The game's list was updated. That happens on every bag change and every craft while the window
--- is open, and almost never because a recipe was learned, so nothing is thrown away here: the
--- known recipes are read again the next time they're needed, and the missing list only rebuilt
--- if they changed (Where.Refresh).
+-- A recipe may have been learned (the game says so, or the skill line changed). Only then are the
+-- known recipes read again: the game's list also updates on every bag change and craft, which
+-- never changes what you know.
 function Where.MarkStale()
 	stale = true
 end
@@ -45,7 +46,20 @@ local function ReadKnown()
 			count = count + 1
 		end
 	end
+	-- Your own recipes (not a linked list), kept for the plan, tooltips and your alts.
+	local S = ns.state
+	if count > 0 and S.line and not S.linked and ns.Store then ns.Store.SaveKnown(S.line, set) end
 	return set, count
+end
+
+-- The known recipes now (read if they haven't been since the window opened).
+function Where.KnownSet()
+	if stale and known then Where.Refresh() end
+	if not known then
+		known, knownCount = ReadKnown()
+		stale = false
+	end
+	return known
 end
 
 -- Reads the known recipes again if the game's list may have changed. True when they did (a recipe
@@ -62,11 +76,12 @@ function Where.Refresh()
 		end
 	end
 	known, knownCount = set, count
-	if changed then lastKey, lastList = nil, nil end
+	if changed then baseKey, base = nil, nil end
 	return changed
 end
 
 local function Known()
+	if stale and known then Where.Refresh() end
 	if known then return known end
 	known, knownCount = ReadKnown()
 	stale = false
@@ -77,14 +92,39 @@ function Where.Knows(spell)
 	return Known()[spell] or SpellKnown(spell)
 end
 
--- The skill a recipe can be learned at, or nil when the data doesn't say.
+-- The skill a recipe can be learned at, or nil when the data doesn't say. A trainer's own
+-- requirement wins (the lowest any trainer asks): it differs from the orange threshold for a few
+-- hundred recipes. Otherwise the orange threshold, unless the data marks it unknown (or 0).
+local required = {}      -- spell -> its learn skill (false: none known); the data never changes
+local Required
 function Where.Required(spell)
+	local v = required[spell]
+	if v == nil then
+		v = Required(spell) or false
+		required[spell] = v
+	end
+	return v or nil
+end
+
+function Required(spell)
 	local data = ns.Recipes[spell]
-	local meta = ns.RecipeMeta and ns.RecipeMeta[spell]
 	if not data then return nil end
+	local trainers = ns.Trainers and ns.Trainers[spell]
+	local best
+	if type(trainers) == "table" then
+		for _, rec in ipairs(trainers) do
+			local req = type(rec) == "table" and rec[3]
+			-- (Only trainers you can use: the other faction's may teach it earlier.)
+			if type(req) == "number" and (not best or req < best) and Where.Npc(rec[1]) then best = req end
+		end
+	end
+	if best then return best end
+	local meta = ns.RecipeMeta and ns.RecipeMeta[spell]
 	if meta and (meta.levelRequired or meta.requirementKnown == false) then return nil end
 	local t = data[2]
-	return type(t) == "table" and t[1] or nil
+	local orange = type(t) == "table" and t[1] or nil
+	if type(orange) == "number" and orange > 0 then return orange end
+	return nil
 end
 
 -- A character level the recipe asks for, if any.
@@ -93,21 +133,88 @@ function Where.Level(spell)
 	return meta and (meta.levelRequired or meta.minCharacterLevel) or nil
 end
 
+-- ---------------------------------------------------------------------------------------------
+-- Nearest first. Places are ranked by map, never by world coordinates: 0 = the zone you're in (then
+-- by distance on that map), 1 = your continent, 2 = elsewhere. Read once per list.
+-- ---------------------------------------------------------------------------------------------
+
+local continentOf = {}    -- uiMapID -> its continent's uiMapID (false: none), memoized
+local function Continent(mapID)
+	if not mapID then return nil end
+	local c = continentOf[mapID]
+	if c ~= nil then return c or nil end
+	c = false
+	local id, guard = mapID, 0
+	while id and guard < 10 and C_Map and C_Map.GetMapInfo do
+		local info = C_Map.GetMapInfo(id)
+		if not info then break end
+		if Enum and Enum.UIMapType and info.mapType == Enum.UIMapType.Continent then c = id break end
+		id, guard = info.parentMapID, guard + 1
+	end
+	continentOf[mapID] = c
+	return c or nil
+end
+
+local here = {}           -- the player's map, continent and position on that map
+local function ReadHere()
+	wipe(here)
+	local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
+	if not map then return end
+	here.map, here.continent = map, Continent(map)
+	local pos = C_Map.GetPlayerMapPosition and C_Map.GetPlayerMapPosition(map, "player")
+	if pos then here.x, here.y = pos:GetXY() end
+end
+
+-- Lower is nearer: rank, then distance on your map.
+local function Near(place)
+	if not place or not place.mapID then return 3, 0 end
+	if place.mapID == here.map then
+		if here.x and type(place.x) == "number" then
+			local dx, dy = place.x / 100 - here.x, place.y / 100 - here.y
+			return 0, dx * dx + dy * dy
+		end
+		return 0, 0
+	end
+	if here.continent and Continent(place.mapID) == here.continent then return 1, 0 end
+	return 2, 0
+end
+
 -- name, place ({ zone, mapID, x, y } or { zone }) of one of the data's NPCs, nil when it's the
--- other faction's.
+-- other faction's. Of an NPC's spawns, the nearest one with a spot on the map.
 function Where.Npc(id)
 	local npc = ns.Npcs and ns.Npcs[id]
 	if not npc then return nil end
 	if npc[2] and npc[2] ~= ns.Faction() then return nil end
-	local zoneOnly
+	local best, bestRank, bestDist, zoneOnly
 	for i = 3, #npc do
 		local l = npc[i]
 		if type(l) == "table" then
-			if l[2] then return npc[1], { zone = l[1], mapID = l[2], x = l[3], y = l[4] } end
-			zoneOnly = zoneOnly or { zone = l[1] }
+			if l[2] then
+				local place = { zone = l[1], mapID = l[2], x = l[3], y = l[4] }
+				local rank, dist = Near(place)
+				if not best or rank < bestRank or (rank == bestRank and dist < bestDist) then
+					best, bestRank, bestDist = place, rank, dist
+				end
+			else
+				zoneOnly = zoneOnly or { zone = l[1] }
+			end
 		end
 	end
-	return npc[1], zoneOnly
+	return npc[1], best or zoneOnly
+end
+
+-- Whether the data has any source at all for a recipe (any faction's).
+local function AnySource(spell, teach)
+	if ns.Trainers and ns.Trainers[spell] and #ns.Trainers[spell] > 0 then return true end
+	if ns.AutomaticRecipes and ns.AutomaticRecipes[spell] then return true end
+	if ns.AutomaticQuests and ns.AutomaticQuests[spell] then return true end
+	if teach then
+		for _, t in ipairs({ ns.Sellers, ns.Drops, ns.OtherDrops, ns.QuestRewards }) do
+			local list = t and t[teach]
+			if list and #list > 0 then return true end
+		end
+	end
+	return false
 end
 
 local function QuestName(id)
@@ -128,7 +235,17 @@ end
 -- { { kind, title, lines = { { name, place, note, chance } }, more = n }, ... }
 local MAX_LINES = 6
 
-function Where.Sources(spell)
+-- Nearest first (your zone, then your continent), then by zone and name: the lines past the cut
+-- are the far ones.
+local function NearestFirst(a, b)
+	if a.rank ~= b.rank then return a.rank < b.rank end
+	if a.dist ~= b.dist then return a.dist < b.dist end
+	local az, bz = a.place and a.place.zone or "", b.place and b.place.zone or ""
+	if az ~= bz then return az < bz end
+	return a.name < b.name
+end
+
+local function BuildSources(spell)
 	local data = ns.Recipes[spell]
 	local groups = {}
 	if not data then return groups end
@@ -138,16 +255,13 @@ function Where.Sources(spell)
 			local id = type(rec) == "table" and rec[1] or rec
 			local name, place = Where.Npc(id)
 			if name then
-				lines[#lines + 1] = { name = name, place = place, note = note and note(rec, id),
+				local rank, dist = Near(place)
+				lines[#lines + 1] = { name = name, place = place, note = note and note(rec, id), rank = rank, dist = dist,
 					chance = type(rec) == "table" and kind == "drop" and rec[2] or nil }
 			end
 		end
 		if #lines == 0 then return end
-		table.sort(lines, sort or function(a, b)
-			local az, bz = a.place and a.place.zone or "", b.place and b.place.zone or ""
-			if az ~= bz then return az < bz end
-			return a.name < b.name
-		end)
+		table.sort(lines, sort or NearestFirst)
 		local more = 0
 		if #lines > MAX_LINES then
 			more = #lines - MAX_LINES
@@ -199,6 +313,16 @@ function Where.Sources(spell)
 	return groups
 end
 
+-- A recipe's sources: the data never changes, so each is made once per window opening.
+function Where.Sources(spell)
+	local g = sources[spell]
+	if not g then
+		g = BuildSources(spell)
+		sources[spell] = g
+	end
+	return g
+end
+
 local KIND_WORD = { trainer = "Trainer", vendor = "Vendor", drop = "Drop", quest = "Quest", auto = "With the profession" }
 
 -- "Trainer · Vendor", for the list.
@@ -217,35 +341,34 @@ end
 
 -- The open profession's missing recipes: { { spell, name, required, level, reachable, item,
 -- groups, summary } }, by the skill they need, then name. filter: lower-case text to match.
-function Where.Missing(filter)
+local UNKNOWN_SOURCE = "Source not known yet"
+
+-- The open profession's missing recipes, everything that doesn't depend on your skill or level:
+-- made once per profession opening and again only when a recipe is learned (a skill point only
+-- changes which are reachable, worked out per list below).
+local function Base()
 	local S = ns.state
-	local out = {}
-	if not S.line or S.linked then return out end
-	Where.Refresh()
+	local key = S.line .. ":" .. ns.Faction()
+	if base and baseKey == key then return base end
+	ReadHere()
 	local mine = ns.Faction()
-	local only = ns.Get("learnableOnly")
-	local level = UnitLevel("player") or 0
-	local key = table.concat({ S.line, S.skill, level, tostring(only), filter or "" }, ":")
-	if key == lastKey then return lastList end
+	local out = {}
 	for spell, data in pairs(ns.Recipes or {}) do
 		if data[1] == S.line then
 			local meta = ns.RecipeMeta and ns.RecipeMeta[spell]
 			local variant = meta and meta.variantFaction
 			if (not variant or variant == mine) and not Where.Knows(spell) then
 				local name = ns.RecipeNames and ns.RecipeNames[spell] or ("Recipe " .. spell)
-				if not filter or filter == "" or name:lower():find(filter, 1, true) then
-					local required = Where.Required(spell)
-					local needLevel = Where.Level(spell)
-					local reachable = (not required or S.skill >= required) and (not needLevel or level >= needLevel)
-					if not only or reachable then
-						local groups = Where.Sources(spell)
-						-- Nothing your faction can reach: not a recipe for you.
-						if #groups > 0 then
-							out[#out + 1] = { spell = spell, name = name, required = required, level = needLevel,
-								reachable = reachable, item = data[5] or nil, groups = groups,
-								summary = Where.Summary(groups) }
-						end
-					end
+				local groups = Where.Sources(spell)
+				local teach = data[5] or nil
+				-- Only the other faction can get it: not a recipe for you. Nothing in the data at
+				-- all (many of Forever's own): listed, saying so, rather than left out.
+				local unknown = #groups == 0 and not AnySource(spell, teach)
+				if #groups > 0 or unknown then
+					out[#out + 1] = { spell = spell, name = name, lower = name:lower(),
+						required = Where.Required(spell), level = Where.Level(spell), item = teach,
+						groups = groups, unknown = unknown,
+						summary = unknown and UNKNOWN_SOURCE or Where.Summary(groups) }
 				end
 			end
 		end
@@ -255,8 +378,28 @@ function Where.Missing(filter)
 		if ar ~= br then return ar < br end
 		return a.name < b.name
 	end)
-	lastKey, lastList = key, out
+	base, baseKey = out, key
 	return out
+end
+
+-- The list shown: the base list with what your skill and level allow worked out, and the
+-- name filter (lower-case text) applied. Cheap: no data is read here.
+local shown = {}
+function Where.Missing(filter)
+	local S = ns.state
+	wipe(shown)
+	if not S.line or S.linked then return shown end
+	Where.Refresh()
+	local only = ns.Get("learnableOnly")
+	local level = UnitLevel("player") or 0
+	local skill = S.skill or 0
+	for _, e in ipairs(Base()) do
+		if not filter or filter == "" or e.lower:find(filter, 1, true) then
+			e.reachable = (not e.required or skill >= e.required) and (not e.level or level >= e.level)
+			if not only or e.reachable then shown[#shown + 1] = e end
+		end
+	end
+	return shown
 end
 
 -- ---------------------------------------------------------------------------------------------

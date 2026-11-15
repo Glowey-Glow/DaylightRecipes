@@ -1,7 +1,8 @@
 -- Daylight Recipes: a DaylightUI plugin.
--- A pane on the right of the profession window: DaylightUI's own (docked through
--- me.AttachCraftPane), or DaylightMogul's while Mogul runs the professions (then DaylightUI
--- builds no window, so the pane hangs off Mogul's). Two pages:
+-- A profession window of its own in place of the game's and DaylightUI's (Window.lua, Take.lua):
+-- your professions and alts on the left; Recipes, Plan, Materials and Missing tabs. Or, by choice
+-- (and always while DaylightMogul runs the professions), a pane on the right of the profession
+-- window: DaylightUI's own (docked through me.AttachCraftPane), or DaylightMogul's. Its pages:
 --   Recipe:  the picked recipe's skill-up chance, what its materials cost (each one priced from
 --            the Auction House through DaylightMogul, or a vendor), what it sells and vendors for,
 --            what it disenchants into, and the profit each way.
@@ -26,12 +27,17 @@ ns.me = me
 -- ---------------------------------------------------------------------------------------------
 
 local DEFAULTS = {
+	window = "recipes",
+	winScale = 1,
 	paneWidth = 300,
 	useAH = true,
 	priceSource = "market",
 	talents = true,
 	learnableOnly = false,
 	tomtom = true,
+	tooltips = true,
+	reminders = true,
+	marks = true,
 }
 ns.DEFAULTS = DEFAULTS
 
@@ -53,7 +59,8 @@ end
 ns.LINES = { [164] = true, [165] = true, [171] = true, [185] = true, [186] = true, [197] = true,
 	[202] = true, [333] = true, [129] = true, [40] = true }
 
--- mode: "dui" (DaylightUI's window) or "mogul" (DaylightMogul's), nil while neither is open.
+-- mode: "win" (our own window), "dui" (DaylightUI's window) or "mogul" (DaylightMogul's), nil while
+-- none is open.
 local S = { mode = nil, line = nil, name = nil, skill = 0, max = 0, linked = false, recipe = nil }
 ns.state = S
 
@@ -93,10 +100,24 @@ function ns.ReadProfession()
 	local changed = line ~= S.line or name ~= S.name or skill ~= S.skill or max ~= S.max or linked ~= S.linked
 	-- Another profession, or someone else's recipes: the known recipes are read again.
 	if line ~= S.line or linked ~= S.linked then
-		S.recipe = line ~= S.line and nil or S.recipe
+		-- (Another profession's recipe isn't this one's: forgotten until one is picked.)
+		if line ~= S.line then S.recipe = nil end
 		if ns.Where then ns.Where.ForgetKnown() end
 	end
+	local was = S.skill or 0
+	local rose = line and line == S.line and not linked and skill > was
 	S.line, S.name, S.skill, S.max, S.linked = line, name, skill, max, linked
+	if rose and ns.Tips then pcall(ns.Tips.SkillUp, line, was, skill, max) end
+	-- Your own profession (not someone's linked recipes): kept for the plan and your alts' view.
+	if line and not linked and changed and ns.Store then ns.Store.SaveProfession(line, skill, max) end
+	-- (The plan is kept with the character: the buy list and the trainer's list read it away from
+	-- the profession window. Worked out a moment later, once the known recipes are read.)
+	if line and not linked and changed and ns.Plan then
+		C_Timer.After(0, function()
+			if S.line == line and not S.linked and S.mode then pcall(ns.Plan.Get) end
+			if ns.Shop then ns.Shop.Refresh() end
+		end)
+	end
 	return changed
 end
 
@@ -108,7 +129,28 @@ function ns.Changed()
 	C_Timer.After(0, function()
 		queued = false
 		if ns.Pane then ns.Pane.Render() end
+		if ns.Window then ns.Window.Render() end
+		if ns.Shop then ns.Shop.Refresh() end
 	end)
+end
+
+-- Whichever is in use: the pane or our window.
+function ns.Shown()
+	return (ns.Pane and ns.Pane.Shown()) or (ns.Window and ns.Window.Shown()) or false
+end
+
+-- A page showing the plan, your materials or prices is up (bags, bank, mail and prices redraw it).
+function ns.ShowingPlan()
+	return (ns.Pane and ns.Pane.ShowingPlan()) or (ns.Window and ns.Window.ShowingPlan()) or false
+end
+
+function ns.ShowingMissing()
+	return (ns.Pane and ns.Pane.ShowingMissing()) or (ns.Window and ns.Window.ShowingMissing()) or false
+end
+
+-- The page drawn is waiting on this item's data.
+function ns.Waiting(itemID)
+	return (ns.Pane and ns.Pane.Waiting(itemID)) or (ns.Window and ns.Window.Waiting(itemID)) or false
 end
 
 function ns.MogulOwns()
@@ -120,8 +162,10 @@ function ns.MogulOwns()
 end
 
 -- DaylightUI's window.
+-- Each opening starts from what you know now (a trainer may have taught you something since).
 me.On("CraftShown", function()
 	S.mode = "dui"
+	if ns.Where then ns.Where.ForgetKnown() end
 	ns.ReadProfession()
 	ns.Changed()
 end)
@@ -129,6 +173,11 @@ me.On("CraftProfessionChanged", function()
 	S.mode = "dui"
 	ns.ReadProfession()
 	ns.Changed()
+end)
+-- Closed: nothing is read for the pane until a profession window opens again (a weapon skill-up
+-- with the window shut would otherwise read "no profession" and forget the known recipes).
+me.On("CraftHidden", function()
+	if S.mode == "dui" then S.mode = nil end
 end)
 me.On("CraftRecipeSelected", function(recipeID)
 	if type(recipeID) ~= "number" then return end
@@ -164,14 +213,13 @@ events:RegisterEvent("TRADE_SKILL_SHOW")
 events:RegisterEvent("TRADE_SKILL_CLOSE")
 events:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
 events:RegisterEvent("SKILL_LINES_CHANGED")
+events:RegisterEvent("NEW_RECIPE_LEARNED")
 events:RegisterEvent("GET_ITEM_INFO_RECEIVED")
 events:RegisterEvent("TRAIT_CONFIG_UPDATED")
 events:RegisterEvent("UPDATE_FACTION")
 events:RegisterEvent("PLAYER_LOGIN")
 
-local function PaneShown()
-	return ns.Pane and ns.Pane.Shown()
-end
+local PaneShown = ns.Shown
 
 events:SetScript("OnEvent", function(_, event, itemID)
 	if event == "PLAYER_LOGIN" then
@@ -185,11 +233,13 @@ events:SetScript("OnEvent", function(_, event, itemID)
 		return
 	end
 	if event == "TRADE_SKILL_SHOW" then
-		if not ns.MogulOwns() then return end
+		-- (Our own window is Take.lua's and Window.lua's.)
+		if not ns.MogulOwns() or (ns.Take and ns.Take.Wanted()) then return end
 		-- Mogul shows its window as the game opens the trade skill: look for it a frame later.
 		C_Timer.After(0, function()
 			if not MogulShown() then return end
 			S.mode = "mogul"
+			if ns.Where then ns.Where.ForgetKnown() end
 			ns.ReadProfession()
 			if not S.recipe then S.recipe = lastAsked end
 			if ns.Pane then ns.Pane.AttachMogul(_G.DaylightMogulCraft) end
@@ -197,19 +247,21 @@ events:SetScript("OnEvent", function(_, event, itemID)
 		end)
 	elseif event == "TRADE_SKILL_CLOSE" then
 		if S.mode == "mogul" then S.mode = nil end
-	elseif event == "TRADE_SKILL_LIST_UPDATE" or event == "SKILL_LINES_CHANGED" then
+	elseif event == "TRADE_SKILL_LIST_UPDATE" or event == "SKILL_LINES_CHANGED" or event == "NEW_RECIPE_LEARNED" then
 		if not S.mode then return end
+		-- (The list updates on every bag change and craft; the known recipes are only read again
+		-- when the game says one was learned. A new profession reads them anew by itself.)
+		if event == "NEW_RECIPE_LEARNED" and ns.Where then ns.Where.MarkStale() end
 		local changed = ns.ReadProfession()
 		-- Drawn again only when something shown changed: the skill or profession, or (with the
 		-- missing list up) a recipe learned.
-		if ns.Where then
-			ns.Where.MarkStale()
-			if ns.Pane and ns.Pane.ShowingMissing() and ns.Where.Refresh() then changed = true end
-		end
+		if ns.Where and ns.ShowingMissing() and ns.Where.Refresh() then changed = true end
+		-- A recipe learned changes the plan too, on any tab.
+		if event == "NEW_RECIPE_LEARNED" and ns.Where and ns.Where.Refresh() then changed = true end
 		if changed and PaneShown() then ns.Changed() end
 	elseif event == "GET_ITEM_INFO_RECEIVED" then
 		-- Any addon's item asks bring this; only one the recipe page is waiting on redraws it.
-		if PaneShown() and ns.Pane and ns.Pane.Waiting(itemID) then ns.Changed() end
+		if ns.Waiting(itemID) then ns.Changed() end
 	elseif event == "TRAIT_CONFIG_UPDATED" or event == "UPDATE_FACTION" then
 		if ns.Calc then ns.Calc.Forget() end
 		if PaneShown() then ns.Changed() end
@@ -227,22 +279,41 @@ local SOURCES = {
 }
 
 local function NoAH(get) return get("useAH") == false end
+local function PaneOff(get) return get("window") == "recipes" end
+local function WindowOff(get) return get("window") ~= "recipes" end
+
+local WINDOWS = {
+	recipes = "Recipes window",
+	pane = "Docked pane",
+}
 
 local pages = {
 	{ id = "recipes", label = "Recipes",
-	  desc = "A pane on the right of the profession window (DaylightUI's, or DaylightMogul's while it runs your professions). Recipe and source data from ForeverRecipes; you can turn ForeverRecipes itself off.",
+	  desc = "Your profession window, leveling plan and missing recipes.",
 	  groups = {
-		{ label = "Pane", items = {
+		{ label = "Profession window", items = {
+			{ type = "dropdown", key = "window", label = "Profession window", values = WINDOWS,
+			  desc = "Daylight Recipes' own large window in place of the game's (and DaylightUI's or DaylightMogul's), or theirs with a pane beside it." },
+			{ type = "slider", key = "winScale", label = "Window size", min = 0.7, max = 1.2, step = 0.05,
+			  desc = "How large Daylight Recipes' window is.", disabled = WindowOff },
 			{ type = "slider", key = "paneWidth", label = "Pane width", min = 260, max = 400, step = 10,
-			  desc = "How wide the pane beside the profession window is." },
+			  desc = "How wide the pane beside DaylightUI's or DaylightMogul's profession window is.", disabled = PaneOff },
 		} },
 		{ label = "Prices", items = {
 			{ type = "toggle", key = "useAH", label = "Use Auction House prices",
-			  desc = "Materials, sales and disenchants are priced from DaylightMogul's Auction House data when it's loaded. Off, or without DaylightMogul, only vendor prices are used." },
-			{ type = "dropdown", key = "priceSource", label = "Auction House price", values = SOURCES,
-			  desc = "Which of DaylightMogul's prices to use.", disabled = NoAH },
+			  desc = "Materials, sales and disenchants are priced from the Auction House: DaylightMogul's prices when it's loaded, else what you've browsed or scanned from the Leveling Guide. Off, only vendor prices are used." },
+			{ type = "dropdown", key = "priceSource", label = "DaylightMogul's price", values = SOURCES,
+			  desc = "Which of DaylightMogul's prices to use, when it's loaded.", disabled = NoAH },
 			{ type = "toggle", key = "talents", label = "Count my profession talents",
 			  desc = "Overtime raises the skill-up chance and Bartering lowers vendor prices, by the ranks you've bought." },
+		} },
+		{ label = "Help around the game", items = {
+			{ type = "toggle", key = "tooltips", label = "Item tooltips",
+			  desc = "What uses a material, what your plans need of it, and who on your account knows a recipe item." },
+			{ type = "toggle", key = "reminders", label = "Trainer reminders",
+			  desc = "A chat line when a skill-up opens new recipes at a trainer, or a profession reaches its cap." },
+			{ type = "toggle", key = "marks", label = "Mark the best recipe",
+			  desc = "A small mark in the recipe list on the cheapest recipe to skill up with now." },
 		} },
 		{ label = "Missing recipes", items = {
 			{ type = "toggle", key = "learnableOnly", label = "Only ones my skill allows",
@@ -258,7 +329,7 @@ pcall(function()
 		needs = { 1, 2 },
 		short = "Recipes",
 		color = { 0.95, 0.75, 0.35 },
-		blurb = "Costs, skill-up chances, disenchants and missing recipes beside the profession window.",
+		blurb = "A profession window with costs, skill-up chances, a leveling plan and missing recipes.",
 	})
 	DUI:RegisterModule(ADDON, { plugin = ADDON, label = "Recipes", defaults = DEFAULTS, options = { pages = pages } })
 end)
@@ -269,12 +340,33 @@ me.On("SettingChanged", function(scope, path)
 		if ns.Pane then ns.Pane.Resize() end
 		return
 	end
+	if path == "window" then
+		if ns.Take then ns.Take.Recheck() end
+		return
+	end
+	if path == "winScale" then
+		if ns.Window then ns.Window.Rescale() end
+		return
+	end
 	if ns.Calc then ns.Calc.Forget() end
 	if PaneShown() then ns.Changed() end
 end)
 
 me.On("StyleChanged", function()
+	if ns.Doc then ns.Doc.Restyle() end
 	if ns.Pane then ns.Pane.Restyle() end
+	if ns.Window then ns.Window.Restyle() end
 end)
+
+-- /recipes (or /dr): the window, on the open profession or the last one you had open.
+SLASH_DAYLIGHTRECIPES1 = "/recipes"
+SLASH_DAYLIGHTRECIPES2 = "/dr"
+SlashCmdList.DAYLIGHTRECIPES = function()
+	if ns.Get("window") ~= "recipes" then
+		ns.Print("The pane beside the profession window is in use: pick Daylight Recipes' window in its options.")
+		return
+	end
+	if ns.Window then ns.Window.Toggle() end
+end
 
 ns.ok = true
