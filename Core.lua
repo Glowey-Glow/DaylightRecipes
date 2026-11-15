@@ -459,6 +459,7 @@ local pages = {
 
 pcall(function()
 	DUI:RegisterPlugin(ADDON, {
+		icon = "Interface\\AddOns\\" .. ADDON .. "\\Media\\icon-glyph.png",
 		needs = { 1, 2 },
 		short = L["Recipes"],
 		color = { 0.95, 0.75, 0.35 },

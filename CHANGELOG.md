@@ -1,5 +1,8 @@
 # Daylight Recipes
 
+## 2.0.4
+- Its own icon: in the game's AddOns list and other menus (instead of the blank "?"), and on its page in DaylightUI's options.
+
 ## 2.0.3
 - A swap button (two arrows) beside the X: on Daylight Recipes' window it switches to the game's own profession window, and on the game's window it switches back. The open profession moves across at once, and the window you pick stays picked. Not in a fight.
 - New "Use Daylight Recipes' profession window?" question, asked once. Yes makes Daylight Recipes' window the one and switches DaylightUI's own profession window off (one reload, offered), so the swap button goes to the game's window. Picking Docked pane in the options brings DaylightUI's window back as it was. The Profession window choice now also has The game's window.
