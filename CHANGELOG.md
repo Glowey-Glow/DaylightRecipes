@@ -1,5 +1,8 @@
 # Daylight Recipes
 
+## 2.0.6
+- Translations tidied: lines for text the plugin no longer shows are taken out of all six languages.
+
 ## 2.0.5
 - Translations: this week's new text (camping, gathering pages, unlearn, the swap button and the first-load question, reputation lines) in German, French, Spanish, Russian, Korean and Simplified Chinese.
 - Every recipe's sources are checked against QuestieDB (the Questie team's database, used under the GPLv3 terms they offer), and the Missing tab is corrected where ours were wrong or short.
