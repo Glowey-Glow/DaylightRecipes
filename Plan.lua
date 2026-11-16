@@ -614,6 +614,18 @@ function Plan.Forget()
 	full, fullKey, kept, keptKey = nil, nil, nil, nil
 end
 
+-- The recipe the Leveling Guide's current step makes: nil when there's no plan, the goal is
+-- reached, or the step is training the next rank.
+function Plan.CurrentSpell()
+	local ok, plan = pcall(Plan.Get)
+	if not ok or type(plan) ~= "table" or (S.skill or 0) >= plan.target then return nil end
+	for _, s in ipairs(plan.route.steps) do
+		if s.kind == "rank" then return nil end
+		if s.kind == "craft" or s.kind == "tool" then return s.spell end
+	end
+	return nil
+end
+
 -- { target, route, shopping } for the open profession, or nil (none open, someone else's).
 function Plan.Get()
 	if not S.line or S.linked or not ns.Recipes then return nil end

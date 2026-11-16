@@ -248,6 +248,47 @@ function D:Finish()
 	FitThumb(self)
 end
 
+-- The Leveling Guide's glow (its current step's card, and its recipe in the recipe list): DaylightUI's
+-- own glow (API.GlowAround, DaylightUI 1.8.4 and later) in the style the player picked for its main
+-- buttons. False while it's off: our option, that style set to None, or a DaylightUI without it.
+-- (DaylightUI keeps it away by itself while the player has its motion off.)
+function Doc.GlowStyle()
+	if ns.Get("guideGlow") == false or type(API.GlowAround) ~= "function" then return false end
+	local ok, style = pcall(API.GetSetting, "general", "buttonGlow")
+	if not ok or style == "none" then return false end
+	return type(style) == "string" and style or "circle"
+end
+
+-- A frame's glow on or off. Called again only when that changes (or the style does), so a page
+-- drawn again doesn't start its light over.
+local glowing = setmetatable({}, { __mode = "k" })
+function Doc.Glow(frame, on)
+	if type(API.GlowAround) ~= "function" then return end
+	local style = on and Doc.GlowStyle() or false
+	if (glowing[frame] or false) == style then return end
+	glowing[frame] = style
+	if style then
+		API.GlowAround(frame, true, { style = style })
+	else
+		API.GlowAround(frame, false)
+	end
+end
+
+-- A light round the part of the page from `top` (a d.y taken before it was drawn) down to here.
+function D:GlowFrom(top)
+	if not Doc.GlowStyle() then return end
+	local child = self.child
+	local box = self:Take("glow", function()
+		local f = CreateFrame("Frame", nil, child)
+		f:EnableMouse(false)
+		return f
+	end)
+	box:SetFrameLevel(child:GetFrameLevel() + 20)
+	box:SetPoint("TOPLEFT", child, "TOPLEFT", self.pad - 8, -top)
+	box:SetSize(math.max(1, self.width - self.pad * 2 + 16), math.max(1, self.y - top))
+	Doc.Glow(box, true)
+end
+
 function D:Top()
 	self.scroll:SetVerticalScroll(0)
 end

@@ -40,6 +40,7 @@ local DEFAULTS = {
 	tooltips = true,
 	reminders = true,
 	marks = true,
+	guideGlow = true,
 	duiOpacity = true,
 	opacity = 0.85,
 }
@@ -447,6 +448,9 @@ local pages = {
 			  desc = L["A chat line when a skill-up opens new recipes at a trainer, or a profession reaches its cap."] },
 			{ type = "toggle", key = "marks", label = L["Mark the best recipe"],
 			  desc = L["A small mark in the recipe list on the cheapest recipe to skill up with now."] },
+			{ type = "toggle", key = "guideGlow", label = L["Light up the guide's step"],
+			  hidden = function() return type(API.GlowAround) ~= "function" end,
+			  desc = L["A light runs round the Leveling Guide's current step and round its recipe in the recipe list, in the glow style DaylightUI uses for its main buttons."] },
 		} },
 		{ label = L["Missing recipes"], items = {
 			{ type = "toggle", key = "learnableOnly", label = L["Only ones my skill allows"],
@@ -469,7 +473,16 @@ pcall(function()
 end)
 
 me.On("SettingChanged", function(scope, path)
+	-- DaylightUI's main button glow style is the guide's too.
+	if scope == "general" and path == "buttonGlow" then
+		ns.Changed()
+		return
+	end
 	if scope ~= ADDON then return end
+	if path == "guideGlow" then
+		ns.Changed()
+		return
+	end
 	if path == "paneWidth" then
 		if ns.Pane then ns.Pane.Resize() end
 		return

@@ -271,6 +271,8 @@ local function PaintList()
 	local shown = VisibleRows()
 	listRows = listRows or {}
 	local best = ns.Tips and ns.Tips.Best and ns.Get("marks") and ns.Tips.Best() or nil
+	-- The Leveling Guide's current recipe, lit wherever its row is (rows are reused as it scrolls).
+	local guide = Doc.GlowStyle() and ns.Plan and ns.Plan.CurrentSpell() or nil
 	local ar, ag, ab = API.Accent()
 	for i = 1, shown + 1 do
 		local r = listRows[i]
@@ -280,6 +282,7 @@ local function PaintList()
 		end
 		local e = entries[offset + i]
 		r.entry = e
+		Doc.Glow(r, e ~= nil and i <= shown and not e.cat and e.spell == guide)
 		if not e or i > shown then
 			r:Hide()
 		else

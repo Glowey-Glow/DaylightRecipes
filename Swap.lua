@@ -42,6 +42,31 @@ local function Target()
 	return "recipes", L["Use Daylight Recipes' window"]
 end
 
+-- DaylightUI 1.8.4 and later put a swap control of their own beside the X of the windows ours
+-- also sits on: an icon in its profession window's header, a "Daylight UI window" link on the
+-- game's. Place notes which one is beside our button (b.dui: "icon" or "link"), and the tooltip then
+-- says plainly which window ours opens and what DaylightUI's does.
+local function DaylightAtLeast184()
+	local get = C_AddOns and C_AddOns.GetAddOnMetadata
+	local ok, version = pcall(get, "DaylightUI", "Version")
+	if not ok or type(version) ~= "string" then return false end
+	local a, b, c = version:match("^v?(%d+)%.(%d+)%.?(%d*)")
+	a, b, c = tonumber(a) or 0, tonumber(b) or 0, tonumber(c) or 0
+	if a ~= 1 then return a > 1 end
+	if b ~= 8 then return b > 8 end
+	return c >= 4
+end
+
+local function TipWords(b)
+	local to, words = Target()
+	if not b.dui then return words, nil end
+	words = to == "recipes" and L["Open in Daylight Recipes' window"] or L["Open in the game's window"]
+	if b.dui == "icon" then
+		return words, L["The swap icon beside it is DaylightUI's own: it switches to the game's window."]
+	end
+	return words, L["The \"Daylight UI window\" link beside it is DaylightUI's own: it opens DaylightUI's profession window."]
+end
+
 -- ---------------------------------------------------------------------------------------------
 -- DaylightUI's own profession window, off while ours is the one (recorded, given back)
 -- ---------------------------------------------------------------------------------------------
@@ -171,9 +196,13 @@ local function Make(parent)
 		local mine = token
 		C_Timer.After(TIP_WAIT, function()
 			if mine ~= token or not self:IsMouseOver() or not GameTooltip then return end
-			local _, words = Target()
+			local words, theirs = TipWords(self)
 			GameTooltip:SetOwner(self, "ANCHOR_TOP")
 			GameTooltip:SetText(words, 1, 1, 1)
+			if theirs then
+				local r, g, bl = Ink("OFF")
+				GameTooltip:AddLine(theirs, r, g, bl, true)
+			end
 			if InCombatLockdown() then
 				GameTooltip:AddLine(L["Profession windows can be switched once the fight ends."], Ink("OFF"))
 			end
@@ -231,6 +260,17 @@ local function Place(host, close)
 		end
 	else
 		anchor = BesideClose(host, close, b) or close
+	end
+	-- Whose control ours sits beside: DaylightUI's swap icon on its own profession window (the
+	-- one our docked pane hangs on, not DaylightMogul's), its link on the game's window.
+	b.dui = nil
+	if anchor ~= close and DaylightAtLeast184() then
+		local game = _G.ProfessionsFrame
+		if not header and host == game then
+			b.dui = "link"
+		elseif header and host ~= _G.DaylightMogulCraft and host ~= _G.DaylightRecipesWindow then
+			b.dui = "icon"
+		end
 	end
 	b:ClearAllPoints()
 	b:SetPoint("RIGHT", anchor, "LEFT", -GAP, 0)

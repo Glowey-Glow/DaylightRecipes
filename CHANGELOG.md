@@ -1,5 +1,10 @@
 # Daylight Recipes
 
+## 2.1.0
+- Leveling Guide: a light runs round the step you're on, and round its recipe in the recipe list wherever you scroll, so it's easy to find. It uses the glow style you picked for DaylightUI's main buttons (none when that's set to None or DaylightUI's motion is off). Turn it off with "Light up the guide's step" (Help around the game). Needs DaylightUI 1.8.4 or later.
+- Swap button: on a window where DaylightUI 1.8.4 puts its own swap icon or "Daylight UI window" link, its tooltip says which window it opens and what DaylightUI's control beside it does.
+- Translations: the new text in German, French, Spanish, Russian, Korean and Simplified Chinese.
+
 ## 2.0.7
 - DaylightUI 1.8.4: the swap button no longer sits on top of DaylightUI's new swap icon in its profession window's header, or its "Daylight UI window" link on the game's profession window. It goes just left of them.
 

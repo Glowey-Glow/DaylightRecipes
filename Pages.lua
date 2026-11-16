@@ -499,8 +499,9 @@ end
 Pages.MaterialRow = MaterialRow
 
 -- The step you're on, as a card: what to make and how many, its progress, its materials, and
--- buttons to make it, queue it or look at it.
-local function StepCard(d, ctx, s, n)
+-- buttons to make it, queue it or look at it. glowTop: where the guide's light round it starts
+-- (it ends above the other recipes offered instead).
+local function StepCard(d, ctx, s, n, glowTop)
 	local skill = S.skill or 0
 	d:Heading(L["Step %d · skill %d to %d"]:format(n, s.from, s.to))
 	local out = ns.Ask("GetRecipeOutputItemData", s.spell)
@@ -543,6 +544,7 @@ local function StepCard(d, ctx, s, n)
 		d:Gap(4)
 		d:Buttons(buttons)
 	end
+	if glowTop then d:GlowFrom(glowTop) end
 	-- The next best recipes when the step began, for when you'd rather (or lack its materials).
 	if s.alts and #s.alts > 0 then
 		d:Line(L["Or instead"], "small", "LABEL")
@@ -632,7 +634,14 @@ function Pages.Guide(d, ctx)
 			n = n + 1
 			if not current then
 				current = s
-				if s.kind == "rank" then RankCard(d, s, n) else StepCard(d, ctx, s, n) end
+				-- (Its light starts under the heading's gap, round the card itself.)
+				local top = d.y + 6
+				if s.kind == "rank" then
+					RankCard(d, s, n)
+					d:GlowFrom(top)
+				else
+					StepCard(d, ctx, s, n, top)
+				end
 				if n < #route.steps then
 					d:Heading(ns.Plan.Goal() == "cost" and L["Then (each step's materials, all crafts)"]
 						or L["Then (each step's cost after what you make, all crafts)"])
