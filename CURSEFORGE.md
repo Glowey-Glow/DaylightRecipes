@@ -14,7 +14,7 @@ Open any profession and Daylight Recipes' window takes the place of the game's (
 - **Leveling Guide:** pick your goal (150, 225, 300) and what the route aims for (cheapest materials, or after vendoring, disenchanting or selling what you make). The step you're on comes as a card: what to make and how many, its materials, and Make / Queue / Show recipe. Then every next step, numbered, with when to train each rank, and the rods and tools you'll need made along the way.
 - **Materials:** everything the route needs, what you hold, and what's left to buy.
 - **Queue:** queue recipes from anywhere, then "Craft next".
-- **Missing:** every recipe you don't know yet, where to get it, nearest first, with waypoints, including reputation recipes ("Nightclaw Druids: Friendly (Current Rep: Neutral)", in the game's reputation colors).
+- **Missing:** every recipe you don't know yet, where to get it (checked against QuestieDB), nearest first, with waypoints, including reputation recipes ("Nightclaw Druids: Friendly (Current Rep: Neutral)", in the game's reputation colors).
 - `/recipes` opens it on your last profession, even away from a crafting station.
 
 ## Where you shop and train
@@ -41,4 +41,4 @@ DaylightUI options > **Plugins > Recipes**. Prefer DaylightUI's or Mogul's own p
 
 ---
 
-*Daylight Recipes is free software under the GNU General Public License v3. Recipe and source data from ForeverRecipes (GPL-3.0); more recipe sources, reputation and camping data from Polestar (GPL-3.0).*
+*Daylight Recipes is free software under the GNU General Public License v3. Recipe and source data from ForeverRecipes (GPL-3.0); more recipe sources, reputation and camping data from Polestar (GPL-3.0); source corrections and additions from QuestieDB (under the Questie team's GPLv3 terms).*

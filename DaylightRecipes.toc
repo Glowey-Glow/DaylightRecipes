@@ -5,7 +5,7 @@
 ## Author: Glowey
 ## X-License: GPL-3.0-or-later
 ## X-Curse-Project-ID: 1801403
-## X-Credits: Recipe, source and disenchant data from ForeverRecipes by Ismail (GPL-3.0), built from ForeverDB.app and CMaNGOS Classic DB. Recipe sources, reputation and camping data from Polestar by the Polestar authors (GPL-3.0).
+## X-Credits: Recipe, source and disenchant data from ForeverRecipes by Ismail (GPL-3.0), built from ForeverDB.app and CMaNGOS Classic DB. Recipe sources, reputation and camping data from Polestar by the Polestar authors (GPL-3.0). Source corrections and NPC places from QuestieDB by the Questie team (used under the GPLv3 terms the Questie team offers).
 ## Version: @project-version@
 ## Dependencies: DaylightUI
 ## OptionalDeps: DaylightMogul, TomTom
@@ -15,6 +15,7 @@ Data\Recipes.lua
 Data\Sources.lua
 Data\Npcs.lua
 Data\Polestar.lua
+Data\Corrections.lua
 Data\Disenchant.lua
 Locales\Locales.lua
 Locales\deDE.lua

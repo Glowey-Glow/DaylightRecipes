@@ -226,15 +226,17 @@ end
 
 -- name, place ({ zone, mapID, x, y } or { zone }) of one of the data's NPCs, nil when it's the
 -- other faction's. Of an NPC's spawns, the nearest one with a spot on the map. ForeverRecipes'
--- NPCs first, Polestar's for the ones it lacks or has no spot for. NPC names stay the data's
--- (English): the game only knows an NPC's name once you've seen it.
-function Where.Npc(id)
-	local npc = ns.Npcs and ns.Npcs[id]
-	local other = ns.PolestarNpcs and ns.PolestarNpcs[id]
+-- NPCs first, Polestar's for the ones it lacks or has no spot for; QuestieDB's corrected record
+-- in place of both where Data/Corrections.lua has one. NPC names stay the data's (English): the
+-- game only knows an NPC's name once you've seen it. foe: the NPC is fought (a drop's): then it's
+-- the other faction's that you can reach, and your own faction's that you can't.
+function Where.Npc(id, foe)
+	local fix = ns.CorrectionNpcs and ns.CorrectionNpcs[id]
+	local npc = fix or (ns.Npcs and ns.Npcs[id])
+	local other = not fix and ns.PolestarNpcs and ns.PolestarNpcs[id] or nil
 	if not npc and not other then return nil end
-	local mine = ns.Faction()
-	if npc and npc[2] and npc[2] ~= mine then return nil end
-	if not npc and other[2] and other[2] ~= mine then return nil end
+	local side = (npc or other)[2]
+	if side and (side == ns.Faction()) == (foe == true) then return nil end
 	local best, zoneOnly
 	if npc then best, zoneOnly = NearestPlace(npc) end
 	if not best and other then
@@ -373,6 +375,41 @@ local function AnySource(spell, teach)
 	return false
 end
 
+-- QuestieDB's corrections to a recipe item's sources (Data/Corrections.lua), or nil.
+local function Fix(item)
+	return item and ns.CorrectionSources and ns.CorrectionSources[item] or nil
+end
+
+-- One kind of ForeverRecipes' sources ("v" vendors, "d" drops, "q" quests: ids, or records whose
+-- first field is one) with an item's corrections applied: the wrong ones taken away, then the
+-- missing ones added.
+local function Fixed(list, kind, item)
+	local fix = Fix(item)
+	if not fix then return list end
+	local gone, out = fix.remove and fix.remove[kind], {}
+	for _, rec in ipairs(list or {}) do
+		local id = type(rec) == "table" and rec[1] or rec
+		if not (gone and gone[id]) then out[#out + 1] = rec end
+	end
+	for _, s in ipairs(fix.add or {}) do
+		if s[1] == kind then out[#out + 1] = kind == "q" and s[2] or { s[2], s[3], s[4] } end
+	end
+	return out
+end
+
+-- Polestar's sources for an item ({ kind, id, ... } records) with its corrections applied.
+local function Merged(item, list)
+	local fix = Fix(item)
+	if not fix then return list end
+	local out = {}
+	for _, s in ipairs(list or {}) do
+		local gone = fix.remove and fix.remove[s[1]]
+		if not (gone and gone[s[2]]) then out[#out + 1] = s end
+	end
+	for _, s in ipairs(fix.add or {}) do out[#out + 1] = s end
+	return out
+end
+
 -- A quest's title in the client's language once the game has it cached; until then the data's
 -- English one, with the quest asked for so the next list made (the window opened again) has it.
 local function QuestName(id)
@@ -383,7 +420,8 @@ local function QuestName(id)
 	end
 	local q = ns.Quests and ns.Quests[id]
 	local meta = ns.QuestMeta and ns.QuestMeta[id]
-	return (q and q[1]) or (meta and meta.name) or L["Quest %d"]:format(id)
+	local other = (ns.PolestarNames and ns.PolestarNames.quest[id]) or (ns.CorrectionNames and ns.CorrectionNames.quest[id])
+	return (q and q[1]) or (meta and meta.name) or other or L["Quest %d"]:format(id)
 end
 
 -- "180 copper" (how the data writes a vendor's price) as money; anything else as it is.
@@ -409,14 +447,14 @@ local function NearestFirst(a, b)
 end
 
 -- A group adder for `groups`: group(kind, title, list, note, sort) lists the NPCs of `list` (ids,
--- or records whose first field is one) that your faction can reach, nearest first, the far ones
--- cut. note(rec, id) gives a line's right-hand text.
+-- or records whose first field is one) that your faction can reach (a drop's: can fight), nearest
+-- first, the far ones cut. note(rec, id) gives a line's right-hand text.
 local function Grouper(groups)
 	return function(kind, title, list, note, sort)
 		local lines = {}
 		for _, rec in ipairs(list or {}) do
 			local id = type(rec) == "table" and rec[1] or rec
-			local name, place = Where.Npc(id)
+			local name, place = Where.Npc(id, kind == "drop")
 			if name then
 				local rank, dist = Near(place)
 				lines[#lines + 1] = { name = name, place = place, note = note and note(rec, id), rank = rank, dist = dist,
@@ -444,28 +482,32 @@ local function ChanceText(chance)
 	return type(chance) == "number" and chance > 0 and L["%s%%"]:format(chance) or nil
 end
 
--- An instance's or object's English name from Polestar's data (the game has no lookup for them).
+-- An instance's or object's English name from Polestar's data, else QuestieDB's (the game has no
+-- lookup for them).
 local function PolestarName(kind, id)
 	local names = ns.PolestarNames and ns.PolestarNames[kind]
-	return names and names[id] or nil
+	local other = ns.CorrectionNames and ns.CorrectionNames[kind]
+	return (names and names[id]) or (other and other[id]) or nil
+end
+
+-- A "Found in" line: an object ({ "o", object, chance }) or a container ({ "n", item, chance }).
+local function FoundLine(s)
+	if s[1] == "o" then return { name = PolestarName("object", s[2]) or L["Somewhere"], note = ChanceText(s[3]) } end
+	return { name = ns.ItemNameOf(s[2]) or PolestarName("item", s[2]) or L["Item %d"]:format(s[2]), note = ChanceText(s[3]), item = s[2] }
 end
 
 -- Where Polestar says a recipe item comes from (only asked for the items ForeverRecipes has no
--- source for), and the reputation it asks for, added to `groups`.
+-- source for), with QuestieDB's corrections, and the reputation it asks for, added to `groups`.
 local function AddPolestar(item, groups)
 	local group = Grouper(groups)
 	local rep = ns.PolestarRep and ns.PolestarRep[item]
-	local list = ns.PolestarSources and ns.PolestarSources[item]
+	local list = Merged(item, ns.PolestarSources and ns.PolestarSources[item])
 	local vendors, drops, found, quests, given, world, repNpc = {}, {}, {}, {}, {}, nil, nil
 	for _, s in ipairs(list or {}) do
 		local k = s[1]
 		if k == "v" then vendors[#vendors + 1] = { s[2], s[3] }
 		elseif k == "d" then drops[#drops + 1] = { s[2], s[3], s[4] }
-		elseif k == "o" then
-			found[#found + 1] = { name = PolestarName("object", s[2]) or L["Somewhere"], note = ChanceText(s[3]) }
-		elseif k == "n" then
-			found[#found + 1] = { name = ns.ItemNameOf(s[2]) or PolestarName("item", s[2]) or L["Item %d"]:format(s[2]),
-				note = ChanceText(s[3]), item = s[2] }
+		elseif k == "o" or k == "n" then found[#found + 1] = FoundLine(s)
 		elseif k == "q" then quests[#quests + 1] = s[2]
 		elseif k == "g" then given[#given + 1] = s[2]
 		elseif k == "w" then world = s
@@ -548,25 +590,30 @@ local function BuildSources(spell)
 	end
 
 	local teach = data[5]
+	-- (QuestieDB's corrections go on ForeverRecipes' sources when it has any; else on Polestar's.)
+	local fixed = AnySource(spell, teach) and teach
 	if teach then
 		local costs = ns.RecipeVendorCosts and ns.RecipeVendorCosts[teach]
-		group("vendor", L["Sold by"], ns.Sellers and ns.Sellers[teach], function(_, id)
+		group("vendor", L["Sold by"], Fixed(ns.Sellers and ns.Sellers[teach], "v", fixed), function(_, id)
 			return costs and PriceText(costs[id]) or nil
 		end)
-		group("drop", L["Dropped by"], ns.Drops and ns.Drops[teach], function(rec)
+		group("drop", L["Dropped by"], Fixed(ns.Drops and ns.Drops[teach], "d", fixed), function(rec)
 			return type(rec[2]) == "number" and L["%s%%"]:format(rec[2]) or nil
 		end, ByChance)
 		local others = ns.OtherDrops and ns.OtherDrops[teach]
-		if others and #others > 0 then
-			local lines = {}
-			for _, row in ipairs(others) do
-				lines[#lines + 1] = { name = row.name or L["Somewhere"], note = type(row.chance) == "number" and L["%s%%"]:format(row.chance) or nil }
-			end
-			groups[#groups + 1] = { kind = "drop", title = L["Found in"], lines = lines, more = 0 }
+		local lines = {}
+		for _, row in ipairs(others or {}) do
+			lines[#lines + 1] = { name = row.name or L["Somewhere"], note = type(row.chance) == "number" and L["%s%%"]:format(row.chance) or nil }
 		end
+		local fix = Fix(fixed)
+		for _, s in ipairs(fix and fix.add or {}) do
+			if s[1] == "o" or s[1] == "n" then lines[#lines + 1] = FoundLine(s) end
+		end
+		if #lines > 0 then groups[#groups + 1] = { kind = "drop", title = L["Found in"], lines = lines, more = 0 } end
 	end
 
 	local quests = (teach and ns.QuestRewards and ns.QuestRewards[teach]) or (ns.AutomaticQuests and ns.AutomaticQuests[spell])
+	quests = Fixed(quests, "q", fixed)
 	if quests and #quests > 0 then
 		local lines = {}
 		for _, id in ipairs(quests) do lines[#lines + 1] = { name = QuestName(id), quest = id } end
@@ -636,7 +683,7 @@ local function Base()
 				-- Only the other faction can get it: not a recipe for you. Nothing in the data at
 				-- all (ForeverRecipes' or Polestar's): listed, saying so, rather than left out.
 				local unknown = #groups == 0 and not AnySource(spell, data[5])
-					and not (teach and ns.PolestarSources and ns.PolestarSources[teach])
+					and not (teach and ns.PolestarSources and ns.PolestarSources[teach]) and not (Fix(teach) and Fix(teach).add)
 				if #groups > 0 or unknown then
 					out[#out + 1] = { spell = spell, name = name, lower = ns.Fold(name),
 						required = Where.Required(spell), level = Where.Level(spell), item = teach,

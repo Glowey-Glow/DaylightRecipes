@@ -1,5 +1,16 @@
 # Daylight Recipes
 
+## 2.0.5
+- Translations: this week's new text (camping, gathering pages, unlearn, the swap button and the first-load question, reputation lines) in German, French, Spanish, Russian, Korean and Simplified Chinese.
+- Every recipe's sources are checked against QuestieDB (the Questie team's database, used under the GPLv3 terms they offer), and the Missing tab is corrected where ours were wrong or short.
+- The Missing tab knows where far more recipes come from: of the 276 still listed as "Source not known yet", 201 now show their drops, vendors or quests. Forever's own patterns, plans and formulas are among them (the Sterling Silver and Shining Mithril plans, the Scorpid and Earthen patterns, the class armor sets), as are the classic ones whose only known source was QuestieDB (the Imperial Plate plans, a quest reward each).
+- More places for the recipes that already had some: 2,089 more drops across 266 recipes, the lockboxes and junkboxes 142 recipes are found in, 75 more vendors (the Magram Clan Quartermaster's Forever formulas and plans, more vendors for the Sagefish recipes and reagent bags; never the bots engineers summon) and 8 more quest rewards.
+- 230 NPCs a recipe names now have a spot on the map and a waypoint (Riverpaw Mongrel in Westfall, for one), and 333 that the data didn't know at all are added with theirs.
+- Fix: drops from the other faction's NPCs (the Horde Runners an Alliance player fights, Stromgarde's men for the Horde) are listed for the faction that can fight them, not for their own.
+- Fix: eight trainers and vendors listed for both factions are your faction's only (Angus Hammerhand and William Pickman for the Horde, Iaadaria Bitterwind and Granny Finespindle for the Alliance, among them), so the skill a recipe can be learned at no longer counts the other faction's trainer.
+- Fix: wrong places taken away or moved: Teremus the Devourer is in the Blasted Lands only (not Stormwind), Stitches in Duskwood only, the Alliance Outrunners in the southern Barrens, and ten more NPCs.
+- Fix: Formula: Enchant Chest - Minor Mana no longer lists Vance Undergloom in Brill, who teaches Enchanting but doesn't sell it.
+
 ## 2.0.4
 - Its own icon: in the game's AddOns list and other menus (instead of the blank "?"), and on its page in DaylightUI's options.
 

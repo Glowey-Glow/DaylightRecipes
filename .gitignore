@@ -1,3 +1,5 @@
 .release/
 .env
 *.zip
+__pycache__/
+*.pkl
