@@ -191,8 +191,24 @@ local function Make(parent)
 	return b
 end
 
+-- Another addon's piece already sitting just left of `close` on `host`, shown (DaylightUI 1.8.4
+-- puts a "Daylight UI window" link there on the game's profession window), so ours goes left of
+-- it instead of on top of it. Nil when that place is free.
+local function BesideClose(host, close, mine)
+	if not host.GetChildren then return nil end
+	for i = 1, select("#", host:GetChildren()) do
+		local c = select(i, host:GetChildren())
+		if c ~= mine and c ~= close and c.IsShown and c:IsShown() and c.GetNumPoints and c:GetNumPoints() > 0 then
+			local point, rel = c:GetPoint(1)
+			if point == "RIGHT" and rel == close then return c end
+		end
+	end
+	return nil
+end
+
 -- The button left of `close` on `host` (made once per host).
 local onHost = setmetatable({}, { __mode = "k" })
+local headerAnchor = setmetatable({}, { __mode = "k" })   -- [DaylightUI window] = what ours sits beside
 local function Place(host, close)
 	if type(host) ~= "table" or not host.CreateTexture or type(close) ~= "table" or not close.GetPoint then return nil end
 	local b = onHost[host]
@@ -200,15 +216,31 @@ local function Place(host, close)
 		b = Make(host)
 		onHost[host] = b
 	end
+	-- A DaylightUI window's header keeps the icons beside its X in a row (headerRight: the
+	-- leftmost, 1.8.4's own swap icon among them): ours joins the row on its left, once, and
+	-- keeps that place. Any other window: left of whatever shows beside its X right now.
+	local header = host.title ~= nil and host.close == close
+	local anchor
+	if header then
+		anchor = headerAnchor[host]
+		if not anchor then
+			local right = host.headerRight
+			anchor = (right ~= nil and right ~= b) and right or close
+			headerAnchor[host] = anchor
+			host.headerRoom = (anchor == close and 0 or (host.headerRoom or 0)) + SIZE + GAP
+		end
+	else
+		anchor = BesideClose(host, close, b) or close
+	end
 	b:ClearAllPoints()
-	b:SetPoint("RIGHT", close, "LEFT", -GAP, 0)
+	b:SetPoint("RIGHT", anchor, "LEFT", -GAP, 0)
 	b:SetFrameLevel(close:GetFrameLevel())
 	b:Show()
-	-- A DaylightUI window's header tabs run leftward from its X (or from the one icon its header
-	-- keeps beside the X: headerRight, headerRoom). Ours takes that place when it's free, so tabs
-	-- made later start left of it, and the ones there now (and the title's right end) move over.
-	if host.title and host.close == close and (host.headerRight == nil or host.headerRight == b) then
-		host.headerRight, host.headerRoom = b, SIZE + GAP
+	-- A DaylightUI window's header tabs run leftward from its X (or from the icons its header
+	-- keeps beside the X: headerRight, headerRoom). Ours takes the leftmost place, so tabs made
+	-- later start left of it, and the ones there now (and the title's right end) move over.
+	if header and (host.headerRight == nil or host.headerRight == b or host.headerRight == anchor) then
+		host.headerRight = b
 		local tabs = type(host.tabs) == "table" and host.tabs or nil
 		local gap = 14
 		local room = 40 + host.headerRoom

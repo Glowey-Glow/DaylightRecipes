@@ -1,5 +1,8 @@
 # Daylight Recipes
 
+## 2.0.7
+- DaylightUI 1.8.4: the swap button no longer sits on top of DaylightUI's new swap icon in its profession window's header, or its "Daylight UI window" link on the game's profession window. It goes just left of them.
+
 ## 2.0.6
 - Translations tidied: lines for text the plugin no longer shows are taken out of all six languages.
 
