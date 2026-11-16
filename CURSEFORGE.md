@@ -27,7 +27,16 @@ Open any profession and Daylight Recipes' window takes the place of the game's (
 Drag a cheap item into the slot and level on it: enchant after enchant, with the game's "replace the enchant?" answered for you (Auto-replace, a switch).
 
 ## Around the game
-Item tooltips (what uses a material, what your guides need of it, and who on your account knows a recipe; only for the professions this character has learned, and only this character's guides), and trainer reminders in chat when a skill-up opens new recipes or you reach your rank's cap.
+Item tooltips (what uses a material, what your guides need of it, and for a recipe who on your account knows it and who could learn it, in class colors, with the skill still needed; only this character's guides), and trainer reminders in chat when a skill-up opens new recipes or you reach your rank's cap.
+
+## New in 2.2.0
+- **A welcome and tours:** on first launch a welcome lists what Daylight Recipes takes over; **Start Tour** walks you through the window, opening each tab as it goes (Recipes, Leveling Guide, Materials, Queue, Missing). The buy lists, the trainer panel and enchanting runs explain themselves the first time.
+- **Help** in the settings: **Retake Tour**, **What's new**, and **Revert to** the profession window you had (DaylightUI's, DaylightMogul's or the game's).
+- **Link your profession:** with the chat box open, Shift-click the profession's icon at the top of the window, or the profession on the left.
+- **Mastercraft's gathering node tooltips** read "Turns gray in 30 more skill", the color in its own color.
+- **Update alert:** a chat line when a newer version is out (once a session; switch it off under Updates).
+
+**Recipes marked at vendors (new in 2.2.0):** a small square on any recipe a vendor sells that you or an alt on this realm can learn, bright when you can learn it now. On DaylightUI's vendor page and the game's own vendor window.
 
 ---
 

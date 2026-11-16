@@ -256,7 +256,7 @@ local function MakeListRow()
 		end
 		if IsModifiedClick("CHATLINK") then
 			local link = TS("GetRecipeLink", e.spell)
-			if link then ChatEdit_InsertLink(link) end
+			if link then ns.InsertLink(link) end
 			return
 		end
 		Window.Select(e.spell)
@@ -353,6 +353,45 @@ local EMPTY_SLOT = "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
 local countBox
 
 local function Linked() return S.linked == true end
+
+-- A link into the open chat box, through the game's own call (ChatFrameUtil.InsertLink; the old
+-- ChatEdit_InsertLink only lives in the game's deprecated-API addon). True when it went in.
+function ns.InsertLink(link)
+	if not link then return false end
+	local U = _G.ChatFrameUtil
+	if U and type(U.InsertLink) == "function" then return U.InsertLink(link) and true or false end
+	if type(_G.ChatEdit_InsertLink) == "function" then return _G.ChatEdit_InsertLink(link) and true or false end
+	return false
+end
+
+-- Your open profession's link (C_TradeSkillUI.GetTradeSkillListLink, as the game's own link
+-- button) into the open chat box. Only for your own profession: not a linked one, not an alt's.
+function Window.LinkOpen()
+	if S.mode ~= "win" or Linked() or alt or gather then return false end
+	local ok, link = pcall(C_TradeSkillUI.GetTradeSkillListLink)
+	if not ok or not link then return false end
+	return ns.InsertLink(link)
+end
+
+-- Shift-click on a profession in the list: linked at once when it's the open one, else opened and
+-- linked as soon as it's open (the game only links the open trade skill).
+function Window.LinkProfession(line, game)
+	if S.mode == "win" and S.line == line and not Linked() and not alt and not gather then
+		Window.LinkOpen()
+		return
+	end
+	Window.OpenProfession(line, game)
+	local tries = 0
+	local function wait()
+		tries = tries + 1
+		if S.mode == "win" and S.line == line and not Linked() then
+			Window.LinkOpen()
+		elseif tries < 20 then
+			C_Timer.After(0.1, wait)
+		end
+	end
+	C_Timer.After(0.1, wait)
+end
 
 local function Cooldown(spell)
 	local cd = TS("GetRecipeCooldown", spell)
@@ -480,6 +519,7 @@ local function PaintCraftBar()
 		cb.status:SetTextColor(Color("LABEL"))
 		cb.status:Show()
 		cb.make.text:SetText(L["Next (%d left)"]:format(making.count - making.done))
+		if ns.Guide then ns.Guide.Offer("enchant") end
 		cb.make.SetOff(false)
 		cb.make:Show()
 		cb.all.text:SetText(L["Done"])
@@ -989,12 +1029,20 @@ local function PaintSide()
 			sub = p.max > 0 and ("%d / %d"):format(p.skill, p.max) or "",
 			value = p.max > 0 and p.skill / p.max or nil, picked = picked,
 			onClick = function()
-				if p.crafts then Window.OpenProfession(p.line, p.game) else Window.ShowGather(p.game) end
+				if p.crafts and IsModifiedClick("CHATLINK") then
+					Window.LinkProfession(p.line, p.game)
+				elseif p.crafts then
+					Window.OpenProfession(p.line, p.game)
+				else
+					Window.ShowGather(p.game)
+				end
 			end,
-			-- (A primary profession can be unlearned, as in the game's professions book: right-click.)
-			tip = p.primary and function(tip)
+			-- (Shift-click links one with recipes to chat; a primary profession can be unlearned,
+			-- as in the game's professions book: right-click.)
+			tip = (p.crafts or p.primary) and function(tip)
 				tip:SetText(p.name)
-				tip:AddLine(L["Right-click: unlearn"], Color("LABEL"))
+				if p.crafts then tip:AddLine(L["Shift-click: link to chat"], Color("LABEL")) end
+				if p.primary then tip:AddLine(L["Right-click: unlearn"], Color("LABEL")) end
 			end or nil,
 			onRight = p.primary and function(owner) UnlearnMenu(owner, p) end or nil })
 	end
@@ -1270,12 +1318,19 @@ local function Build()
 		Craft.PlaceStop(nil)
 		if ns.Take and ns.Take.OursNow() then ns.Take.Close() end
 	end)
-	win:SetScript("OnShow", function() ns.Changed() end)
+	win:SetScript("OnShow", function()
+		ns.Changed()
+		-- (A tour is showing the window: above DaylightUI's options, where Retake Tour is clicked,
+		-- and on its Recipes tab. Window.ShowForTour)
+		if Window.tourRaised then Window.TourRaise() end
+		-- (The first time, on this account: the window's tour. RecipesGuide.lua)
+		if ns.Guide then ns.Guide.Offer("window") end
+	end)
 
 	local close = API.Close(win, function() win:Hide() end)
 	close:SetPoint("TOPRIGHT", win, "TOPRIGHT", -10, -10)
 	-- (Beside the X: the swap button, back to the game's or DaylightUI's profession window.)
-	if ns.Swap then ns.Swap.OnWindow(win, close) end
+	if ns.Swap then win.swapButton = ns.Swap.OnWindow(win, close) end
 
 	-- Left: the professions.
 	side = CreateFrame("Frame", nil, win)
@@ -1310,6 +1365,22 @@ local function Build()
 	headIcon:SetSize(34, 34)
 	headIcon:SetPoint("TOPLEFT", content, "TOPLEFT", PAD + 2, -14)
 	headIcon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	-- Shift-click the icon: your open profession linked to chat, as the game's link button does.
+	local iconHit = CreateFrame("Button", nil, content)
+	iconHit:SetAllPoints(headIcon)
+	iconHit:SetScript("OnClick", function()
+		if IsModifiedClick("CHATLINK") then Window.LinkOpen() end
+	end)
+	iconHit:SetScript("OnEnter", function(self)
+		if not headIcon:IsShown() or S.mode ~= "win" or Linked() or alt or gather then return end
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		GameTooltip:SetText(S.name or L["Profession"])
+		GameTooltip:AddLine(L["Shift-click: link to chat"], Color("LABEL"))
+		GameTooltip:Show()
+	end)
+	iconHit:SetScript("OnLeave", function(self)
+		if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+	end)
 	headName = Text(content, "title")
 	headName:SetPoint("TOPLEFT", headIcon, "TOPRIGHT", 12, 0)
 	headBar = API.Bar(content)
@@ -1595,6 +1666,40 @@ function Window.SetTab(key)
 	alt, gather = nil, nil
 	if pageDoc then pageDoc:Top() end
 	Window.Render()
+	-- (A tab's own short tour, the first time it opens: RecipesGuide.lua.)
+	if ns.Guide then ns.Guide.Offer("tab-" .. key) end
+end
+
+-- What the tours light (RecipesGuide.lua): the window, the professions list, the tabs, the recipe
+-- list, the craft bar, the page under the tabs and the swap button beside the X.
+function Window.TourParts()
+	local byKey = {}
+	for _, b in ipairs(tabButtons) do if b.key then byKey[b.key] = b end end
+	return { win = win, side = side, tabs = tabButtons, tabOf = byKey, list = listFrame, craft = craftBar, body = body,
+		swap = win and win.swapButton, tab = tab }
+end
+
+-- Opens the window for a tour (on the open profession, else the last one, else your professions).
+-- Until the tour ends (Window.TourDone) the window sits above DaylightUI's options (Retake Tour is
+-- clicked there) on its Recipes tab, whenever it shows: opening a profession shows it a moment
+-- later, once the game says the trade skill is open.
+function Window.ShowForTour()
+	Window.tourRaised = true
+	if Window.Shown() then Window.TourRaise() else Window.Toggle() end
+end
+
+function Window.TourRaise()
+	if not win then return end
+	win:SetFrameStrata("FULLSCREEN")
+	if tab ~= "recipes" or alt or gather then
+		tab, alt, gather = "recipes", nil, nil
+		Window.Render()
+	end
+end
+
+function Window.TourDone()
+	Window.tourRaised = nil
+	if win then win:SetFrameStrata("MEDIUM") end
 end
 
 function Window.Select(spell)

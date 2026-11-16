@@ -6,9 +6,11 @@
 --   * Trainer reminders: a chat line when a skill-up lets you learn new recipes at a trainer, and
 --     when a profession reaches its cap and needs the next rank.
 --   * The recipe "Craft next" picks gets a small mark in DaylightUI's profession list.
-local _, ns = ...
+--   * Mastercraft's own recipe item lines handed over while ours show (below).
+local ADDON, ns = ...
 if not ns.ok then return end
 local L, Plural = ns.L, ns.Plural
+local DUI = _G.DaylightUI
 
 local API, me = ns.API, ns.me
 local Tips = {}
@@ -72,6 +74,12 @@ local function Index()
 	end
 end
 
+-- The recipe (spell) a recipe item teaches, or nil.
+function Tips.Teaches(itemID)
+	Index()
+	return teaches[itemID]
+end
+
 -- The professions this character has learned (skill line -> true), from the game, kept until its
 -- skills change. The tooltip only speaks of these: a profession you don't have is no news to you.
 -- (Poisons are a rogue's class skill, not in the professions list.)
@@ -125,6 +133,20 @@ end
 -- Tooltips
 -- ---------------------------------------------------------------------------------------------
 
+-- Up to three names, then how many more: a tooltip line stays one short line.
+local function Short(names)
+	if #names <= 3 then return table.concat(names, ", ") end
+	return table.concat(names, ", ", 1, 3) .. " " .. L["+%d more"]:format(#names - 3)
+end
+
+-- Text in DaylightUI's dim ink.
+local function Dim(text)
+	local c = API.Colors and API.Colors()
+	local off = type(c) == "table" and c.OFF
+	if type(off) ~= "table" then return text end
+	return ("|cff%02x%02x%02x%s|r"):format(off[1] * 255, off[2] * 255, off[3] * 255, text)
+end
+
 local function ItemLines(lines, data)
 	if not ns.Get("tooltips") then return end
 	local itemID = type(data) == "table" and data.itemID
@@ -132,9 +154,22 @@ local function ItemLines(lines, data)
 	Index()
 	local spell = teaches[itemID]
 	local recipe = spell and ns.Recipes and ns.Recipes[spell]
-	if spell and recipe and Learned()[recipe[1]] then
-		local who = ns.Store.WhoKnows(spell)
-		lines.Line(L["Known by"], #who > 0 and table.concat(who, ", ") or L["No one on your account"])
+	-- A recipe item: who on the account knows it, and who of this realm and faction (the ones it can
+	-- be mailed to) has its profession and could learn it, with the skill each still needs. Shown
+	-- when this character or one of those has the profession.
+	local learn = spell and recipe and ns.Learn and ns.Learn.For(itemID)
+	if spell and recipe and (learn or Learned()[recipe[1]]) then
+		local who = ns.Store.WhoKnows(spell, true)
+		lines.Line(L["Known by"], #who > 0 and Short(who) or L["No one on your account"])
+		local can = {}
+		for _, e in ipairs(learn and learn.list or {}) do
+			if not e.knows then
+				local name = ns.Learn.ClassName(e)
+				if e.short > 0 then name = name .. " " .. Dim(L["(needs %d)"]:format(learn.need)) end
+				can[#can + 1] = name
+			end
+		end
+		if #can > 0 then lines.Line(L["Can learn"], Short(can)) end
 	end
 	local used = UsedText(itemID)
 	if used then lines.Line(L["Used in"], used) end
@@ -238,6 +273,57 @@ local function Mark(frame, _, info)
 end
 
 -- ---------------------------------------------------------------------------------------------
+-- Mastercraft's recipe item lines
+-- ---------------------------------------------------------------------------------------------
+-- Mastercraft (its own addon, read only through its saved settings) lists, on a recipe item, each of
+-- your characters with that profession and whether they know it or can learn it ("What a pattern
+-- teaches": MastercraftDB.settings.tipTeaches). With our tooltips on, that's said twice, so by
+-- default ours stand and Mastercraft's is switched off (setting "mastercraftTips"). What it was is
+-- kept (DaylightRecipesDB.mastercraftTeachesWas) and put back when ours are off or this choice is.
+-- Asked once, the first time both are on. Mastercraft reads its settings live, so this takes effect
+-- at once.
+
+local function MastercraftSettings()
+	local db = _G.MastercraftDB
+	return type(db) == "table" and type(db.settings) == "table" and db.settings or nil
+end
+
+function Tips.ApplyMastercraft()
+	local ms = MastercraftSettings()
+	if not ms then return end
+	local db = ns.Store.DB()
+	if ns.Get("tooltips") and ns.Get("mastercraftTips") ~= false then
+		if db.mastercraftTeachesWas == nil then db.mastercraftTeachesWas = ms.tipTeaches ~= false end
+		ms.tipTeaches = false
+	elseif db.mastercraftTeachesWas ~= nil then
+		ms.tipTeaches = db.mastercraftTeachesWas
+		db.mastercraftTeachesWas = nil
+	end
+end
+
+local function AskMastercraft()
+	local ms = MastercraftSettings()
+	local db = ns.Store.DB()
+	if not ms or db.mastercraftTipsAsked or not ns.Get("tooltips") then return end
+	-- (Only when it would have been said twice: Mastercraft's lines were on.)
+	if ms.tipTeaches == false and db.mastercraftTeachesWas ~= true then return end
+	db.mastercraftTipsAsked = true
+	-- (A first launch: the welcome says it instead. Guide.lua)
+	if ns.Guide and ns.Guide.Welcoming and ns.Guide.Welcoming() then return end
+	StaticPopupDialogs.DAYLIGHTRECIPES_MASTERCRAFT_TIPS = {
+		text = L["Mastercraft also lists your characters on recipe items. Show only Daylight Recipes' lines?\n\nMastercraft's come back if you pick Keep Both, or later in Daylight Recipes' options."],
+		button1 = L["Only Recipes'"],
+		button2 = L["Keep Both"],
+		OnAccept = function() DUI:Set(ADDON, "mastercraftTips", true) end,
+		OnCancel = function(_, _, reason)
+			if reason == "clicked" then DUI:Set(ADDON, "mastercraftTips", false) end
+		end,
+		timeout = 0, whileDead = true, hideOnEscape = false, preferredIndex = 3,
+	}
+	StaticPopup_Show("DAYLIGHTRECIPES_MASTERCRAFT_TIPS")
+end
+
+-- ---------------------------------------------------------------------------------------------
 -- Start
 -- ---------------------------------------------------------------------------------------------
 
@@ -252,4 +338,6 @@ end)
 me.On("Login", function()
 	if type(me.AddTooltipLines) == "function" then pcall(me.AddTooltipLines, "item", ItemLines) end
 	if type(me.Paint) == "function" then pcall(me.Paint, "craftrow", Mark) end
+	Tips.ApplyMastercraft()
+	C_Timer.After(4, AskMastercraft)
 end)

@@ -41,6 +41,8 @@ local DEFAULTS = {
 	reminders = true,
 	marks = true,
 	guideGlow = true,
+	vendorMarks = true,
+	mastercraftTips = true,
 	duiOpacity = true,
 	opacity = 0.85,
 }
@@ -443,7 +445,13 @@ local pages = {
 		} },
 		{ label = L["Help around the game"], items = {
 			{ type = "toggle", key = "tooltips", label = L["Item tooltips"],
-			  desc = L["What uses a material, what your plans need of it, and who on your account knows a recipe item."] },
+			  desc = L["What uses a material, what your plans need of it, and who knows or can learn a recipe item."] },
+			{ type = "toggle", key = "vendorMarks", label = L["Mark recipes at vendors"],
+			  desc = L["A small square on a recipe at a vendor that you or an alt can learn: bright if you can now."] },
+			{ type = "toggle", key = "mastercraftTips", label = L["Hide Mastercraft's recipe lines"],
+			  hidden = function() return not (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Mastercraft")) end,
+			  disabled = function(get) return get("tooltips") == false end,
+			  desc = L["Mastercraft's list of who knows a recipe item stays off while ours shows."] },
 			{ type = "toggle", key = "reminders", label = L["Trainer reminders"],
 			  desc = L["A chat line when a skill-up opens new recipes at a trainer, or a profession reaches its cap."] },
 			{ type = "toggle", key = "marks", label = L["Mark the best recipe"],
@@ -460,6 +468,11 @@ local pages = {
 		} },
 	  } },
 }
+
+-- The "Tell me when a newer version is out" switch (Update.lua), on the first page.
+if ns.UpdateGroup and pages[1] then table.insert(pages[1].groups, ns.UpdateGroup()) end
+-- Help: Retake Tour, What's new, Revert to the profession window you had (Guide.lua, RecipesGuide.lua).
+if ns.Guide and ns.Guide.HelpGroup and pages[1] then table.insert(pages[1].groups, ns.Guide.HelpGroup()) end
 
 pcall(function()
 	DUI:RegisterPlugin(ADDON, {
@@ -481,6 +494,14 @@ me.On("SettingChanged", function(scope, path)
 	if scope ~= ADDON then return end
 	if path == "guideGlow" then
 		ns.Changed()
+		return
+	end
+	if path == "vendorMarks" then
+		if ns.Learn then ns.Learn.Refresh() end
+		return
+	end
+	if path == "tooltips" or path == "mastercraftTips" then
+		if ns.Tips then ns.Tips.ApplyMastercraft() end
 		return
 	end
 	if path == "paneWidth" then

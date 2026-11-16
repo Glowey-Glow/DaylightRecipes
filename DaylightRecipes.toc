@@ -24,6 +24,9 @@ Locales\esES.lua
 Locales\ruRU.lua
 Locales\koKR.lua
 Locales\zhCN.lua
+Update.lua
+Guide.lua
+RecipesGuide.lua
 Core.lua
 Calc.lua
 Store.lua
@@ -32,6 +35,8 @@ Where.lua
 Plan.lua
 Queue.lua
 Tips.lua
+NodeTips.lua
+Learn.lua
 Doc.lua
 Pages.lua
 Camp.lua

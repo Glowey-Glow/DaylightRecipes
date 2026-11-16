@@ -142,7 +142,7 @@ local function MakeRow(child)
 	r:SetScript("OnClick", function(self, button)
 		-- (Shift-click a row with an item or recipe link: into the open chat box.)
 		if IsModifiedClick("CHATLINK") and self.link then
-			ChatEdit_InsertLink(self.link)
+			ns.InsertLink(self.link)
 			return
 		end
 		-- (A right click only acts on rows that want one: buying or learning on it would surprise.)

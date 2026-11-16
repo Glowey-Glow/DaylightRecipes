@@ -1,5 +1,21 @@
 # Daylight Recipes
 
+## 2.2.0
+- Everyone, including players who had Daylight Recipes before, sees the welcome and the tours once with this version.
+- Keep My Window on the welcome leaves a window you already picked (the game's or the docked pane) as it is.
+- New: a welcome on first launch that lists what Daylight Recipes takes over (your profession window, the panels at vendors, the auction house and trainers, recipe tooltips). Start Tour uses Recipes' window and starts the tour; Keep My Window keeps the one you had.
+- New: tours, each shown once the first time you get there: the window (professions, tabs, recipe list, crafting, the swap button), the Leveling Guide, Missing and Queue tabs, the buy lists and trainer panel, and enchanting runs. Back, Next and Skip tour; Escape skips; a fight ends it.
+- New: after an update, a short note with what changed.
+- New Help card in the options: Retake Tour, What's new, and Revert to DaylightUI's Window (or DaylightMogul's, or the game's: whichever you had).
+- Mastercraft's gathering node tooltips now read "Turns gray in 30 more skill", the color in its own color, instead of "Turns grey at +30 skill" (and "Gatherable in 5 more skill").
+- New: tells you when a newer version is out. Your copy and those of players in your guild and group trade version numbers in the background, and one chat line says when there is a newer one to get through CurseForge or WowUp (once a session). Turn it off with "Tell me when a newer version is out" on the plugin's first options page; then nothing is sent either.
+- Fix: you can link your profession to chat again. With the chat box open, Shift-click the profession's icon at the top of the window, or the profession in the list on the left (one that isn't open opens first, then goes into chat). Both tooltips say so.
+- Fix: Shift-clicking a recipe, item or reagent into chat no longer relies on the game's old chat function, which is only there while its backward-compatibility addon is loaded.
+- Recipes marked at vendors: a small square in your accent on any recipe a vendor sells that you or an alt on this realm and faction can learn and doesn't know yet. Bright when this character can learn it now, faint when it's for later (more skill needed) or for an alt. On DaylightUI's vendor page and the game's own vendor window (DaylightMogul's vendor window has no way in, so none there; the tooltip still says who it's for). Switch: "Mark recipes at vendors".
+- Recipe item tooltips: "Known by" in class colors, and a new "Can learn" line with your characters who have the profession but not the recipe, and the skill it needs when theirs is short. Shown when any of your characters on this realm and faction has the profession, not only this one.
+- Mastercraft: its own list of your characters on recipe items is switched off while ours shows, so it isn't said twice (asked once; "Hide Mastercraft's recipe lines" in the options gives it back).
+- Translations: the new text in German, French, Spanish, Russian, Korean and Simplified Chinese.
+
 ## 2.1.0
 - Leveling Guide: a light runs round the step you're on, and round its recipe in the recipe list wherever you scroll, so it's easy to find. It uses the glow style you picked for DaylightUI's main buttons (none when that's set to None or DaylightUI's motion is off). Turn it off with "Light up the guide's step" (Help around the game). Needs DaylightUI 1.8.4 or later.
 - Swap button: on a window where DaylightUI 1.8.4 puts its own swap icon or "Daylight UI window" link, its tooltip says which window it opens and what DaylightUI's control beside it does.

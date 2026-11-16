@@ -77,6 +77,10 @@ local function DB()
 end
 
 local function AskReload(text)
+	if ns.Guide and ns.Guide.Running and ns.Guide.Running() then
+		C_Timer.After(1, function() AskReload(text) end)
+		return
+	end
 	StaticPopupDialogs.DAYLIGHTRECIPES_RELOAD = {
 		text = text, button1 = L["Reload Now"], button2 = L["Later"],
 		OnAccept = function() ReloadUI() end,
@@ -122,6 +126,8 @@ local function Ask()
 	local db = DB()
 	if db.windowAsked then return end
 	db.windowAsked = true
+	-- (A first launch: the welcome asks this instead, Start Tour or Keep My Window. Guide.lua)
+	if ns.Guide and not (type(db.guide) == "table" and db.guide.welcomed) then return end
 	StaticPopupDialogs.DAYLIGHTRECIPES_WINDOW = {
 		text = L["Use Daylight Recipes' profession window?\n\nIt takes the place of the game's and DaylightUI's profession windows. The swap button beside its X switches to the game's window and back any time. You can change this later in Daylight Recipes' options."],
 		button1 = L["Use Recipes' Window"],
