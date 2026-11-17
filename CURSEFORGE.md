@@ -29,6 +29,9 @@ Drag a cheap item into the slot and level on it: enchant after enchant, with the
 ## Around the game
 Item tooltips (what uses a material, what your guides need of it, and for a recipe who on your account knows it and who could learn it, in class colors, with the skill still needed; only this character's guides), and trainer reminders in chat when a skill-up opens new recipes or you reach your rank's cap.
 
+## New in 2.2.1
+- The window tour that starts by itself opens the Daylight Recipes window again.
+
 ## New in 2.2.0
 - **A welcome and tours:** on first launch a welcome lists what Daylight Recipes takes over; **Start Tour** walks you through the window, opening each tab as it goes (Recipes, Leveling Guide, Materials, Queue, Missing). The buy lists, the trainer panel and enchanting runs explain themselves the first time.
 - **Help** in the settings: **Retake Tour**, **What's new**, and **Revert to** the profession window you had (DaylightUI's, DaylightMogul's or the game's).
