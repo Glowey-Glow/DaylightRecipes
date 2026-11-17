@@ -37,6 +37,9 @@ local function Get(key) return ns.Get and ns.Get(key) end
 local function Parts() return ns.Window and ns.Window.TourParts and ns.Window.TourParts() or {} end
 
 local NEWS = {
+	{ version = "2.3.0", lines = {
+		L["Tracking: Find Minerals and Find Herbs under your professions on the left. Click one to turn it on or off."],
+	} },
 	{ version = "2.2.0", lines = {
 		L["Tours: the window, the Leveling Guide, the Missing and Queue tabs, the shopping panels and enchanting runs each explain themselves the first time. Retake Tour in the options shows the window's again."],
 		L["Shift-click your profession's icon (or the profession on the left) to link it to chat."],

@@ -534,3 +534,11 @@ L["Every recipe you know, sorted by skill-up color. The small mark is the cheape
 L["Everything the Leveling Guide's route needs, what you already have of it, and what's left to get, with its price."] = "Всё, что нужно для маршрута руководства, что у вас уже есть и что осталось достать, с ценой."
 L["Recipes, the Leveling Guide, Materials, your Queue and Missing recipes: everything for this profession in one window. Next shows each one."] = "Рецепты, руководство, материалы, очередь и неизученные рецепты: всё для этой профессии в одном окне. «Далее» покажет каждую вкладку."
 L["What you plan to craft, for this character. Its materials go on the buy list at vendors and the auction house, and you can make the next one from here."] = "То, что вы собираетесь создать этим персонажем. Материалы попадают в список покупок у торговцев и на аукционе, а следующий предмет можно создать прямо отсюда."
+
+-- Tracking (Window.lua)
+L["Tracking"] = "Отслеживание"
+L["Click: turn on"] = "Щелчок: включить"
+L["Click: turn off"] = "Щелчок: выключить"
+
+-- What's new
+L["Tracking: Find Minerals and Find Herbs under your professions on the left. Click one to turn it on or off."] = "Отслеживание: «Поиск минералов» и «Поиск трав» под профессиями слева. Щелкните, чтобы включить или выключить."

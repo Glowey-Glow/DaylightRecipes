@@ -25,6 +25,7 @@ read_globals = {
 	"UnitChannelInfo",
 	"C_Spell",
 	"C_SkillInfo",
+	"C_Minimap",
 	"issecretvalue",
 	"UnitCastingInfo",
 	"C_Cursor",

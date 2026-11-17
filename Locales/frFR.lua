@@ -527,3 +527,11 @@ L["Every recipe you know, sorted by skill-up color. The small mark is the cheape
 L["Everything the Leveling Guide's route needs, what you already have of it, and what's left to get, with its price."] = "Tout ce dont l'itinéraire du guide a besoin, ce que vous en avez déjà et ce qu'il reste à obtenir, avec son prix."
 L["Recipes, the Leveling Guide, Materials, your Queue and Missing recipes: everything for this profession in one window. Next shows each one."] = "Recettes, guide, composants, votre file et recettes manquantes : tout pour ce métier dans une seule fenêtre. Suivant les montre un par un."
 L["What you plan to craft, for this character. Its materials go on the buy list at vendors and the auction house, and you can make the next one from here."] = "Ce que vous comptez fabriquer, pour ce personnage. Ses composants vont sur la liste d'achats chez les marchands et à l'hôtel des ventes, et vous pouvez fabriquer le suivant d'ici."
+
+-- Tracking (Window.lua)
+L["Tracking"] = "Pistage"
+L["Click: turn on"] = "Clic : activer"
+L["Click: turn off"] = "Clic : désactiver"
+
+-- What's new
+L["Tracking: Find Minerals and Find Herbs under your professions on the left. Click one to turn it on or off."] = "Pistage : Découverte de gisements et Découverte d'herbes sous vos métiers à gauche. Cliquez sur l'un pour l'activer ou le désactiver."

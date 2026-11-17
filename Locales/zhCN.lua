@@ -527,3 +527,11 @@ L["Every recipe you know, sorted by skill-up color. The small mark is the cheape
 L["Everything the Leveling Guide's route needs, what you already have of it, and what's left to get, with its price."] = "升级指南路线所需的一切、你已有的数量和还需获取的数量，以及价格。"
 L["Recipes, the Leveling Guide, Materials, your Queue and Missing recipes: everything for this profession in one window. Next shows each one."] = "配方、升级指南、材料、队列和缺少的配方：此专业的一切都在一个窗口中。点击下一步逐个查看。"
 L["What you plan to craft, for this character. Its materials go on the buy list at vendors and the auction house, and you can make the next one from here."] = "此角色计划制作的物品。其材料会加入商人和拍卖行的购买清单，你也可以在这里制作下一个。"
+
+-- Tracking (Window.lua)
+L["Tracking"] = "追踪"
+L["Click: turn on"] = "点击：开启"
+L["Click: turn off"] = "点击：关闭"
+
+-- What's new
+L["Tracking: Find Minerals and Find Herbs under your professions on the left. Click one to turn it on or off."] = "追踪：寻找矿物和寻找草药位于左侧专业下方。点击一个即可开启或关闭。"

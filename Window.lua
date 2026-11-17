@@ -31,7 +31,7 @@ local BAR = 52            -- Create / Create All under the recipe
 local ROW = 20            -- a line of the recipe list
 local PAD = 14
 
-local win, side, content, body
+local win, side, sideList, track, content, body
 local tabButtons = {}
 local tab = "recipes"
 local listFrame, listRows, listThumb, search, filterButtons
@@ -769,6 +769,7 @@ end
 -- ---------------------------------------------------------------------------------------------
 
 local sideRows = {}
+local PaintTrack           -- the tracking strip under the professions (below)
 local sideUsed = 0
 local sideY = 0
 local sideScroll = 0     -- how far the side list is scrolled
@@ -778,7 +779,7 @@ local function SideRow()
 	sideUsed = sideUsed + 1
 	local r = sideRows[sideUsed]
 	if not r then
-		r = CreateFrame("Button", nil, side)
+		r = CreateFrame("Button", nil, sideList)
 		r.ground = r:CreateTexture(nil, "BACKGROUND")
 		r.ground:SetAllPoints()
 		r.edge = r:CreateTexture(nil, "ARTWORK")
@@ -833,8 +834,8 @@ local function SideHeading(text)
 	sideY = sideY + 10
 	local r = SideRow()
 	r:SetHeight(18)
-	r:SetPoint("TOPLEFT", side, "TOPLEFT", 0, -sideY)
-	r:SetPoint("RIGHT", side, "RIGHT", 0, 0)
+	r:SetPoint("TOPLEFT", sideList, "TOPLEFT", 0, -sideY)
+	r:SetPoint("RIGHT", sideList, "RIGHT", 0, 0)
 	r.icon:Hide()
 	r.bar:Hide()
 	r.barBack:Hide()
@@ -859,8 +860,8 @@ local function SideEntry(o)
 	local r = SideRow()
 	local h = 42
 	r:SetHeight(h)
-	r:SetPoint("TOPLEFT", side, "TOPLEFT", 0, -sideY)
-	r:SetPoint("RIGHT", side, "RIGHT", 0, 0)
+	r:SetPoint("TOPLEFT", sideList, "TOPLEFT", 0, -sideY)
+	r:SetPoint("RIGHT", sideList, "RIGHT", 0, 0)
 	r.onClick, r.tip, r.onRight = o.onClick, o.tip, o.onRight
 	local x = 12
 	if o.icon then
@@ -1008,6 +1009,140 @@ unlearnEvents:SetScript("OnEvent", function()
 	end)
 end)
 
+-- ---------------------------------------------------------------------------------------------
+-- Tracking: the professions' minimap tracking, at the foot of the professions
+-- ---------------------------------------------------------------------------------------------
+-- The tracking spells of your professions (Find Minerals, Find Herbs, Find Fish), as the game's
+-- minimap tracking menu lists them (C_Minimap.GetTrackingInfo: only the ones you know). Click one
+-- to turn it on or off (C_Minimap.SetTracking, as that menu does). The one on has an accent ring
+-- and DaylightUI's glow, in the style the player picked for its main buttons.
+
+local TRACK_SPELLS = { [2580] = true, [2383] = true, [43308] = true }
+local TILE, TILE_GAP = 32, 8
+local trackTiles = {}
+
+local function TrackingList()
+	local out = {}
+	local M = C_Minimap
+	if not (M and M.GetNumTrackingTypes and M.GetTrackingInfo and M.SetTracking) then return out end
+	local ok, n = pcall(M.GetNumTrackingTypes)
+	if not ok or type(n) ~= "number" then return out end
+	for i = 1, n do
+		local got, info = pcall(M.GetTrackingInfo, i)
+		if got and type(info) == "table" and info.spellID and TRACK_SPELLS[info.spellID] then
+			out[#out + 1] = { index = i, name = info.name, icon = info.texture, on = info.active == true,
+				spell = info.spellID }
+		end
+	end
+	return out
+end
+
+-- The glow style for a tile that's on: the player's main-button style, none when that's None or
+-- this DaylightUI has no GlowAround (the ring still shows it's on).
+local function TrackGlowStyle()
+	if type(API.GlowAround) ~= "function" then return false end
+	local ok, style = pcall(API.GetSetting, "general", "buttonGlow")
+	if not ok or style == "none" then return false end
+	return type(style) == "string" and style or "circle"
+end
+
+local function TrackTile(i)
+	local b = trackTiles[i]
+	if b then return b end
+	b = CreateFrame("Button", nil, track)
+	b:SetSize(TILE, TILE)
+	b.ring = b:CreateTexture(nil, "BACKGROUND")
+	b.ring:SetPoint("TOPLEFT", -2, 2)
+	b.ring:SetPoint("BOTTOMRIGHT", 2, -2)
+	b.icon = b:CreateTexture(nil, "ARTWORK")
+	b.icon:SetAllPoints()
+	b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	b.wash = Wash(b, "OVERLAY", 0.12)
+	b.wash:SetAllPoints()
+	b.wash:Hide()
+	b:SetScript("OnEnter", function(self)
+		self.wash:Show()
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		if not (self.spell and pcall(GameTooltip.SetSpellByID, GameTooltip, self.spell)) then
+			GameTooltip:SetText(self.name or "")
+		end
+		GameTooltip:AddLine(self.on and L["Click: turn off"] or L["Click: turn on"], Color("LABEL"))
+		GameTooltip:Show()
+	end)
+	b:SetScript("OnLeave", function(self)
+		self.wash:Hide()
+		if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+	end)
+	b:SetScript("OnClick", function(self)
+		if not self.index then return end
+		pcall(C_Minimap.SetTracking, self.index, not self.on)
+	end)
+	trackTiles[i] = b
+	return b
+end
+
+PaintTrack = function()
+	if not track then return end
+	local list = TrackingList()
+	for i = #list + 1, #trackTiles do
+		local b = trackTiles[i]
+		b:Hide()
+		if b.glow then API.GlowAround(b, false); b.glow = nil end
+	end
+	if #list == 0 then
+		track:Hide()
+		sideList:SetPoint("BOTTOM", side, "BOTTOM", 0, 0)
+		return
+	end
+	if not track.title then
+		track.title = Text(track, "body")
+		track.title:SetJustifyH("LEFT")
+		track.title:SetPoint("TOPLEFT", track, "TOPLEFT", 14, -10)
+		track.line = track:CreateTexture(nil, "ARTWORK")
+		track.line:SetHeight(1)
+		track.line:SetPoint("TOPLEFT", track, "TOPLEFT", 12, 0)
+		track.line:SetPoint("TOPRIGHT", track, "TOPRIGHT", -12, 0)
+		track.line:SetColorTexture(1, 1, 1, 0.06)
+	end
+	track.title:SetText(L["Tracking"])
+	track.title:SetTextColor(Color("LABEL"))
+	-- (Tiles in rows across the strip, as many as fit.)
+	local across = math.max(1, math.floor((SIDE - 28 + TILE_GAP) / (TILE + TILE_GAP)))
+	local top = 10 + math.ceil(track.title:GetStringHeight()) + 10
+	local ar, ag, ab = API.Accent()
+	local style = TrackGlowStyle()
+	for i, t in ipairs(list) do
+		local b = TrackTile(i)
+		local col, row = (i - 1) % across, math.floor((i - 1) / across)
+		b:ClearAllPoints()
+		b:SetPoint("TOPLEFT", track, "TOPLEFT", 14 + col * (TILE + TILE_GAP), -(top + row * (TILE + TILE_GAP)))
+		b.index, b.name, b.spell, b.on = t.index, t.name, t.spell, t.on
+		b.icon:SetTexture(t.icon)
+		b.icon:SetDesaturated(not t.on)
+		b.icon:SetAlpha(t.on and 1 or 0.6)
+		if t.on then b.ring:SetColorTexture(ar, ag, ab, 1) else b.ring:SetColorTexture(1, 1, 1, 0.08) end
+		-- (Started again only when it changes, so a repaint doesn't start its light over.)
+		local want = t.on and style or false
+		if (b.glow or false) ~= want then
+			if b.glow then API.GlowAround(b, false) end
+			if want then API.GlowAround(b, true, { style = want, inset = -2 }) end
+			b.glow = want or nil
+		end
+		b:Show()
+	end
+	local rows = math.ceil(#list / across)
+	track:SetHeight(top + rows * TILE + (rows - 1) * TILE_GAP + 14)
+	track:Show()
+	sideList:SetPoint("BOTTOM", track, "TOP", 0, 0)
+end
+
+local trackEvents = CreateFrame("Frame")
+trackEvents:RegisterEvent("MINIMAP_UPDATE_TRACKING")
+trackEvents:RegisterEvent("SPELLS_CHANGED")
+trackEvents:SetScript("OnEvent", function()
+	if Window.Shown() then PaintTrack() end
+end)
+
 local function PaintSide()
 	if not side then return end
 	for i = 1, #sideRows do sideRows[i]:Hide() end
@@ -1084,7 +1219,7 @@ local function PaintSide()
 	end
 	sideTall = sideY + sideScroll
 	-- (Fewer rows than before, scrolled past the end: back to the end.)
-	local most = math.max(0, sideTall - side:GetHeight() + 8)
+	local most = math.max(0, sideTall - sideList:GetHeight() + 8)
 	if sideScroll > most then
 		sideScroll = most
 		PaintSide()
@@ -1340,7 +1475,7 @@ local function Build()
 	side:SetClipsChildren(true)
 	side:EnableMouseWheel(true)
 	side:SetScript("OnMouseWheel", function(self, delta)
-		local most = math.max(0, sideTall - self:GetHeight() + 8)
+		local most = math.max(0, sideTall - sideList:GetHeight() + 8)
 		local to = math.max(0, math.min(most, sideScroll - delta * 44))
 		if to ~= sideScroll then
 			sideScroll = to
@@ -1355,6 +1490,17 @@ local function Build()
 	divide:SetPoint("TOPRIGHT")
 	divide:SetPoint("BOTTOMRIGHT")
 	divide:SetColorTexture(1, 1, 1, 0.06)
+	-- (The professions scroll in sideList; under it, the tracking strip (PaintTrack) when you
+	-- know a profession's tracking.)
+	sideList = CreateFrame("Frame", nil, side)
+	sideList:SetPoint("TOPLEFT", side, "TOPLEFT", 0, 0)
+	sideList:SetPoint("RIGHT", side, "RIGHT", 0, 0)
+	sideList:SetPoint("BOTTOM", side, "BOTTOM", 0, 0)
+	sideList:SetClipsChildren(true)
+	track = CreateFrame("Frame", nil, side)
+	track:SetPoint("BOTTOMLEFT", side, "BOTTOMLEFT", 0, 0)
+	track:SetPoint("RIGHT", side, "RIGHT", 0, 0)
+	track:Hide()
 
 	content = CreateFrame("Frame", nil, win)
 	content:SetPoint("TOPLEFT", side, "TOPRIGHT", 0, 0)
@@ -1600,6 +1746,7 @@ end
 function Window.Render()
 	if not Window.Shown() then return end
 	PaintHead()
+	PaintTrack()
 	PaintSide()
 	PaintTabs()
 	local other = alt ~= nil or gather ~= nil     -- an alt's profession or a gathering one: no tabs

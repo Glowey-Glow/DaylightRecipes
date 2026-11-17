@@ -1,5 +1,8 @@
 # Daylight Recipes
 
+## 2.3.0
+- New: Tracking at the foot of the professions list in the Daylight Recipes window. The profession tracking spells you know (Find Minerals, Find Herbs) each have an icon; click one to turn it on or off, as the minimap's tracking menu does. The one on is in full color with an accent ring and DaylightUI's glow (in the style you picked for its main buttons); the rest are grayed. It follows changes made from the minimap, and hides when you know none.
+
 ## 2.2.1
 - The window tour that starts by itself opens the Daylight Recipes window again. It asked the game to open a profession, which the game blocks unless you click, so no window showed.
 

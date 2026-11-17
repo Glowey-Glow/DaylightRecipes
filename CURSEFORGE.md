@@ -29,6 +29,9 @@ Drag a cheap item into the slot and level on it: enchant after enchant, with the
 ## Around the game
 Item tooltips (what uses a material, what your guides need of it, and for a recipe who on your account knows it and who could learn it, in class colors, with the skill still needed; only this character's guides), and trainer reminders in chat when a skill-up opens new recipes or you reach your rank's cap.
 
+## New in 2.3.0
+- **Tracking:** your profession tracking spells (Find Minerals, Find Herbs) at the foot of the professions list. Click one to turn it on or off; the one on glows.
+
 ## New in 2.2.1
 - The window tour that starts by itself opens the Daylight Recipes window again.
 

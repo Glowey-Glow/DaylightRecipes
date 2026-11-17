@@ -527,3 +527,11 @@ L["Every recipe you know, sorted by skill-up color. The small mark is the cheape
 L["Everything the Leveling Guide's route needs, what you already have of it, and what's left to get, with its price."] = "레벨업 안내의 경로에 필요한 모든 것, 이미 가진 것, 더 구해야 할 것을 가격과 함께 보여 줍니다."
 L["Recipes, the Leveling Guide, Materials, your Queue and Missing recipes: everything for this profession in one window. Next shows each one."] = "제조법, 레벨업 안내, 재료, 대기열, 미습득 제조법: 이 전문 기술의 모든 것이 한 창에 있습니다. 다음을 누르면 하나씩 보여 줍니다."
 L["What you plan to craft, for this character. Its materials go on the buy list at vendors and the auction house, and you can make the next one from here."] = "이 캐릭터로 만들 계획인 것들입니다. 재료는 상인과 경매장의 구매 목록에 올라가며, 여기서 다음 것을 바로 만들 수 있습니다."
+
+-- Tracking (Window.lua)
+L["Tracking"] = "추적"
+L["Click: turn on"] = "클릭: 켜기"
+L["Click: turn off"] = "클릭: 끄기"
+
+-- What's new
+L["Tracking: Find Minerals and Find Herbs under your professions on the left. Click one to turn it on or off."] = "추적: 광물 찾기와 약초 찾기가 왼쪽 전문 기술 아래에 있습니다. 클릭하면 켜거나 끕니다."
