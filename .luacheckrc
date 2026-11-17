@@ -16,6 +16,7 @@ globals = {
 
 -- The WoW client's API, frames and constants this addon reads.
 read_globals = {
+	"C_ClassColor", "GetMerchantItemLink",
 	"debugstack",
 	"GetLocale",
 	"C_QuestLog",
