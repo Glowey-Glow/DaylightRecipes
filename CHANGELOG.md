@@ -1,5 +1,8 @@
 # Daylight Recipes
 
+## 2.2.1
+- The window tour that starts by itself opens the Daylight Recipes window again. It asked the game to open a profession, which the game blocks unless you click, so no window showed.
+
 ## 2.2.0
 - Everyone, including players who had Daylight Recipes before, sees the welcome and the tours once with this version.
 - Keep My Window on the welcome leaves a window you already picked (the game's or the docked pane) as it is.

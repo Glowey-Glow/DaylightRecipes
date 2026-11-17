@@ -1685,7 +1685,7 @@ end
 -- later, once the game says the trade skill is open.
 function Window.ShowForTour()
 	Window.tourRaised = true
-	if Window.Shown() then Window.TourRaise() else Window.Toggle() end
+	if Window.Shown() then Window.TourRaise() else Window.Toggle(true) end
 end
 
 function Window.TourRaise()
@@ -1825,7 +1825,9 @@ function Window.ShowGather(game)
 end
 
 -- /recipes: the window, on the profession open now, or the one you had open last.
-function Window.Toggle()
+-- noGame: the window alone, without asking the game to open a profession (a tour that starts by
+-- itself: the game opens a trade skill only from a click, and blocks it from a timer).
+function Window.Toggle(noGame)
 	if Window.Shown() then
 		win:Hide()
 		return
@@ -1844,7 +1846,7 @@ function Window.Toggle()
 			break
 		end
 	end
-	if game then
+	if game and not noGame then
 		local ok, opened = pcall(C_TradeSkillUI.OpenTradeSkill, game)
 		if ok and opened ~= false then return end
 	end
