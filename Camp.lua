@@ -173,11 +173,11 @@ local function ItemRow(d, c, p, redraw)
 		d:Line(L["The game shows what it takes once you know it."], "small", "OFF", 12)
 	end
 	if not known then
-		d:Line(L["How to learn it"], "small", "LABEL", 12)
+		d:Line(L["How to Learn It"], "small", "LABEL", 12)
 		HowToLearn(d, c, p)
 	end
 	if p then
-		d:Line(L["How to make it"], "small", "LABEL", 12)
+		d:Line(L["How to Make It"], "small", "LABEL", 12)
 		if known then HowToMake(d, c, p) else d:Line(L["Learn it first."], "small", "OFF", 12) end
 	end
 	d:Gap(6)
@@ -222,7 +222,7 @@ function Camp.Page(d, redraw)
 		for _, c in ipairs(Items(line)) do ItemRow(d, c, p, redraw) end
 	end
 	if #others > 0 then
-		d:Heading(L["Other professions"])
+		d:Heading(L["Other Professions"])
 		for _, line in ipairs(others) do
 			d:Line(Name(line), "small", "LABEL")
 			for _, c in ipairs(Items(line)) do ItemRow(d, c, nil, redraw) end

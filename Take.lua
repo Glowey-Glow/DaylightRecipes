@@ -91,6 +91,8 @@ local function Release(inFight, toGame)
 	holding = false
 	if f:GetParent() == veil then f:SetParent(toGame and UIParent or before or UIParent) end
 	before = nil
+	-- (A controller: back on the game's list, if it's showing on the screen itself.)
+	if ns.Pad and f:GetParent() == UIParent then ns.Pad.Remember(f) end
 	-- (In a fight the width can't be written: it is once the fight ends.)
 	if InCombatLockdown() then
 		widthOwed = true
@@ -156,6 +158,8 @@ watch:SetScript("OnUpdate", function(self)
 	if not open then self:Hide() return end
 	local f = Game()
 	if ours and f and not InCombatLockdown() and (f:GetParent() ~= veil or not holding) then Hold() end
+	-- (A controller: the held window off the game's list, so its cursor stays in ours. Guide.lua)
+	if holding and f and ns.Pad and f:IsShown() then ns.Pad.KeepOff(f) end
 end)
 
 -- Between sessions the game's window goes back: on Forever it is the professions book too (K and

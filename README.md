@@ -1,10 +1,10 @@
 # Daylight Recipes
 
-A plugin for DaylightUI on WoW: Forever. It adds a pane beside your profession window showing what a recipe costs to make, what it's worth, how likely it is to give a skill point, and every recipe you don't know yet with where to get it.
+A plugin for Daylight UI on WoW: Forever. It adds a pane beside your profession window showing what a recipe costs to make, what it's worth, how likely it is to give a skill point, and every recipe you don't know yet with where to get it.
 
 ## Requirements
 
-- DaylightUI.
+- Daylight UI.
 - Optional: DaylightMogul, for Auction House prices. Without it, costs use vendor prices.
 
 With this plugin installed you can turn ForeverRecipes off.
@@ -15,7 +15,7 @@ Install it from CurseForge (or WowUp), or unzip it into `World of Warcraft\_fore
 
 ## How to use it
 
-Open a profession. The pane appears on the right of DaylightUI's profession window (or DaylightMogul's, while Mogul runs your professions).
+Open a profession. The pane appears on the right of Daylight UI's profession window (or DaylightMogul's, while Mogul runs your professions).
 
 - **Pick a recipe** to see its skill-up chance, the cost of its materials, what it's worth on the Auction House, at a vendor or disenchanted, and what it disenchants into.
 - **Missing recipes:** open this tab for every recipe of the profession you don't know yet, sorted by the skill it needs. Search by name at the top. Click a recipe for where to get it (trainers, vendors, drops, quests), and click a place for a waypoint (TomTom when it's installed).
@@ -23,7 +23,7 @@ Open a profession. The pane appears on the right of DaylightUI's profession wind
 
 ## Settings
 
-Open the DaylightUI options and go to **Plugins → Recipes**.
+Open the Daylight UI options and go to **Plugins → Recipes**.
 
 ## Updates
 

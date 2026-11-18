@@ -22,6 +22,7 @@ local Color, Hex, Text, DiffColor = Doc.Color, Doc.Hex, Doc.Text, Doc.DiffColor
 
 local Window = {}
 ns.Window = Window
+local Pad = ns.Pad     -- the window on a controller (Guide.lua)
 
 local W, H = 1000, 640
 local SIDE = 210          -- the professions on the left
@@ -31,7 +32,7 @@ local BAR = 52            -- Create / Create All under the recipe
 local ROW = 20            -- a line of the recipe list
 local PAD = 14
 
-local win, side, sideList, track, content, body
+local win, side, sideList, track, cool, content, body
 local tabButtons = {}
 local tab = "recipes"
 local listFrame, listRows, listThumb, search, filterButtons
@@ -197,6 +198,13 @@ local function ClampOffset()
 	if offset < 0 then offset = 0 end
 end
 
+-- On a controller the list scrolls under the cursor: the D-pad past its first or last row moves it
+-- a row (the cursor stays on that row), and the right stick scrolls it (listPad: a stand-in scroll
+-- frame, Guide.lua's Pad.Scroller).
+local listPad
+local stickMoving = false   -- the stick moved it: its stand-in keeps the stick's own position
+local PaintList
+
 local function PaintThumb()
 	local n, shown = #entries, VisibleRows()
 	if n <= shown then listThumb:Hide() return end
@@ -233,6 +241,7 @@ local function MakeListRow()
 	r.right:SetPoint("RIGHT", r, "RIGHT", -10, 0)
 	r:SetScript("OnEnter", function(self)
 		self.wash:Show()
+		Pad.Into(self, listPad)
 		local e = self.entry
 		if e and e.spell then
 			GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
@@ -261,10 +270,23 @@ local function MakeListRow()
 		end
 		Window.Select(e.spell)
 	end)
+	-- The D-pad past the list's edge: a row further, the cursor (and its tooltip) staying put.
+	local function Step(by)
+		local n = by > 0 and VisibleRows() or 1
+		if r.index ~= n then return false end
+		local was = offset
+		offset = offset + by
+		PaintList()
+		if offset == was then return false end
+		if GameTooltip:IsOwned(r) then r:GetScript("OnEnter")(r) end
+		return true
+	end
+	Pad.Edge(r, "DOWN", function() return Step(1) end)
+	Pad.Edge(r, "UP", function() return Step(-1) end)
 	return r
 end
 
-local function PaintList()
+PaintList = function()
 	if not listFrame then return end
 	if listDirty then BuildList() end
 	ClampOffset()
@@ -278,6 +300,7 @@ local function PaintList()
 		local r = listRows[i]
 		if not r then
 			r = MakeListRow()
+			r.index = i
 			listRows[i] = r
 		end
 		local e = entries[offset + i]
@@ -329,6 +352,7 @@ local function PaintList()
 		end
 	end
 	PaintThumb()
+	if listPad and not stickMoving then listPad.Sync() end
 end
 
 -- Scrolls the list so a recipe shows (after a pick from the Leveling Guide or the queue).
@@ -440,7 +464,7 @@ local function DetailPage(d)
 	Pages.Worth(d, spell)
 	local who = ns.Store and ns.Store.WhoKnows(spell)
 	if type(who) == "table" and #who > 0 then
-		d:Heading(L["Also known by"])
+		d:Heading(L["Also Known By"])
 		d:Line(table.concat(who, ", "), "small", "TEXT")
 	end
 end
@@ -518,7 +542,7 @@ local function PaintCraftBar()
 		cb.status:SetPoint("RIGHT", cb.all, "LEFT", -12, 0)
 		cb.status:SetTextColor(Color("LABEL"))
 		cb.status:Show()
-		cb.make.text:SetText(L["Next (%d left)"]:format(making.count - making.done))
+		cb.make.text:SetText(L["Next (%d Left)"]:format(making.count - making.done))
 		if ns.Guide then ns.Guide.Offer("enchant") end
 		cb.make.SetOff(false)
 		cb.make:Show()
@@ -631,6 +655,14 @@ local function BuildEnchantRow(cb)
 			PickTarget(self)
 		end
 	end)
+	-- A controller's Y: the right-click (empties the slot).
+	slot.padMore = function()
+		if not (row.target and S.recipe) then return nil end
+		return function()
+			Craft.DropTarget(S.recipe)
+			PaintCraftBar()
+		end
+	end
 	slot:SetScript("OnEnter", function(self)
 		GameTooltip:SetOwner(self, "ANCHOR_TOP")
 		local t = row.target
@@ -755,7 +787,8 @@ local function BuildCraftBar(parent)
 	cb.stop = API.Button(cb, L["Stop"], 26)
 	cb.stop:SetWidth(110)
 	cb.stop:SetPoint("RIGHT", cb, "BOTTOMRIGHT", -PAD, BAR / 2)
-	-- (The secure Stop laid over it takes the click: Craft.PlaceStop.)
+	-- (The secure Stop laid over it takes the click: Craft.PlaceStop. A controller's A on it stops
+	-- through DaylightUI's own secure button: the window's padKeys, Build.)
 	cb.stop:EnableMouse(false)
 	cb.stop:Hide()
 	cb.status = Text(cb, "body", "RIGHT")
@@ -770,10 +803,32 @@ end
 
 local sideRows = {}
 local PaintTrack           -- the tracking strip under the professions (below)
+local PaintCooldowns       -- the craft cooldowns box above it (below)
+local PlaceFoot            -- stacks the two under the professions list
 local sideUsed = 0
 local sideY = 0
 local sideScroll = 0     -- how far the side list is scrolled
 local sideTall = 0       -- how tall it is in all
+local sidePad            -- its stand-in scroll frame for a controller's right stick (Build)
+local PaintSide
+
+-- A controller's cursor on a row scrolled out of the list's sight: the list scrolls to it (the
+-- mouse can't reach those rows, so this is the controller's only way there).
+local function SideIntoView(r)
+	if not Pad.On() then return end
+	local top, bottom = r:GetTop(), r:GetBottom()
+	local listTop, listBottom = sideList:GetTop(), sideList:GetBottom()
+	if not (top and bottom and listTop and listBottom) then return end
+	local by = 0
+	if bottom < listBottom then by = listBottom - bottom + 4 elseif top > listTop then by = listTop - top - 4 end
+	if by == 0 then return end
+	local most = math.max(0, sideTall - sideList:GetHeight() + 8)
+	local to = math.max(0, math.min(most, sideScroll + by))
+	if to ~= sideScroll then
+		sideScroll = to
+		PaintSide()
+	end
+end
 
 local function SideRow()
 	sideUsed = sideUsed + 1
@@ -805,6 +860,8 @@ local function SideRow()
 		r.barBack:SetHeight(2)
 		r:SetScript("OnEnter", function(self)
 			if self.onClick then self.wash:Show() end
+			Pad.Into(self, sidePad)
+			SideIntoView(self)
 			if self.tip then
 				GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 				pcall(self.tip, GameTooltip)
@@ -823,6 +880,8 @@ local function SideRow()
 			end
 			if self.onClick then self.onClick() end
 		end)
+		-- A controller's Y: what a right-click does (a primary profession's Unlearn).
+		r.padMore = function(self) return self.onRight end
 		sideRows[sideUsed] = r
 	end
 	r:ClearAllPoints()
@@ -1021,6 +1080,23 @@ local TRACK_SPELLS = { [2580] = true, [2383] = true, [43308] = true }
 local TILE, TILE_GAP = 32, 8
 local trackTiles = {}
 
+-- Their names in the game's language, so one Forever lists under another spell ID still counts.
+local trackNames
+local function TrackName(name)
+	if not trackNames then
+		trackNames = {}
+		for spell in pairs(TRACK_SPELLS) do
+			local n = ns.SpellName(spell)
+			if type(n) == "string" and n ~= "" then trackNames[n] = true end
+		end
+		if not next(trackNames) then
+			trackNames = nil     -- (the spell names weren't in yet: asked again next time)
+			return false
+		end
+	end
+	return type(name) == "string" and trackNames[name] == true
+end
+
 local function TrackingList()
 	local out = {}
 	local M = C_Minimap
@@ -1029,7 +1105,7 @@ local function TrackingList()
 	if not ok or type(n) ~= "number" then return out end
 	for i = 1, n do
 		local got, info = pcall(M.GetTrackingInfo, i)
-		if got and type(info) == "table" and info.spellID and TRACK_SPELLS[info.spellID] then
+		if got and type(info) == "table" and ((info.spellID and TRACK_SPELLS[info.spellID]) or TrackName(info.name)) then
 			out[#out + 1] = { index = i, name = info.name, icon = info.texture, on = info.active == true,
 				spell = info.spellID }
 		end
@@ -1091,7 +1167,7 @@ PaintTrack = function()
 	end
 	if #list == 0 then
 		track:Hide()
-		sideList:SetPoint("BOTTOM", side, "BOTTOM", 0, 0)
+		PlaceFoot()
 		return
 	end
 	if not track.title then
@@ -1133,17 +1209,170 @@ PaintTrack = function()
 	local rows = math.ceil(#list / across)
 	track:SetHeight(top + rows * TILE + (rows - 1) * TILE_GAP + 14)
 	track:Show()
-	sideList:SetPoint("BOTTOM", track, "TOP", 0, 0)
+	PlaceFoot()
 end
 
+-- ---------------------------------------------------------------------------------------------
+-- Craft cooldowns: above the tracking strip
+-- ---------------------------------------------------------------------------------------------
+-- Your recipes that can only be made once in a while (Cooldowns.lua), one tile each: the item
+-- gray with the time left on it while it's cooling down, in full color with a green ring once it's
+-- ready. Hover for which recipes and when; click to open the recipe. While a tile is cooling down
+-- and the box shows, it's drawn again every half minute (nothing runs while it's hidden).
+
+local coolTiles = {}
+local coolTicker
+local COOL_TICK = 30
+
+local function StopCoolTicker()
+	if coolTicker then
+		coolTicker:Cancel()
+		coolTicker = nil
+	end
+end
+
+local function CoolTile(index)
+	local b = coolTiles[index]
+	if b then return b end
+	b = CreateFrame("Button", nil, cool)
+	b:SetSize(TILE, TILE)
+	b.ring = b:CreateTexture(nil, "BACKGROUND")
+	b.ring:SetPoint("TOPLEFT", -2, 2)
+	b.ring:SetPoint("BOTTOMRIGHT", 2, -2)
+	b.icon = b:CreateTexture(nil, "ARTWORK")
+	b.icon:SetAllPoints()
+	b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	b.time = Text(b, "tiny")
+	b.time:SetPoint("BOTTOM", b, "BOTTOM", 0, 1)
+	b.wash = Wash(b, "OVERLAY", 0.12)
+	b.wash:SetAllPoints()
+	b.wash:Hide()
+	b:SetScript("OnEnter", function(self)
+		self.wash:Show()
+		local t = self.tile
+		if not t then return end
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		for i, name in ipairs(t.names) do GameTooltip:AddLine(name, Color(i == 1 and "VALUE" or "TEXT")) end
+		if t.readyAt == 0 then
+			GameTooltip:AddLine(L["Ready to craft"], Color("GOOD"))
+		else
+			GameTooltip:AddLine(L["Ready in %s"]:format(ns.Cooldowns.Left(t.readyAt)), Color("WARN"))
+		end
+		GameTooltip:AddLine(L["Click: show the recipe"], Color("LABEL"))
+		GameTooltip:Show()
+	end)
+	b:SetScript("OnLeave", function(self)
+		self.wash:Hide()
+		if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+	end)
+	b:SetScript("OnClick", function(self)
+		local t = self.tile
+		if t and t.line and t.spells[1] then Window.OpenRecipe(t.line, t.spells[1]) end
+	end)
+	coolTiles[index] = b
+	return b
+end
+
+PaintCooldowns = function()
+	if not cool then return end
+	local list = ns.Cooldowns and ns.Cooldowns.List() or {}
+	for i = #list + 1, #coolTiles do coolTiles[i]:Hide() end
+	if #list == 0 then
+		StopCoolTicker()
+		cool:Hide()
+		PlaceFoot()
+		return
+	end
+	if not cool.title then
+		cool.title = Text(cool, "body")
+		cool.title:SetJustifyH("LEFT")
+		cool.title:SetPoint("TOPLEFT", cool, "TOPLEFT", 14, -10)
+		cool.line = cool:CreateTexture(nil, "ARTWORK")
+		cool.line:SetHeight(1)
+		cool.line:SetPoint("TOPLEFT", cool, "TOPLEFT", 12, 0)
+		cool.line:SetPoint("TOPRIGHT", cool, "TOPRIGHT", -12, 0)
+		cool.line:SetColorTexture(1, 1, 1, 0.06)
+	end
+	cool.title:SetText(L["Cooldowns"])
+	cool.title:SetTextColor(Color("LABEL"))
+	local across = math.max(1, math.floor((SIDE - 28 + TILE_GAP) / (TILE + TILE_GAP)))
+	local top = 10 + math.ceil(cool.title:GetStringHeight()) + 10
+	local gr, gg, gb = Color("GOOD")
+	local cooling = false
+	for i, t in ipairs(list) do
+		local b = CoolTile(i)
+		local col, row = (i - 1) % across, math.floor((i - 1) / across)
+		b:ClearAllPoints()
+		b:SetPoint("TOPLEFT", cool, "TOPLEFT", 14 + col * (TILE + TILE_GAP), -(top + row * (TILE + TILE_GAP)))
+		b.tile = t
+		b.icon:SetTexture(t.icon or 134400)
+		local ready = t.readyAt == 0
+		b.icon:SetDesaturated(not ready)
+		b.icon:SetAlpha(ready and 1 or 0.55)
+		if ready then
+			b.ring:SetColorTexture(gr, gg, gb, 1)
+			b.time:SetText("")
+		else
+			cooling = true
+			b.ring:SetColorTexture(1, 1, 1, 0.08)
+			-- (One unit on the tile, so it fits its width; the tooltip has the whole time.)
+			b.time:SetText(ns.Cooldowns.Short(t.readyAt))
+			b.time:SetTextColor(Color("VALUE"))
+		end
+		b:Show()
+	end
+	local rows = math.ceil(#list / across)
+	cool:SetHeight(top + rows * TILE + (rows - 1) * TILE_GAP + 14)
+	cool:Show()
+	PlaceFoot()
+	-- The countdown: only while something is cooling down and the box is on screen.
+	if not cooling then
+		StopCoolTicker()
+	elseif not coolTicker then
+		coolTicker = C_Timer.NewTicker(COOL_TICK, function()
+			if Window.PaintCooldowns and cool and cool:IsVisible() then Window.PaintCooldowns() else StopCoolTicker() end
+		end)
+	end
+end
+
+-- The foot of the professions list, bottom up: tracking, then cooldowns, then the list above them.
+PlaceFoot = function()
+	local below, point = side, "BOTTOM"
+	if track and track:IsShown() then
+		track:ClearAllPoints()
+		track:SetPoint("BOTTOMLEFT", side, "BOTTOMLEFT", 0, 0)
+		track:SetPoint("RIGHT", side, "RIGHT", 0, 0)
+		below, point = track, "TOP"
+	end
+	if cool and cool:IsShown() then
+		cool:ClearAllPoints()
+		cool:SetPoint("BOTTOMLEFT", below, point == "TOP" and "TOPLEFT" or "BOTTOMLEFT", 0, 0)
+		cool:SetPoint("RIGHT", side, "RIGHT", 0, 0)
+		below, point = cool, "TOP"
+	end
+	sideList:SetPoint("BOTTOM", below, point, 0, 0)
+end
+
+-- Tracking turned on or off (here or from the minimap), or a tracking spell learned: the strip,
+-- and the professions above it (a strip that comes or goes changes how much of them fits).
 local trackEvents = CreateFrame("Frame")
 trackEvents:RegisterEvent("MINIMAP_UPDATE_TRACKING")
 trackEvents:RegisterEvent("SPELLS_CHANGED")
 trackEvents:SetScript("OnEvent", function()
-	if Window.Shown() then PaintTrack() end
+	if not Window.Shown() then return end
+	PaintTrack()
+	PaintSide()
 end)
 
-local function PaintSide()
+-- The cooldowns read again (Cooldowns.lua) or their countdown ticked: the box, and the professions
+-- above it.
+function Window.PaintCooldowns()
+	if not Window.Shown() then return end
+	PaintCooldowns()
+	PaintSide()
+end
+
+PaintSide = function()
 	if not side then return end
 	for i = 1, #sideRows do sideRows[i]:Hide() end
 	sideUsed, sideY = 0, 8 - sideScroll
@@ -1203,7 +1432,7 @@ local function PaintSide()
 			if (a.c.name or "") ~= (b.c.name or "") then return (a.c.name or "") < (b.c.name or "") end
 			return a.line < b.line
 		end)
-		SideHeading(L["Your alts"])
+		SideHeading(L["Your Alts"])
 		for _, a in ipairs(alts) do
 			local color
 			if a.c.class and API.ClassColor then
@@ -1223,7 +1452,9 @@ local function PaintSide()
 	if sideScroll > most then
 		sideScroll = most
 		PaintSide()
+		return
 	end
+	if sidePad and not stickMoving then sidePad.Sync() end
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -1450,6 +1681,7 @@ local function Build()
 	-- Esc closes it like any window (and ends the trade skill with it).
 	if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "DaylightRecipesWindow") end
 	win:SetScript("OnHide", function()
+		StopCoolTicker()
 		Craft.PlaceStop(nil)
 		if ns.Take and ns.Take.OursNow() then ns.Take.Close() end
 	end)
@@ -1501,6 +1733,8 @@ local function Build()
 	track:SetPoint("BOTTOMLEFT", side, "BOTTOMLEFT", 0, 0)
 	track:SetPoint("RIGHT", side, "RIGHT", 0, 0)
 	track:Hide()
+	cool = CreateFrame("Frame", nil, side)
+	cool:Hide()
 
 	content = CreateFrame("Frame", nil, win)
 	content:SetPoint("TOPLEFT", side, "TOPRIGHT", 0, 0)
@@ -1581,7 +1815,7 @@ local function Build()
 		end })
 	search:SetPoint("TOPLEFT", body, "TOPLEFT", PAD, -10)
 	search:SetWidth(LIST - PAD * 2)
-	filterButtons = { Toggle(body, L["Can make"], "canMake"), Toggle(body, L["Skill-ups"], "skillUps") }
+	filterButtons = { Toggle(body, L["Can Make"], "canMake"), Toggle(body, L["Skill-ups"], "skillUps") }
 	filterButtons[1]:SetPoint("TOPLEFT", search, "BOTTOMLEFT", -6, -6)
 	filterButtons[2]:SetPoint("LEFT", filterButtons[1], "RIGHT", 4, 0)
 
@@ -1639,6 +1873,67 @@ local function Build()
 		end })
 	altDoc.search:SetPoint("TOPLEFT", body, "TOPLEFT", PAD, -10)
 	altDoc.search:SetWidth(320)
+
+	-- A controller (Guide.lua's Pad): the game's cursor moves over the window's rows and buttons
+	-- while it's shown, A presses, B closes it, LB / RB step through the tabs, Y does what a
+	-- right-click does, the right stick scrolls the list the cursor is in. The recipe list and the
+	-- professions are drawn from an offset, so the stick scrolls them through stand-ins.
+	Pad.Skip(iconHit)   -- (shift-click only)
+	listPad = Pad.Scroller({
+		range = function() return math.max(0, #entries - VisibleRows()) * ROW end,
+		at = function() return offset * ROW end,
+		set = function(v)
+			local n = math.floor(v / ROW + 0.5)
+			if n == offset then return end
+			offset = n
+			stickMoving = true
+			PaintList()
+			stickMoving = false
+		end })
+	sidePad = Pad.Scroller({
+		range = function() return math.max(0, sideTall - sideList:GetHeight() + 8) end,
+		at = function() return sideScroll end,
+		set = function(v)
+			v = math.floor(v + 0.5)
+			if v == sideScroll then return end
+			sideScroll = v
+			stickMoving = true
+			PaintSide()
+			stickMoving = false
+		end })
+	win.padTabs = function()
+		local list, at = {}, nil
+		for _, b in ipairs(tabButtons) do
+			if b:IsShown() then
+				list[#list + 1] = b
+				if b.key == tab then at = #list end
+			end
+		end
+		return list, at
+	end
+	-- The cursor starts on the picked recipe (else the list's first row, else your first profession).
+	win.padFirst = function()
+		if listFrame:IsVisible() and listRows then
+			for _, r in ipairs(listRows) do
+				if r:IsShown() and r.entry and r.entry.spell and r.entry.spell == S.recipe then return r end
+			end
+			if listRows[1] and listRows[1]:IsShown() then return listRows[1] end
+		end
+		for _, r in ipairs(sideRows) do
+			if r:IsShown() and r.onClick then return r end
+		end
+		return nil
+	end
+	-- A on Stop: the secure Stop's own action, through DaylightUI's secure key (the Stop drawn here
+	-- only shows it).
+	win.padKeys = { { key = "A", label = L["Stop"],
+		secure = function(at)
+			if craftBar and at == craftBar.stop and craftBar.stop:IsVisible() then
+				return { type = "macro", macrotext = "/stopcasting" }
+			end
+			return nil
+		end } }
+	Pad.Follow(win, function() win:Hide() end)
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -1743,10 +2038,28 @@ local function NoSession(d)
 	d:Line(L["Open a profession from the list on the left (or cast it from your spellbook)."], "body", "OFF")
 end
 
+local Render
+local stuckTo      -- the page the right stick was last put on
+
 function Window.Render()
 	if not Window.Shown() then return end
+	Render()
+	-- A controller: the game finds the window's buttons again (they come and go with the page),
+	-- and the stick goes to the new page's list (a row the cursor enters takes it after).
+	if Pad.On() then
+		local page = (alt or gather) and "other" or tab
+		if page ~= stuckTo then
+			stuckTo = page
+			Pad.Stick(win, page == "recipes" and listPad or page == "other" and altDoc.scroll or pageDoc.scroll)
+		end
+		Pad.Settle()
+	end
+end
+
+Render = function()
 	PaintHead()
 	PaintTrack()
+	PaintCooldowns()
 	PaintSide()
 	PaintTabs()
 	local other = alt ~= nil or gather ~= nil     -- an alt's profession or a gathering one: no tabs
@@ -1953,6 +2266,37 @@ function Window.OpenProfession(line, game)
 		ns.Print(L["The game didn't open that profession."])
 		Window.ShowGather(game)
 	end
+end
+
+-- Opens one of your recipes (a cooldown tile's click): its profession first when another is
+-- open, then the recipe on the Recipes tab, as a pick from the Leveling Guide does.
+function Window.OpenRecipe(line, spell)
+	if not (line and type(spell) == "number") then return end
+	local function Pick()
+		Window.SetTab("recipes")
+		Window.Select(spell)
+	end
+	if S.mode == "win" and S.line == line and not Linked() then
+		Pick()
+		return
+	end
+	local game
+	for _, p in ipairs(MyProfessions()) do
+		if p.line == line and p.crafts then game = p.game end
+	end
+	if not game then return end
+	Window.OpenProfession(line, game)
+	-- (Picked once the game says it's open: it opens a moment after the click.)
+	local tries = 0
+	local function wait()
+		tries = tries + 1
+		if S.mode == "win" and S.line == line and not Linked() then
+			Pick()
+		elseif tries < 20 then
+			C_Timer.After(0.1, wait)
+		end
+	end
+	C_Timer.After(0.1, wait)
 end
 
 function Window.ShowAlt(guid, line)

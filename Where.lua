@@ -521,28 +521,28 @@ local function AddPolestar(item, groups)
 		local who = repNpc and { repNpc } or (ns.FactionVendors and ns.FactionVendors[rep[1]])
 		if who then
 			local word = Where.StandingName(rep[2])
-			group("vendor", L["Reputation vendor"], who, function() return word end)
+			group("vendor", L["Reputation Vendor"], who, function() return word end)
 		end
 	end
-	group("vendor", L["Sold by"], vendors, function(rec)
+	group("vendor", L["Sold By"], vendors, function(rec)
 		return type(rec[2]) == "number" and rec[2] > 0 and ns.Calc.Money(rec[2]) or nil
 	end)
-	group("drop", L["Dropped by"], drops, function(rec)
+	group("drop", L["Dropped By"], drops, function(rec)
 		local inst = rec[3] and rec[3] ~= "" and PolestarName("instance", rec[3])
 		local chance = ChanceText(rec[2])
 		if inst and chance then return L["%s, %s"]:format(chance, inst) end
 		return chance or inst or nil
 	end, ByChance)
-	group("gift", L["Given by"], given)
-	if #found > 0 then groups[#groups + 1] = { kind = "drop", title = L["Found in"], lines = found, more = 0 } end
+	group("gift", L["Given By"], given)
+	if #found > 0 then groups[#groups + 1] = { kind = "drop", title = L["Found In"], lines = found, more = 0 } end
 	if world then
 		local lines = { { name = L["Enemies of level %d to %d"]:format(world[2], world[3]) } }
-		groups[#groups + 1] = { kind = "drop", title = L["World drop"], lines = lines, more = 0 }
+		groups[#groups + 1] = { kind = "drop", title = L["World Drop"], lines = lines, more = 0 }
 	end
 	if #quests > 0 then
 		local lines = {}
 		for _, id in ipairs(quests) do lines[#lines + 1] = { name = QuestName(id), quest = id } end
-		groups[#groups + 1] = { kind = "quest", title = L["Quest reward"], lines = lines, more = 0 }
+		groups[#groups + 1] = { kind = "quest", title = L["Quest Reward"], lines = lines, more = 0 }
 	end
 	-- The reputation itself: first, as the condition the rest is under. (Your standing is read as
 	-- the page is drawn: Where.Rep.)
@@ -582,11 +582,11 @@ local function BuildSources(spell)
 	local trainers = ns.Trainers and ns.Trainers[spell]
 	if trainers and #trainers > 0 then
 		group("trainer", L["Trainer"], trainers, function(rec)
-			if automatic then return L["With the profession"] end
+			if automatic then return L["With the Profession"] end
 			return type(rec[2]) == "number" and ns.Calc.Money(rec[2]) or nil
 		end)
 	elseif automatic then
-		groups[#groups + 1] = { kind = "auto", title = L["Learned with the profession"], lines = {}, more = 0 }
+		groups[#groups + 1] = { kind = "auto", title = L["Learned with the Profession"], lines = {}, more = 0 }
 	end
 
 	local teach = data[5]
@@ -594,10 +594,10 @@ local function BuildSources(spell)
 	local fixed = AnySource(spell, teach) and teach
 	if teach then
 		local costs = ns.RecipeVendorCosts and ns.RecipeVendorCosts[teach]
-		group("vendor", L["Sold by"], Fixed(ns.Sellers and ns.Sellers[teach], "v", fixed), function(_, id)
+		group("vendor", L["Sold By"], Fixed(ns.Sellers and ns.Sellers[teach], "v", fixed), function(_, id)
 			return costs and PriceText(costs[id]) or nil
 		end)
-		group("drop", L["Dropped by"], Fixed(ns.Drops and ns.Drops[teach], "d", fixed), function(rec)
+		group("drop", L["Dropped By"], Fixed(ns.Drops and ns.Drops[teach], "d", fixed), function(rec)
 			return type(rec[2]) == "number" and L["%s%%"]:format(rec[2]) or nil
 		end, ByChance)
 		local others = ns.OtherDrops and ns.OtherDrops[teach]
@@ -609,7 +609,7 @@ local function BuildSources(spell)
 		for _, s in ipairs(fix and fix.add or {}) do
 			if s[1] == "o" or s[1] == "n" then lines[#lines + 1] = FoundLine(s) end
 		end
-		if #lines > 0 then groups[#groups + 1] = { kind = "drop", title = L["Found in"], lines = lines, more = 0 } end
+		if #lines > 0 then groups[#groups + 1] = { kind = "drop", title = L["Found In"], lines = lines, more = 0 } end
 	end
 
 	local quests = (teach and ns.QuestRewards and ns.QuestRewards[teach]) or (ns.AutomaticQuests and ns.AutomaticQuests[spell])
@@ -617,7 +617,7 @@ local function BuildSources(spell)
 	if quests and #quests > 0 then
 		local lines = {}
 		for _, id in ipairs(quests) do lines[#lines + 1] = { name = QuestName(id), quest = id } end
-		groups[#groups + 1] = { kind = "quest", title = L["Quest reward"], lines = lines, more = 0 }
+		groups[#groups + 1] = { kind = "quest", title = L["Quest Reward"], lines = lines, more = 0 }
 	end
 
 	-- Nothing in ForeverRecipes' tables: Polestar's (for Forever's own recipes, reputation ones).
@@ -641,7 +641,7 @@ function Where.Sources(spell)
 	return g
 end
 
-local KIND_WORD = { trainer = L["Trainer"], vendor = L["Vendor"], drop = L["Drop"], quest = L["Quest"], auto = L["With the profession"],
+local KIND_WORD = { trainer = L["Trainer"], vendor = L["Vendor"], drop = L["Drop"], quest = L["Quest"], auto = L["With the Profession"],
 	rep = L["Reputation"], gift = L["Given"] }
 
 -- "Trainer · Vendor", for the list.

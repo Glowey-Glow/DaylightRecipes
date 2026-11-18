@@ -1,7 +1,13 @@
 # Daylight Recipes
 
+## 2.4.0
+- New: Cooldowns, above Tracking at the foot of the professions list. Your recipes that can only be made once in a while (transmutes, Mooncloth, Cured Rugged Hide, and any other the game reports a cooldown on) each get a tile: ready with an accent ring, or gray with the time left. Click one to open that recipe. Ready times are kept per character across logouts.
+- Controller support: the whole Daylight Recipes window works with a controller (D-pad over everything, LB / RB through the tabs, the right stick scrolls, Y for the right-click actions, B closes), and so do the shopping panels, the tours, the welcome and What's New.
+- Tracking also finds Find Minerals and Find Herbs by name, in case a spell's number differs.
+- Labels and buttons in Title Case, and "Daylight UI" written with a space.
+
 ## 2.3.0
-- New: Tracking at the foot of the professions list in the Daylight Recipes window. The profession tracking spells you know (Find Minerals, Find Herbs) each have an icon; click one to turn it on or off, as the minimap's tracking menu does. The one on is in full color with an accent ring and DaylightUI's glow (in the style you picked for its main buttons); the rest are grayed. It follows changes made from the minimap, and hides when you know none.
+- New: Tracking at the foot of the professions list in the Daylight Recipes window. The profession tracking spells you know (Find Minerals, Find Herbs) each have an icon; click one to turn it on or off, as the minimap's tracking menu does. The one on is in full color with an accent ring and Daylight UI's glow (in the style you picked for its main buttons); the rest are grayed. It follows changes made from the minimap, and hides when you know none.
 
 ## 2.2.1
 - The window tour that starts by itself opens the Daylight Recipes window again. It asked the game to open a profession, which the game blocks unless you click, so no window showed.
@@ -12,23 +18,23 @@
 - New: a welcome on first launch that lists what Daylight Recipes takes over (your profession window, the panels at vendors, the auction house and trainers, recipe tooltips). Start Tour uses Recipes' window and starts the tour; Keep My Window keeps the one you had.
 - New: tours, each shown once the first time you get there: the window (professions, tabs, recipe list, crafting, the swap button), the Leveling Guide, Missing and Queue tabs, the buy lists and trainer panel, and enchanting runs. Back, Next and Skip tour; Escape skips; a fight ends it.
 - New: after an update, a short note with what changed.
-- New Help card in the options: Retake Tour, What's new, and Revert to DaylightUI's Window (or DaylightMogul's, or the game's: whichever you had).
+- New Help card in the options: Retake Tour, What's new, and Revert to Daylight UI's Window (or DaylightMogul's, or the game's: whichever you had).
 - Mastercraft's gathering node tooltips now read "Turns gray in 30 more skill", the color in its own color, instead of "Turns grey at +30 skill" (and "Gatherable in 5 more skill").
 - New: tells you when a newer version is out. Your copy and those of players in your guild and group trade version numbers in the background, and one chat line says when there is a newer one to get through CurseForge or WowUp (once a session). Turn it off with "Tell me when a newer version is out" on the plugin's first options page; then nothing is sent either.
 - Fix: you can link your profession to chat again. With the chat box open, Shift-click the profession's icon at the top of the window, or the profession in the list on the left (one that isn't open opens first, then goes into chat). Both tooltips say so.
 - Fix: Shift-clicking a recipe, item or reagent into chat no longer relies on the game's old chat function, which is only there while its backward-compatibility addon is loaded.
-- Recipes marked at vendors: a small square in your accent on any recipe a vendor sells that you or an alt on this realm and faction can learn and doesn't know yet. Bright when this character can learn it now, faint when it's for later (more skill needed) or for an alt. On DaylightUI's vendor page and the game's own vendor window (DaylightMogul's vendor window has no way in, so none there; the tooltip still says who it's for). Switch: "Mark recipes at vendors".
+- Recipes marked at vendors: a small square in your accent on any recipe a vendor sells that you or an alt on this realm and faction can learn and doesn't know yet. Bright when this character can learn it now, faint when it's for later (more skill needed) or for an alt. On Daylight UI's vendor page and the game's own vendor window (DaylightMogul's vendor window has no way in, so none there; the tooltip still says who it's for). Switch: "Mark recipes at vendors".
 - Recipe item tooltips: "Known by" in class colors, and a new "Can learn" line with your characters who have the profession but not the recipe, and the skill it needs when theirs is short. Shown when any of your characters on this realm and faction has the profession, not only this one.
 - Mastercraft: its own list of your characters on recipe items is switched off while ours shows, so it isn't said twice (asked once; "Hide Mastercraft's recipe lines" in the options gives it back).
 - Translations: the new text in German, French, Spanish, Russian, Korean and Simplified Chinese.
 
 ## 2.1.0
-- Leveling Guide: a light runs round the step you're on, and round its recipe in the recipe list wherever you scroll, so it's easy to find. It uses the glow style you picked for DaylightUI's main buttons (none when that's set to None or DaylightUI's motion is off). Turn it off with "Light up the guide's step" (Help around the game). Needs DaylightUI 1.8.4 or later.
-- Swap button: on a window where DaylightUI 1.8.4 puts its own swap icon or "Daylight UI window" link, its tooltip says which window it opens and what DaylightUI's control beside it does.
+- Leveling Guide: a light runs round the step you're on, and round its recipe in the recipe list wherever you scroll, so it's easy to find. It uses the glow style you picked for Daylight UI's main buttons (none when that's set to None or Daylight UI's motion is off). Turn it off with "Light up the guide's step" (Help around the game). Needs Daylight UI 1.8.4 or later.
+- Swap button: on a window where Daylight UI 1.8.4 puts its own swap icon or "Daylight UI window" link, its tooltip says which window it opens and what Daylight UI's control beside it does.
 - Translations: the new text in German, French, Spanish, Russian, Korean and Simplified Chinese.
 
 ## 2.0.7
-- DaylightUI 1.8.4: the swap button no longer sits on top of DaylightUI's new swap icon in its profession window's header, or its "Daylight UI window" link on the game's profession window. It goes just left of them.
+- Daylight UI 1.8.4: the swap button no longer sits on top of Daylight UI's new swap icon in its profession window's header, or its "Daylight UI window" link on the game's profession window. It goes just left of them.
 
 ## 2.0.6
 - Translations tidied: lines for text the plugin no longer shows are taken out of all six languages.
@@ -45,11 +51,11 @@
 - Fix: Formula: Enchant Chest - Minor Mana no longer lists Vance Undergloom in Brill, who teaches Enchanting but doesn't sell it.
 
 ## 2.0.4
-- Its own icon: in the game's AddOns list and other menus (instead of the blank "?"), and on its page in DaylightUI's options.
+- Its own icon: in the game's AddOns list and other menus (instead of the blank "?"), and on its page in Daylight UI's options.
 
 ## 2.0.3
 - A swap button (two arrows) beside the X: on Daylight Recipes' window it switches to the game's own profession window, and on the game's window it switches back. The open profession moves across at once, and the window you pick stays picked. Not in a fight.
-- New "Use Daylight Recipes' profession window?" question, asked once. Yes makes Daylight Recipes' window the one and switches DaylightUI's own profession window off (one reload, offered), so the swap button goes to the game's window. Picking Docked pane in the options brings DaylightUI's window back as it was. The Profession window choice now also has The game's window.
+- New "Use Daylight Recipes' profession window?" question, asked once. Yes makes Daylight Recipes' window the one and switches Daylight UI's own profession window off (one reload, offered), so the swap button goes to the game's window. Picking Docked pane in the options brings Daylight UI's window back as it was. The Profession window choice now also has The game's window.
 - Reputation recipes read "Nightclaw Druids: Friendly (Current Rep: Neutral)", each standing in the game's reputation colors (red for Hated and Hostile, orange for Unfriendly, yellow for Neutral, green from Friendly up).
 - Herbalism, Skinning and Fishing are no longer grayed out on the left of the window: a click shows their own page, with your skill, your rank and when to train the next one (they have no recipes, so no recipe list or Leveling Guide).
 - Mining is found under its own name too, so its smelting recipes and Leveling Guide open from the left; if the game won't open a profession from there, its page says which spell to cast instead.
@@ -57,7 +63,7 @@
 - Buttons fit their words in every language (Create All, Queue, Buy all here, Learn all...): when the crafting bar runs out of room, the count and Queue move to a row of their own above Create.
 - The enchant item row, the pane's skill beside its tabs, and the buy list's total beside its button no longer run into each other.
 - At a large Window size on a small screen, the window shrinks to fit instead of running off the screen.
-- With DaylightUI 1.8.3: Create, Buy all here, Learn all and the Yes of the confirm box have DaylightUI's main-button look; a buy list's item tooltip no longer repeats your bags and bank when DaylightUI already lists every character's (the mail count stays).
+- With Daylight UI 1.8.3: Create, Buy all here, Learn all and the Yes of the confirm box have Daylight UI's main-button look; a buy list's item tooltip no longer repeats your bags and bank when Daylight UI already lists every character's (the mail count stays).
 - New: camping items. Herbalism, Skinning and Fishing's pages list theirs (Fishing's Fish Bowl, Fishing Rack and Fishing Hut, for one): what each does, what it takes and what you hold of it, the skill it needs, whether you know it, and how to learn it (a trainer or the quest "Camping 101", or a blueprint with where it drops and a waypoint). A new "Camping" entry on the left lists every profession's camping items, yours first.
 - Fishing's page says where its next rank comes from: Expert is a book sold in Booty Bay, Artisan a quest from Nat Pagle in Dustwallow Marsh (with a waypoint to each), not a trainer.
 - The Missing tab knows where far more recipes come from: of the 469 listed as "Source not known yet", 193 now show their vendors, drops, quests or reputation, from Polestar's data (GPL-3.0), Forever's own ones among them (the Gustwoven and Windraveled patterns: the Nightclaw Druids' vendor).
@@ -66,7 +72,7 @@
 - Fix: a skill-up while you gather (Herbalism 70 to 75) shows on the window's list of professions and the gathering page at once, with no profession window open.
 - Fix: the window fits the screen again when the UI scale or the game's window size changes.
 - Lighter: a page drawn again after its panel changed width redraws only that window (not the pane, the window and the buy lists together), and never the folded pane.
-- The buy list's item tooltip keeps "You have..." unless DaylightUI (1.8.3 or later, its bags and its bank and alts viewer on) lists your characters' bags and bank there itself; the mail stays said.
+- The buy list's item tooltip keeps "You have..." unless Daylight UI (1.8.3 or later, its bags and its bank and alts viewer on) lists your characters' bags and bank there itself; the mail stays said.
 
 ## 2.0.2
 - On German, French, Spanish, Russian, Korean and Chinese clients, words the game already translates (like Apprentice, Journeyman, Search, Yes and No) use the game's own translation instead of our draft.
@@ -78,10 +84,10 @@
 - Fixes for non-English game clients: the Leveling Guide makes Enchanting's rods and Engineering's tools again when the next recipes need them (the game names them in your language, and the guide only knew the English names); the trainer's "Recommended" list finds the recipes a trainer teaches by their name in your language too.
 - Recipe, item, profession, zone and quest names are shown in your game's language wherever the game has them (the Missing tab, an alt's recipes, trainer reminders, item tooltips, the buy lists), with the English name only while the game hasn't loaded one yet.
 - Searches find accented and Cyrillic letters whatever their case ("ä" finds "Ä", "б" finds "Б"), and lists sorted by name follow your language's alphabet.
-- Window opacity: follows DaylightUI's by default, or set your own on the options page.
+- Window opacity: follows Daylight UI's by default, or set your own on the options page.
 
 ## 2.0.0
-- New: Daylight Recipes' own profession window, in place of the game's and DaylightUI's. Your professions sit on the left (click one to open it) with your alts' below; the open profession's skill bar and five tabs across the top: Recipes, Leveling Guide, Materials, Queue and Missing.
+- New: Daylight Recipes' own profession window, in place of the game's and Daylight UI's. Your professions sit on the left (click one to open it) with your alts' below; the open profession's skill bar and five tabs across the top: Recipes, Leveling Guide, Materials, Queue and Missing.
 - Recipes tab: the recipe list with a search, "Can make" and "Skill-ups" filters, categories that fold, and how many you can make of each; the picked recipe beside it with what it makes and needs, the materials you hold (bags, bank, mail, alts), its skill-up chance, costs and value, and Create, Create All or the item an enchant goes on. Stop ends a run of crafts.
 - An alt's profession shows what that character knows, as of the last time they opened it.
 - New: a buy list under the vendor window: every material your Leveling Guides and crafting queue still need that this character doesn't have (an alt holding some is mentioned, [Mira has 12], but not counted), a double-click to buy exactly that many (or "Buy all here"), each after an "Are you sure?" with its total cost; what this vendor doesn't sell is grayed out, [Not Available]. It folds away like the trainer's list.
@@ -95,20 +101,20 @@
 - Leveling Guide, cheapest route by: Cheapest (materials), Vendor, Disenchant or Auction House: the last three take what you make off the cost (selling skips recipes under a 10% chance and ignores absurd prices).
 - Auction House prices: how many are up is kept, and a vendor wins over an Auction House price only a little lower with fewer than 10 up. A scan over 12 hours old says so. With Auctionator loaded, the Auction House buy list becomes an Auctionator shopping list at a click.
 - /recipes (or /dr) opens the window on your last profession, away from a crafting station too.
-- It takes the place of DaylightMogul's profession window too (Mogul's prices are still used). Prefer DaylightUI's or Mogul's window? Options, Recipes, Profession window: "Docked pane" brings it back with the pane beside it.
+- It takes the place of DaylightMogul's profession window too (Mogul's prices are still used). Prefer Daylight UI's or Mogul's window? Options, Recipes, Profession window: "Docked pane" brings it back with the pane beside it.
 - "Craft next" (the Leveling Guide's "Also good right now") lists your recipes that still give points, cheapest expected cost per point first (with the chance and how many you can make now); a click picks it in the profession window.
 - New: a route to your target skill (your cap or the next rank's, or 300; click to change). For every point it takes the recipe with the cheapest expected cost per point, among the ones you know and the ones a trainer will teach by then, counting the misses on yellow and green recipes, and stops at each rank cap to tell you which rank to train. Each step shows the skill range, the recipe, about how many crafts and what they cost.
 - New: the materials the route takes, less what the route makes on the way, with what's in your bags, bank (Forever's bank tabs and the account's shared ones too) and mail, what your alts on the realm hold, and what's left to buy and for how much, with who on your account can make it or which vendor sells it.
 - New: Daylight Recipes no longer needs another addon. It keeps its own Auction House prices from what you browse and from a scan you start in the Leveling Guide (DaylightMogul's prices are used instead when it's loaded, and then nothing is read twice), learns vendor prices from the merchants you visit, and remembers every character's professions, recipes, bags, bank and mail.
-- New: item tooltips (DaylightUI 1.7): which professions use a material and in how many recipes, what your plans (and your alts') need of it, and who on your account knows a recipe item.
-- New: trainer reminders in chat when a skill-up opens new recipes at a trainer or a profession reaches its cap, and a small mark on the best recipe to skill up with in DaylightUI's recipe list. Each can be turned off on the options page.
+- New: item tooltips (Daylight UI 1.7): which professions use a material and in how many recipes, what your plans (and your alts') need of it, and who on your account knows a recipe item.
+- New: trainer reminders in chat when a skill-up opens new recipes at a trainer or a profession reaches its cap, and a small mark on the best recipe to skill up with in Daylight UI's recipe list. Each can be turned off on the options page.
 - Fix: switching profession in DaylightMogul's window no longer keeps showing the last profession's recipe.
 - Fix: the Missing tab shows the skill a trainer really asks for a recipe (it showed the orange threshold, which is off for a few hundred recipes), and no longer says "Skill 0" when the data doesn't know.
 - Fix: recipes the data has no source for (many of Forever's own) are listed as "Source not known yet" instead of being left out, so the Missing tab no longer says you know every recipe when you don't.
 - The skill-up chance follows the game's own color for recipes you know: orange is a sure point and gray none, with the thresholds only giving the odds on yellow and green. Recipes that give more than one point say so, and the cost per skill point counts it.
 - Trainers, vendors and drops in a recipe's sources are listed nearest first (your zone, then your continent), so the six shown are the ones you can reach, and a waypoint goes to the nearest spawn.
 - Lighter: the Missing tab no longer reads every recipe again on each bag change or rebuilds its list on each skill point (only learning a recipe, or opening the window, does), a recipe's sources are worked out once, and the list shows 60 recipes at a time with "Show more".
-- Fix: after DaylightUI's profession window closes, a weapon skill-up no longer makes the pane forget your known recipes.
+- Fix: after Daylight UI's profession window closes, a weapon skill-up no longer makes the pane forget your known recipes.
 
 ## 1.1.2
 - All text in American English (gray, color and the like), in the game and in the docs.
@@ -117,10 +123,10 @@
 - Lighter while a profession is open: a bag change or a craft no longer rebuilds the missing list (only learning a recipe does) or redraws the pane unless the skill changed; item data arriving redraws only a page waiting on that item; the missing list's search runs a moment after the last key instead of on every key.
 
 ## 1.1.0
-- The pane folds away, like DaylightUI's damage meter: a small tab on its outer edge slides it out of sight, leaving only the tab against the profession window, and a click on the tab brings it back. It stays folded or open between sessions, on DaylightUI's profession window and DaylightMogul's.
+- The pane folds away, like Daylight UI's damage meter: a small tab on its outer edge slides it out of sight, leaving only the tab against the profession window, and a click on the tab brings it back. It stays folded or open between sessions, on Daylight UI's profession window and DaylightMogul's.
 
 ## 1.0.0
-- First release: a pane beside DaylightUI's profession window, or DaylightMogul's.
+- First release: a pane beside Daylight UI's profession window, or DaylightMogul's.
 - Recipe page: skill-up chance (Overtime counted), every material priced from the Auction House (DaylightMogul) or the cheapest vendor (reputation and Bartering counted), total and cost per skill point, value on the Auction House, at a vendor and disenchanted with the profit each way, and the disenchant materials.
 - Missing page: every recipe you don't know for the open profession, with its trainers, vendors, drops and quests, their places, and a waypoint on click.
 - Recipe, source and disenchant data from ForeverRecipes (GPL-3.0).

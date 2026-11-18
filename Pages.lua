@@ -36,7 +36,7 @@ function Pages.Skill(d, spell)
 		end
 	end
 	local r, g, b = DiffColor(step)
-	local row = d:Row({ left = L["Chance of a point"], right = Pct(chance) })
+	local row = d:Row({ left = L["Chance of a Point"], right = Pct(chance) })
 	row.right:SetTextColor(r, g, b)
 	d:Bar(chance)
 	if t then
@@ -126,7 +126,7 @@ function Pages.Cost(d, spell, chance, opts)
 	elseif chance and chance > 0 then
 		-- (Expected points per craft: the chance times the points one gives.)
 		local points = chance * Calc.SkillUps(spell)
-		if points ~= 1 then d:Row({ left = L["Per skill point"], leftInk = "LABEL", right = Calc.Money(cost.total / points) }) end
+		if points ~= 1 then d:Row({ left = L["Per Skill Point"], leftInk = "LABEL", right = Calc.Money(cost.total / points) }) end
 	end
 	if not Calc.HasAH() then
 		d:Line(L["Vendor prices only: scan the Auction House from the Leveling Guide for its prices."], "small", "OFF")
@@ -163,7 +163,7 @@ function Pages.Worth(d, spell)
 	end
 	local de = worth.de
 	if de then
-		d:Heading(L["Disenchants into"])
+		d:Heading(L["Disenchants Into"])
 		for _, m in ipairs(de.mats) do
 			local mname, micon = ItemName(m.itemID, d)
 			local range = m.lo == m.hi and tostring(m.lo) or (m.lo .. "-" .. m.hi)
@@ -289,7 +289,7 @@ function Pages.Missing(d, ctx)
 	for i, e in ipairs(list) do
 		if i > st.limit then
 			local left = count - st.limit
-			d:Row({ left = L["Show %d more"]:format(math.min(left, PAGE)), leftInk = "ACCENT",
+			d:Row({ left = L["Show %d More"]:format(math.min(left, PAGE)), leftInk = "ACCENT",
 				right = L["%d left"]:format(left), rightInk = "OFF",
 				onClick = function()
 					st.limit = st.limit + PAGE
@@ -338,7 +338,7 @@ function Pages.Prices(d)
 	if P.Scanning() then
 		d:Line(L["Reading Auction House prices..."], "small", "ACCENT")
 	elseif P.CanScan() then
-		d:Row({ left = L["Scan Auction House prices"], leftInk = "ACCENT",
+		d:Row({ left = L["Scan Auction House Prices"], leftInk = "ACCENT",
 			sub = P.LastScan() and L["Last scan %s"]:format(Doc.Ago(P.LastScan())) or L["Prices for materials, from one full scan"],
 			subInk = "TEXT", onClick = function() P.Scan() end })
 	elseif not P.Has() then
@@ -352,7 +352,7 @@ function Pages.Prices(d)
 end
 
 function Pages.CraftNext(d, ctx, count)
-	d:Heading(L["Craft next"])
+	d:Heading(L["Craft Next"])
 	local list = ns.Plan.CraftNext(count or 3)
 	if #list == 0 then
 		d:Line(L["None of your recipes gives a point now: learn a new one (see the route below)."], "small", "OFF")
@@ -384,7 +384,7 @@ function Pages.Route(d, ctx, plan)
 		for i, v in ipairs(targets) do
 			if v == plan.target then nextOne = targets[i % #targets + 1] break end
 		end
-		d:Row({ left = L["Aim for %d instead"]:format(nextOne), leftInk = "ACCENT",
+		d:Row({ left = L["Aim for %d Instead"]:format(nextOne), leftInk = "ACCENT",
 			onClick = function() ns.Plan.SetTarget(nextOne) end })
 	end
 	if route.crafts > 0 then
@@ -503,7 +503,7 @@ Pages.MaterialRow = MaterialRow
 -- (it ends above the other recipes offered instead).
 local function StepCard(d, ctx, s, n, glowTop)
 	local skill = S.skill or 0
-	d:Heading(L["Step %d · skill %d to %d"]:format(n, s.from, s.to))
+	d:Heading(L["Step %d · Skill %d to %d"]:format(n, s.from, s.to))
 	local out = ns.Ask("GetRecipeOutputItemData", s.spell)
 	local icon = type(out) == "table" and out.icon or nil
 	if not icon and ns.Recipes and ns.Recipes[s.spell] then
@@ -523,7 +523,7 @@ local function StepCard(d, ctx, s, n, glowTop)
 	if s.learn then d:Line(LearnText(s), "small", "WARN") end
 	local mats = Calc.Materials(s.spell)
 	if #mats > 0 then
-		d:Line(L["You need"], "small", "LABEL")
+		d:Line(L["You Need"], "small", "LABEL")
 		for _, m in ipairs(mats) do MaterialRow(d, m[1], m[2] * s.count, 0) end
 	end
 	local buttons = {}
@@ -538,7 +538,7 @@ local function StepCard(d, ctx, s, n, glowTop)
 		buttons[#buttons + 1] = { text = L["Queue"], onClick = function() ns.Queue.Add(s.spell, s.count) end }
 	end
 	if not s.learn and ctx.pick then
-		buttons[#buttons + 1] = { text = L["Show recipe"], onClick = function() ctx.pick(s.spell) end }
+		buttons[#buttons + 1] = { text = L["Show Recipe"], onClick = function() ctx.pick(s.spell) end }
 	end
 	if #buttons > 0 then
 		d:Gap(4)
@@ -547,7 +547,7 @@ local function StepCard(d, ctx, s, n, glowTop)
 	if glowTop then d:GlowFrom(glowTop) end
 	-- The next best recipes when the step began, for when you'd rather (or lack its materials).
 	if s.alts and #s.alts > 0 then
-		d:Line(L["Or instead"], "small", "LABEL")
+		d:Line(L["Or Instead"], "small", "LABEL")
 		for _, a in ipairs(s.alts) do
 			local m, k = Net(a.perPoint, true)
 			d:Row({ left = RecipeName(a.spell), leftInk = "TEXT", right = m, rightInk = k,
@@ -557,7 +557,7 @@ local function StepCard(d, ctx, s, n, glowTop)
 end
 
 local function RankCard(d, s, n)
-	d:Heading(L["Step %d · skill %d"]:format(n, s.at))
+	d:Heading(L["Step %d · Skill %d"]:format(n, s.at))
 	local name, text = s.name or L["the next rank"]
 	if S.name and s.level then
 		text = L["Train %s at a %s trainer (it asks level %d)."]:format(name, S.name, s.level)
@@ -590,7 +590,7 @@ local function GoalPart(d, plan)
 	for _, g in ipairs(ns.Plan.GOALS) do
 		list[#list + 1] = { text = ns.Plan.GOAL_WORDS[g], active = g == goal, onClick = function() ns.Plan.SetGoal(g) end }
 	end
-	d:Line(L["Cheapest route"], "small", "LABEL")
+	d:Line(L["Cheapest Route"], "small", "LABEL")
 	d:Buttons(list)
 end
 
@@ -643,8 +643,8 @@ function Pages.Guide(d, ctx)
 					StepCard(d, ctx, s, n, top)
 				end
 				if n < #route.steps then
-					d:Heading(ns.Plan.Goal() == "cost" and L["Then (each step's materials, all crafts)"]
-						or L["Then (each step's cost after what you make, all crafts)"])
+					d:Heading(ns.Plan.Goal() == "cost" and L["Then (Each Step's Materials, All Crafts)"]
+						or L["Then (Each Step's Cost After What You Make, All Crafts)"])
 				end
 			elseif s.kind == "craft" or s.kind == "tool" then
 				local sub = s.kind == "tool" and L["make 1: the next recipes need it"] or L["make about %d"]:format(s.count)
@@ -684,7 +684,7 @@ function Pages.Guide(d, ctx)
 	-- Cheaper than the step right now (prices move): offered, not in the way.
 	local picks = ns.Plan.CraftNext(3)
 	if current and current.kind == "craft" and picks[1] and picks[1].spell ~= current.spell then
-		d:Heading(L["Also good right now"])
+		d:Heading(L["Also Good Right Now"])
 		for _, e in ipairs(picks) do
 			d:Row({ left = RecipeName(e.spell), leftInk = "TEXT",
 				right = e.perPoint and L["%s a point"]:format(Calc.Money(e.perPoint)) or L["no price"],
@@ -703,7 +703,7 @@ end
 local function QueueMenu(row, i)
 	local Q = ns.Queue
 	local keys = { "up", "down", "remove" }
-	local words = { up = L["Move up"], down = L["Move down"], remove = L["Remove"] }
+	local words = { up = L["Move Up"], down = L["Move Down"], remove = L["Remove"] }
 	ns.API.Menu(row, keys, words, nil, function(key)
 		if key == "up" then Q.Move(i, -1) elseif key == "down" then Q.Move(i, 1) else Q.Remove(i) end
 	end, 140, { atCursor = true })
@@ -722,7 +722,7 @@ function Pages.Queue(d, ctx)
 	if here and ctx.make then
 		local can = Craft.Count(here.spell)
 		local n = math.min(here.count, can)
-		buttons[#buttons + 1] = { text = can > 0 and L["Craft next: %s x %d"]:format(RecipeName(here.spell), n) or L["Craft next"],
+		buttons[#buttons + 1] = { text = can > 0 and L["Craft Next: %s x %d"]:format(RecipeName(here.spell), n) or L["Craft Next"],
 			off = can < 1 or Craft.Making() ~= nil, onClick = function() Craft.Make(here.spell, n) end }
 	end
 	buttons[#buttons + 1] = { text = L["Clear"], onClick = function() Q.Clear() end }
@@ -756,7 +756,7 @@ function Pages.Queue(d, ctx)
 	for itemID, n in pairs(needs) do items[#items + 1] = { itemID = itemID, n = n } end
 	if #items == 0 then return end
 	table.sort(items, function(a, b) return a.n > b.n end)
-	d:Heading(L["Materials for the queue"])
+	d:Heading(L["Materials for the Queue"])
 	for _, it in ipairs(items) do MaterialRow(d, it.itemID, it.n, 0) end
 end
 
@@ -770,7 +770,7 @@ function Pages.Materials(d)
 	Pages.Prices(d)
 	local plan = ns.Plan.Get()
 	if not plan then return end
-	d:Heading(L["For the route to %d"]:format(plan.target))
+	d:Heading(L["For the Route to %d"]:format(plan.target))
 	if (S.skill or 0) >= plan.target then
 		d:Line(L["You've reached your target."], "small", "GOOD")
 		return

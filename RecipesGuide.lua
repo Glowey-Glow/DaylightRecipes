@@ -25,7 +25,7 @@ end
 -- back ("pane": DaylightUI's or DaylightMogul's window, which Swap.lua turns back on).
 local function Theirs()
 	if Loaded("DaylightMogul") then return L["DaylightMogul's profession window"], "pane", L["Revert to DaylightMogul's Window"] end
-	if DaylightHasCraft() then return L["DaylightUI's profession window"], "pane", L["Revert to DaylightUI's Window"] end
+	if DaylightHasCraft() then return L["Daylight UI's profession window"], "pane", L["Revert to Daylight UI's Window"] end
 	return L["the game's profession window"], "game", L["Revert to the Game's Window"]
 end
 local function GiveBack()
@@ -37,13 +37,17 @@ local function Get(key) return ns.Get and ns.Get(key) end
 local function Parts() return ns.Window and ns.Window.TourParts and ns.Window.TourParts() or {} end
 
 local NEWS = {
+	{ version = "2.4.0", lines = {
+		L["Cooldowns: your recipes with a cooldown (transmutes, Mooncloth and more) above Tracking, with the time left. Click one to open it."],
+		L["Controller support: the whole window, the shopping panels and the tours work with a controller."],
+	} },
 	{ version = "2.3.0", lines = {
 		L["Tracking: Find Minerals and Find Herbs under your professions on the left. Click one to turn it on or off."],
 	} },
 	{ version = "2.2.0", lines = {
 		L["Tours: the window, the Leveling Guide, the Missing and Queue tabs, the shopping panels and enchanting runs each explain themselves the first time. Retake Tour in the options shows the window's again."],
 		L["Shift-click your profession's icon (or the profession on the left) to link it to chat."],
-		L["Recipes marked at vendors, and \"Can learn\" in recipe tooltips with your characters who could use them."],
+		L["Recipes marked at vendors, and \"Can Learn\" in recipe tooltips with your characters who could use them."],
 		L["Tells you when a newer version is out (once a session; switch it off under Updates)."],
 		L["Revert in the options gives you back the profession window you had."],
 	} },
@@ -71,7 +75,7 @@ Guide.Setup({
 			L["Recipe tooltips: who knows the recipe and who can still learn it."],
 		}
 		if DaylightHasCraft() and not Loaded("DaylightMogul") then
-			list[#list + 1] = L["DaylightUI's profession window is switched off while ours is in use (back after a reload when you revert)."]
+			list[#list + 1] = L["Daylight UI's profession window is switched off while ours is in use (back after a reload when you revert)."]
 		end
 		if Loaded("Mastercraft") then
 			list[#list + 1] = L["Mastercraft's list of your characters on recipe items is hidden while ours shows."]
@@ -92,16 +96,16 @@ Guide.Setup({
 	-- (2026-11-16: everyone gets the welcome and the tours once more with this release.)
 	reset = "2026-11-16",
 	revert = {
-		label = L["Profession window"],
+		label = L["Profession Window"],
 		text = function() local _, _, label = Theirs() return label end,
-		desc = L["Puts the profession window you had back in place of Daylight Recipes' window. Daylight Recipes' window comes back from the Profession window choice above."],
+		desc = L["Puts the profession window you had back in place of Daylight Recipes' window. Daylight Recipes' window comes back from the Profession Window choice above."],
 		available = function() return Get("window") == "recipes" end,
 		fn = GiveBack,
 	},
 })
 
 local function Settings()
-	return string.format(L["Everything is in DaylightUI's options: %s. %s there shows this tour again."], Pop(L["Plugins > Recipes"]), Pop(L["Retake Tour"]))
+	return string.format(L["Everything is in Daylight UI's options: %s. %s there shows this tour again."], Pop(L["Plugins > Recipes"]), Pop(L["Retake Tour"]))
 end
 
 -- A tab opened for its step, lit with the page under it.
@@ -126,7 +130,7 @@ Guide.AddTour("window", {
 		if ns.Window and ns.Window.SetTab then ns.Window.SetTab("recipes") end
 	end,
 	steps = {
-		{ title = L["Your professions"],
+		{ title = L["Your Professions"],
 		  text = L["Click one to open it. Shift-click links it to chat; right-click a main profession to unlearn it. Your alts' professions are listed below, as of their last visit."],
 		  part = function() return Parts().side end },
 		{ title = L["Tabs"],
@@ -149,8 +153,8 @@ Guide.AddTour("window", {
 		{ title = L["Leveling Guide"],
 		  text = L["The cheapest way from your skill to the next goal, step by step, with trainer visits and what to buy. The step you're on is lit."],
 		  enter = OnTab("guide"), part = TabPage("guide") },
-		{ title = L["Each step"],
-		  text = string.format(L["%s crafts it, %s adds it to your queue, and %s picks the recipe in the list."], Pop(L["Make"]), Pop(L["Queue"]), Pop(L["Show recipe"])),
+		{ title = L["Each Step"],
+		  text = string.format(L["%s crafts it, %s adds it to your queue, and %s picks the recipe in the list."], Pop(L["Make"]), Pop(L["Queue"]), Pop(L["Show Recipe"])),
 		  enter = OnTab("guide"), part = TabPage("guide") },
 		-- Materials
 		{ title = L["Materials"],
@@ -161,13 +165,13 @@ Guide.AddTour("window", {
 		  text = L["What you plan to craft, for this character. Its materials go on the buy list at vendors and the auction house, and you can make the next one from here."],
 		  enter = OnTab("queue"), part = TabPage("queue") },
 		-- Missing
-		{ title = L["Missing recipes"],
+		{ title = L["Missing Recipes"],
 		  text = L["Every recipe you don't know yet, with where it comes from: trainers, vendors, drops and quests."],
 		  enter = OnTab("missing"), part = TabPage("missing") },
-		{ title = L["Find it"],
+		{ title = L["Find It"],
 		  text = L["Click a place to put a pin on your map (a TomTom waypoint when TomTom is installed). The search box above narrows the list."],
 		  enter = OnTab("missing"), part = TabPage("missing") },
-		{ title = L["The swap button"],
+		{ title = L["The Swap Button"],
 		  text = L["Opens the game's profession window instead. On that window, the same button brings this one back."],
 		  enter = OnTab("recipes"),
 		  part = function() return Parts().swap end },
@@ -179,16 +183,16 @@ Guide.AddTour("tab-guide", { steps = {
 	{ title = L["Leveling Guide"],
 	  text = L["The cheapest way from your skill to the next goal, step by step, with trainer visits and what to buy. The step you're on is lit."],
 	  part = function() return Parts().body end },
-	{ title = L["Each step"],
-	  text = string.format(L["%s crafts it, %s adds it to your queue, and %s picks the recipe in the list."], Pop(L["Make"]), Pop(L["Queue"]), Pop(L["Show recipe"])),
+	{ title = L["Each Step"],
+	  text = string.format(L["%s crafts it, %s adds it to your queue, and %s picks the recipe in the list."], Pop(L["Make"]), Pop(L["Queue"]), Pop(L["Show Recipe"])),
 	  part = function() return Parts().body end },
 } })
 
 Guide.AddTour("tab-missing", { steps = {
-	{ title = L["Missing recipes"],
+	{ title = L["Missing Recipes"],
 	  text = L["Every recipe you don't know yet, with where it comes from: trainers, vendors, drops and quests."],
 	  part = function() return Parts().body end },
-	{ title = L["Find it"],
+	{ title = L["Find It"],
 	  text = L["Click a place to put a pin on your map (a TomTom waypoint when TomTom is installed). The search box above narrows the list."],
 	  part = function() return Parts().body end },
 } })
@@ -200,13 +204,13 @@ Guide.AddTour("tab-queue", { steps = {
 } })
 
 Guide.AddTour("shop-vendor", { steps = {
-	{ title = L["Buy list"],
-	  text = string.format(L["What this vendor sells for your queue and Leveling Guide, counted against your bags, bank and mail. %s buys the lot; anything the vendor doesn't have is grayed out."], Pop(L["Buy all here"])),
+	{ title = L["Buy List"],
+	  text = string.format(L["What this vendor sells for your queue and Leveling Guide, counted against your bags, bank and mail. %s buys the lot; anything the vendor doesn't have is grayed out."], Pop(L["Buy All Here"])),
 	  part = function() return _G.DaylightRecipesBuyList end },
 } })
 
 Guide.AddTour("shop-auction", { steps = {
-	{ title = L["Buy list"],
+	{ title = L["Buy List"],
 	  text = L["What your queue and Leveling Guide still need, with auction and vendor prices. Click an item to search for it."],
 	  part = function() return _G.DaylightRecipesAHList end },
 } })
@@ -218,7 +222,7 @@ Guide.AddTour("shop-trainer", { steps = {
 } })
 
 Guide.AddTour("enchant", { steps = {
-	{ title = L["Enchanting runs"],
+	{ title = L["Enchanting Runs"],
 	  text = string.format(L["The game needs a click for every enchant, so a run goes one at a time: %s for the next one, %s to stop."], Pop(L["Next"]), Pop(L["Done"])),
 	  part = function() return Parts().craft end },
 } })

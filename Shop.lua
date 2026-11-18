@@ -134,7 +134,7 @@ local function RowTip(r, hint)
 		if hint then tip:AddLine(hint, Color("ACCENT")) end
 		tip:AddLine(" ")
 		for line, n in pairs(r.lines or {}) do
-			local label = line == "queue" and L["Crafting queue"] or L["%s Leveling Guide"]:format(ns.Tips and ns.Tips.LineName(line) or "")
+			local label = line == "queue" and L["Crafting Queue"] or L["%s Leveling Guide"]:format(ns.Tips and ns.Tips.LineName(line) or "")
 			tip:AddDoubleLine(label, tostring(n), Color("LABEL"))
 		end
 		local where, have = nil, nil
@@ -208,6 +208,10 @@ local function MakeTab(p)
 	t:SetScript("OnUpdate", function(self)
 		if not Visible(self.host) then self:Hide() end
 	end)
+	-- A controller: the tab is one more stop the triggers reach (LT / RT), never taking the cursor
+	-- as it shows; A folds or opens the panel. Guide.lua's Pad
+	t.padSecond = true
+	ns.Pad.Follow(t)
 	p.tab = t
 	return t
 end
@@ -287,6 +291,17 @@ local function NewPanel(name, title, key)
 	-- Gone with the window it hangs from.
 	p:SetScript("OnUpdate", function(self)
 		if not Visible(self.host) then self:Hide() end
+	end)
+	-- A controller (Guide.lua's Pad): the cursor moves over the panel's rows and button once the
+	-- triggers (LT / RT) bring it from the window it hangs on (it never takes the cursor as it
+	-- shows), A presses, X buys a row's item (its double-click), B folds the panel away.
+	p.padSecond = true
+	p.padKeys = { { key = "X", label = L["Buy"],
+		when = function(at) return type(at) == "table" and type(at.onDouble) == "function" end,
+		run = function(at) if type(at) == "table" and at.onDouble then at.onDouble(at) end end } }
+	ns.Pad.Follow(p, function()
+		Folds()[p.key] = true
+		if p.redraw then p.redraw() else p:Hide() end
 	end)
 	return p
 end
@@ -474,6 +489,9 @@ local function BuildConfirm()
 	f.no:SetPoint("BOTTOMLEFT", f, "BOTTOM", 6, 18)
 	f.no:SetScript("OnClick", function() f:Hide() end)
 	if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "DaylightRecipesConfirm") end
+	-- A controller: the cursor starts on No (the safe answer), B is No. Guide.lua's Pad
+	f.padFirst = function() return f.no end
+	ns.Pad.Follow(f, function() f:Hide() end)
 	return f
 end
 
@@ -533,7 +551,7 @@ function Shop.Vendor()
 	if not merchantOpen then return true end
 	local host = VendorHost()
 	if not host then return false end
-	vendor = vendor or NewPanel("DaylightRecipesBuyList", L["Buy list"], "vendor")
+	vendor = vendor or NewPanel("DaylightRecipesBuyList", L["Buy List"], "vendor")
 	vendor.redraw = Shop.Vendor
 	local list = Shop.List()
 	-- Nothing to buy at all: the window stays out of the way.
@@ -579,7 +597,7 @@ function Shop.Vendor()
 	vendor.doc.scroll:SetAlpha(#here > 0 and 1 or 0.45)
 	vendor.title:SetTextColor(Color(#here > 0 and "VALUE" or "OFF"))
 	vendor.total:SetTextColor(Color(#here > 0 and "VALUE" or "OFF"))
-	vendor.button.text:SetText(L["Buy all here"])
+	vendor.button.text:SetText(L["Buy All Here"])
 	-- (Nothing sold here: the footer says so, no button to press.)
 	vendor.button:SetShown(#here > 0)
 	FitFoot(vendor, 120)
@@ -638,7 +656,7 @@ function Shop.Auction()
 	if not ahOpen then return true end
 	local host = AHHost()
 	if not host then return false end
-	auction = auction or NewPanel("DaylightRecipesAHList", L["Buy list"], "auction")
+	auction = auction or NewPanel("DaylightRecipesAHList", L["Buy List"], "auction")
 	auction.redraw = Shop.Auction
 	local list = Shop.List()
 	if #list == 0 then
@@ -694,7 +712,7 @@ function Shop.Auction()
 	local A = _G.Auctionator
 	local api = type(A) == "table" and type(A.API) == "table" and A.API.v1
 	if type(api) == "table" and type(api.CreateShoppingList) == "function" and type(api.ConvertToSearchString) == "function" then
-		auction.button.text:SetText(L["Auctionator list"])
+		auction.button.text:SetText(L["Auctionator List"])
 		auction.button.SetOff(false)
 		auction.button:Show()
 		auction.button:SetScript("OnClick", function()
@@ -904,7 +922,7 @@ function Shop.Trainer()
 	trainer.note:SetTextColor(Color("GOOD"))
 	trainer.total:SetText(#learnAll > 0 and Calc.Money(learnCost) or "")
 	trainer.total:SetTextColor(Color("VALUE"))
-	trainer.button.text:SetText(L["Learn all"])
+	trainer.button.text:SetText(L["Learn All"])
 	trainer.button:SetShown(#rec > 0)
 	FitFoot(trainer, 110)
 	trainer.line:SetShown(#rec > 0)

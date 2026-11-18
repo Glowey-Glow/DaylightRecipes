@@ -160,7 +160,7 @@ local function ItemLines(lines, data)
 	local learn = spell and recipe and ns.Learn and ns.Learn.For(itemID)
 	if spell and recipe and (learn or Learned()[recipe[1]]) then
 		local who = ns.Store.WhoKnows(spell, true)
-		lines.Line(L["Known by"], #who > 0 and Short(who) or L["No one on your account"])
+		lines.Line(L["Known By"], #who > 0 and Short(who) or L["No one on your account"])
 		local can = {}
 		for _, e in ipairs(learn and learn.list or {}) do
 			if not e.knows then
@@ -169,10 +169,10 @@ local function ItemLines(lines, data)
 				can[#can + 1] = name
 			end
 		end
-		if #can > 0 then lines.Line(L["Can learn"], Short(can)) end
+		if #can > 0 then lines.Line(L["Can Learn"], Short(can)) end
 	end
 	local used = UsedText(itemID)
-	if used then lines.Line(L["Used in"], used) end
+	if used then lines.Line(L["Used In"], used) end
 	-- Guides: this character's own, for the professions it has learned (alts' guides aren't shown).
 	local mine = ns.Store.Char()
 	if type(mine) == "table" and type(mine.plans) == "table" then
@@ -180,7 +180,7 @@ local function ItemLines(lines, data)
 		for line, plan in pairs(mine.plans) do
 			local n = type(plan) == "table" and plan.need and plan.need[itemID]
 			if n and n > 0 and have[line] then
-				lines.Line(L["Your %s guide"]:format(LineName(line) or ""), L["%d (to %d)"]:format(n, plan.target or 0))
+				lines.Line(L["Your %s Guide"]:format(LineName(line) or ""), L["%d (to %d)"]:format(n, plan.target or 0))
 			end
 		end
 	end

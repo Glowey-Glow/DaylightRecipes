@@ -254,6 +254,8 @@ function ns.Changed()
 		if ns.Pane then ns.Pane.Render() end
 		if ns.Window then ns.Window.Render() end
 		if ns.Shop then ns.Shop.Refresh() end
+		-- (A controller: the window with its cursor finds the buttons just drawn. Guide.lua's Pad)
+		if ns.Pad then ns.Pad.Settle() end
 	end)
 end
 
@@ -401,9 +403,9 @@ end)
 -- ---------------------------------------------------------------------------------------------
 
 local SOURCES = {
-	market = L["Market value"],
-	minbuyout = L["Lowest buyout"],
-	daily = L["Today's average"],
+	market = L["Market Value"],
+	minbuyout = L["Lowest Buyout"],
+	daily = L["Today's Average"],
 }
 
 local function NoAH(get) return get("useAH") == false end
@@ -412,56 +414,56 @@ local function WindowOff(get) return get("window") ~= "recipes" end
 local function FollowOpacity(get) return get("duiOpacity") ~= false end
 
 local WINDOWS = {
-	recipes = L["Recipes window"],
-	game = L["The game's window"],
-	pane = L["Docked pane"],
+	recipes = L["Recipes Window"],
+	game = L["The Game's Window"],
+	pane = L["Docked Pane"],
 }
 
 local pages = {
 	{ id = "recipes", label = L["Recipes"],
 	  desc = L["Your profession window, leveling plan and missing recipes."],
 	  groups = {
-		{ label = L["Profession window"], items = {
-			{ type = "dropdown", key = "window", label = L["Profession window"], values = WINDOWS, order = { "recipes", "game", "pane" },
-			  desc = L["Recipes window: Daylight Recipes' own (DaylightUI's profession window is switched off for it). The game's window: Blizzard's own, as the swap button beside the X picks. Docked pane: DaylightUI's or DaylightMogul's window with a pane beside it (DaylightUI's comes back after a reload)."] },
-			{ type = "slider", key = "winScale", label = L["Window size"], min = 0.7, max = 1.2, step = 0.05,
+		{ label = L["Profession Window"], items = {
+			{ type = "dropdown", key = "window", label = L["Profession Window"], values = WINDOWS, order = { "recipes", "game", "pane" },
+			  desc = L["Recipes Window: Daylight Recipes' own (Daylight UI's profession window is switched off for it). The Game's Window: Blizzard's own, as the swap button beside the X picks. Docked Pane: Daylight UI's or DaylightMogul's window with a pane beside it (Daylight UI's comes back after a reload)."] },
+			{ type = "slider", key = "winScale", label = L["Window Size"], min = 0.7, max = 1.2, step = 0.05,
 			  desc = L["How large Daylight Recipes' window is."], disabled = WindowOff },
-			{ type = "slider", key = "paneWidth", label = L["Pane width"], min = 260, max = 400, step = 10,
-			  desc = L["How wide the pane beside DaylightUI's or DaylightMogul's profession window is."], disabled = PaneOff },
+			{ type = "slider", key = "paneWidth", label = L["Pane Width"], min = 260, max = 400, step = 10,
+			  desc = L["How wide the pane beside Daylight UI's or DaylightMogul's profession window is."], disabled = PaneOff },
 		} },
 		{ label = L["Look"], items = {
-			{ type = "toggle", key = "duiOpacity", label = L["Use DaylightUI's opacity"],
-			  desc = L["Our windows and panels follow DaylightUI's window opacity."] },
-			{ type = "slider", key = "opacity", label = L["Window opacity"], min = 0.1, max = 1, step = 0.05, unit = "%",
-			  desc = L["How solid our windows' backgrounds are, with DaylightUI's opacity off."], disabled = FollowOpacity },
+			{ type = "toggle", key = "duiOpacity", label = L["Use Daylight UI's Opacity"],
+			  desc = L["Our windows and panels follow Daylight UI's window opacity."] },
+			{ type = "slider", key = "opacity", label = L["Window Opacity"], min = 0.1, max = 1, step = 0.05, unit = "%",
+			  desc = L["How solid our windows' backgrounds are, with Daylight UI's opacity off."], disabled = FollowOpacity },
 		} },
 		{ label = L["Prices"], items = {
-			{ type = "toggle", key = "useAH", label = L["Use Auction House prices"],
+			{ type = "toggle", key = "useAH", label = L["Use Auction House Prices"],
 			  desc = L["Materials, sales and disenchants are priced from the Auction House: DaylightMogul's prices when it's loaded, else what you've browsed or scanned from the Leveling Guide. Off, only vendor prices are used."] },
-			{ type = "dropdown", key = "priceSource", label = L["DaylightMogul's price"], values = SOURCES,
+			{ type = "dropdown", key = "priceSource", label = L["DaylightMogul's Price"], values = SOURCES,
 			  desc = L["Which of DaylightMogul's prices to use, when it's loaded."], disabled = NoAH },
-			{ type = "toggle", key = "talents", label = L["Count my profession talents"],
+			{ type = "toggle", key = "talents", label = L["Count My Profession Talents"],
 			  desc = L["Overtime raises the skill-up chance and Bartering lowers vendor prices, by the ranks you've bought."] },
 		} },
-		{ label = L["Help around the game"], items = {
-			{ type = "toggle", key = "tooltips", label = L["Item tooltips"],
+		{ label = L["Help Around the Game"], items = {
+			{ type = "toggle", key = "tooltips", label = L["Item Tooltips"],
 			  desc = L["What uses a material, what your plans need of it, and who knows or can learn a recipe item."] },
-			{ type = "toggle", key = "vendorMarks", label = L["Mark recipes at vendors"],
+			{ type = "toggle", key = "vendorMarks", label = L["Mark Recipes at Vendors"],
 			  desc = L["A small square on a recipe at a vendor that you or an alt can learn: bright if you can now."] },
-			{ type = "toggle", key = "mastercraftTips", label = L["Hide Mastercraft's recipe lines"],
+			{ type = "toggle", key = "mastercraftTips", label = L["Hide Mastercraft's Recipe Lines"],
 			  hidden = function() return not (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Mastercraft")) end,
 			  disabled = function(get) return get("tooltips") == false end,
 			  desc = L["Mastercraft's list of who knows a recipe item stays off while ours shows."] },
-			{ type = "toggle", key = "reminders", label = L["Trainer reminders"],
+			{ type = "toggle", key = "reminders", label = L["Trainer Reminders"],
 			  desc = L["A chat line when a skill-up opens new recipes at a trainer, or a profession reaches its cap."] },
-			{ type = "toggle", key = "marks", label = L["Mark the best recipe"],
+			{ type = "toggle", key = "marks", label = L["Mark the Best Recipe"],
 			  desc = L["A small mark in the recipe list on the cheapest recipe to skill up with now."] },
-			{ type = "toggle", key = "guideGlow", label = L["Light up the guide's step"],
+			{ type = "toggle", key = "guideGlow", label = L["Light Up the Guide's Step"],
 			  hidden = function() return type(API.GlowAround) ~= "function" end,
-			  desc = L["A light runs round the Leveling Guide's current step and round its recipe in the recipe list, in the glow style DaylightUI uses for its main buttons."] },
+			  desc = L["A light runs round the Leveling Guide's current step and round its recipe in the recipe list, in the glow style Daylight UI uses for its main buttons."] },
 		} },
-		{ label = L["Missing recipes"], items = {
-			{ type = "toggle", key = "learnableOnly", label = L["Only ones my skill allows"],
+		{ label = L["Missing Recipes"], items = {
+			{ type = "toggle", key = "learnableOnly", label = L["Only Ones My Skill Allows"],
 			  desc = L["List only the recipes your skill is high enough to learn now."] },
 			{ type = "toggle", key = "tomtom", label = L["Waypoints with TomTom"],
 			  desc = L["Clicking a place sets a TomTom waypoint when TomTom is installed. Off, or without it, the game's own map pin is used."] },

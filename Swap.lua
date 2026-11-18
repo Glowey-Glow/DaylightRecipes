@@ -62,9 +62,9 @@ local function TipWords(b)
 	if not b.dui then return words, nil end
 	words = to == "recipes" and L["Open in Daylight Recipes' window"] or L["Open in the game's window"]
 	if b.dui == "icon" then
-		return words, L["The swap icon beside it is DaylightUI's own: it switches to the game's window."]
+		return words, L["The swap icon beside it is Daylight UI's own: it switches to the game's window."]
 	end
-	return words, L["The \"Daylight UI window\" link beside it is DaylightUI's own: it opens DaylightUI's profession window."]
+	return words, L["The \"Daylight UI window\" link beside it is Daylight UI's own: it opens Daylight UI's profession window."]
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -99,7 +99,7 @@ local function TakeFromDaylightUI()
 	if not DuiCraftOn() then return end
 	DB().duiCraftWas = true
 	if pcall(DUI.Set, DUI, "Professions", "enabled", false) then
-		AskReload(L["DaylightUI's profession window turns off after a reload, so the swap button shows the game's window. Reload now?"])
+		AskReload(L["Daylight UI's profession window turns off after a reload, so the swap button shows the game's window. Reload now?"])
 	end
 end
 
@@ -109,7 +109,7 @@ local function GiveToDaylightUI()
 	if not db.duiCraftWas then return end
 	db.duiCraftWas = nil
 	if not DuiCraftOn() and pcall(DUI.Set, DUI, "Professions", "enabled", true) then
-		AskReload(L["DaylightUI's profession window comes back after a reload. Reload now?"])
+		AskReload(L["Daylight UI's profession window comes back after a reload. Reload now?"])
 	end
 end
 
@@ -129,7 +129,7 @@ local function Ask()
 	-- (A first launch: the welcome asks this instead, Start Tour or Keep My Window. Guide.lua)
 	if ns.Guide and not (type(db.guide) == "table" and db.guide.welcomed) then return end
 	StaticPopupDialogs.DAYLIGHTRECIPES_WINDOW = {
-		text = L["Use Daylight Recipes' profession window?\n\nIt takes the place of the game's and DaylightUI's profession windows. The swap button beside its X switches to the game's window and back any time. You can change this later in Daylight Recipes' options."],
+		text = L["Use Daylight Recipes' profession window?\n\nIt takes the place of the game's and Daylight UI's profession windows. The swap button beside its X switches to the game's window and back any time. You can change this later in Daylight Recipes' options."],
 		button1 = L["Use Recipes' Window"],
 		button2 = L["Keep My Window"],
 		OnAccept = function()

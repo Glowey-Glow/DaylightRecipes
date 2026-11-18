@@ -126,6 +126,8 @@ local function MakeRow(child)
 	r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	r:SetScript("OnEnter", function(self)
 		if self.onClick or self.onDouble or self.tip then self.wash:Show() end
+		-- (A controller: the right stick scrolls the page this row is on. Guide.lua's Pad)
+		if ns.Pad then ns.Pad.Into(self, child:GetParent()) end
 		if self.tip then
 			GameTooltip:SetOwner(self, "ANCHOR_LEFT")
 			pcall(self.tip, GameTooltip)
@@ -149,6 +151,11 @@ local function MakeRow(child)
 		if button ~= "LeftButton" and not self.rightClick then return end
 		if self.onClick then self.onClick(button, self) end
 	end)
+	-- A controller's Y: what a right-click does on a row that wants one (the queue's Move / Remove).
+	r.padMore = function(self)
+		if not (self.rightClick and self.onClick) then return nil end
+		return function() self.onClick("RightButton", self) end
+	end
 	return r
 end
 
@@ -188,6 +195,8 @@ function Doc.New(parent, opts)
 		FitThumb(d)
 	end)
 	scroll:SetScript("OnScrollRangeChanged", function() FitThumb(d) end)
+	-- (Scrolled by a controller: its right stick, or its cursor moving to a row out of sight.)
+	scroll:SetScript("OnVerticalScroll", function() FitThumb(d) end)
 	-- (Wider or narrower than the page was drawn at: drawn again, so its text wraps to the new width.)
 	scroll:SetScript("OnSizeChanged", function(_, w)
 		if not w or w <= 0 then return end
