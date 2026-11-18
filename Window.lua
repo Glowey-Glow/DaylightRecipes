@@ -1659,6 +1659,71 @@ local function Debounce(fn)
 	end)
 end
 
+-- The window on a controller. Its own function: Build alone would reach more than the 60 outside
+-- locals Lua 5.1 lets one function use, and the file would not load at all.
+local function BuildPad(iconHit)
+	-- A controller (Guide.lua's Pad): the game's cursor moves over the window's rows and buttons
+	-- while it's shown, A presses, B closes it, LB / RB step through the tabs, Y does what a
+	-- right-click does, the right stick scrolls the list the cursor is in. The recipe list and the
+	-- professions are drawn from an offset, so the stick scrolls them through stand-ins.
+	Pad.Skip(iconHit)   -- (shift-click only)
+	listPad = Pad.Scroller({
+		range = function() return math.max(0, #entries - VisibleRows()) * ROW end,
+		at = function() return offset * ROW end,
+		set = function(v)
+			local n = math.floor(v / ROW + 0.5)
+			if n == offset then return end
+			offset = n
+			stickMoving = true
+			PaintList()
+			stickMoving = false
+		end })
+	sidePad = Pad.Scroller({
+		range = function() return math.max(0, sideTall - sideList:GetHeight() + 8) end,
+		at = function() return sideScroll end,
+		set = function(v)
+			v = math.floor(v + 0.5)
+			if v == sideScroll then return end
+			sideScroll = v
+			stickMoving = true
+			PaintSide()
+			stickMoving = false
+		end })
+	win.padTabs = function()
+		local list, at = {}, nil
+		for _, b in ipairs(tabButtons) do
+			if b:IsShown() then
+				list[#list + 1] = b
+				if b.key == tab then at = #list end
+			end
+		end
+		return list, at
+	end
+	-- The cursor starts on the picked recipe (else the list's first row, else your first profession).
+	win.padFirst = function()
+		if listFrame:IsVisible() and listRows then
+			for _, r in ipairs(listRows) do
+				if r:IsShown() and r.entry and r.entry.spell and r.entry.spell == S.recipe then return r end
+			end
+			if listRows[1] and listRows[1]:IsShown() then return listRows[1] end
+		end
+		for _, r in ipairs(sideRows) do
+			if r:IsShown() and r.onClick then return r end
+		end
+		return nil
+	end
+	-- A on Stop: the secure Stop's own action, through DaylightUI's secure key (the Stop drawn here
+	-- only shows it).
+	win.padKeys = { { key = "A", label = L["Stop"],
+		secure = function(at)
+			if craftBar and at == craftBar.stop and craftBar.stop:IsVisible() then
+				return { type = "macro", macrotext = "/stopcasting" }
+			end
+			return nil
+		end } }
+	Pad.Follow(win, function() win:Hide() end)
+end
+
 local function Build()
 	win = CreateFrame("Frame", "DaylightRecipesWindow", UIParent)
 	win:SetSize(W, H)
@@ -1874,66 +1939,8 @@ local function Build()
 	altDoc.search:SetPoint("TOPLEFT", body, "TOPLEFT", PAD, -10)
 	altDoc.search:SetWidth(320)
 
-	-- A controller (Guide.lua's Pad): the game's cursor moves over the window's rows and buttons
-	-- while it's shown, A presses, B closes it, LB / RB step through the tabs, Y does what a
-	-- right-click does, the right stick scrolls the list the cursor is in. The recipe list and the
-	-- professions are drawn from an offset, so the stick scrolls them through stand-ins.
-	Pad.Skip(iconHit)   -- (shift-click only)
-	listPad = Pad.Scroller({
-		range = function() return math.max(0, #entries - VisibleRows()) * ROW end,
-		at = function() return offset * ROW end,
-		set = function(v)
-			local n = math.floor(v / ROW + 0.5)
-			if n == offset then return end
-			offset = n
-			stickMoving = true
-			PaintList()
-			stickMoving = false
-		end })
-	sidePad = Pad.Scroller({
-		range = function() return math.max(0, sideTall - sideList:GetHeight() + 8) end,
-		at = function() return sideScroll end,
-		set = function(v)
-			v = math.floor(v + 0.5)
-			if v == sideScroll then return end
-			sideScroll = v
-			stickMoving = true
-			PaintSide()
-			stickMoving = false
-		end })
-	win.padTabs = function()
-		local list, at = {}, nil
-		for _, b in ipairs(tabButtons) do
-			if b:IsShown() then
-				list[#list + 1] = b
-				if b.key == tab then at = #list end
-			end
-		end
-		return list, at
-	end
-	-- The cursor starts on the picked recipe (else the list's first row, else your first profession).
-	win.padFirst = function()
-		if listFrame:IsVisible() and listRows then
-			for _, r in ipairs(listRows) do
-				if r:IsShown() and r.entry and r.entry.spell and r.entry.spell == S.recipe then return r end
-			end
-			if listRows[1] and listRows[1]:IsShown() then return listRows[1] end
-		end
-		for _, r in ipairs(sideRows) do
-			if r:IsShown() and r.onClick then return r end
-		end
-		return nil
-	end
-	-- A on Stop: the secure Stop's own action, through DaylightUI's secure key (the Stop drawn here
-	-- only shows it).
-	win.padKeys = { { key = "A", label = L["Stop"],
-		secure = function(at)
-			if craftBar and at == craftBar.stop and craftBar.stop:IsVisible() then
-				return { type = "macro", macrotext = "/stopcasting" }
-			end
-			return nil
-		end } }
-	Pad.Follow(win, function() win:Hide() end)
+	BuildPad(iconHit)
+
 end
 
 -- ---------------------------------------------------------------------------------------------

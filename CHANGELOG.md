@@ -1,5 +1,8 @@
 # Daylight Recipes
 
+## 2.4.1
+- Fixed: the Daylight Recipes window didn't open in 2.4.0. The file that builds it had grown past a limit of the game's Lua and failed to load (an error naming Window.lua and "more than 60 upvalues").
+
 ## 2.4.0
 - New: Cooldowns, above Tracking at the foot of the professions list. Your recipes that can only be made once in a while (transmutes, Mooncloth, Cured Rugged Hide, and any other the game reports a cooldown on) each get a tile: ready with an accent ring, or gray with the time left. Click one to open that recipe. Ready times are kept per character across logouts.
 - Controller support: the whole Daylight Recipes window works with a controller (D-pad over everything, LB / RB through the tabs, the right stick scrolls, Y for the right-click actions, B closes), and so do the shopping panels, the tours, the welcome and What's New.
