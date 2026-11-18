@@ -1,5 +1,6 @@
 -- Making things from Daylight Recipes' window: Create, Create All, enchanting onto an item, and
--- following the casts until they're done or stopped.
+-- following the casts until they're done or stopped. The docked pane's enchant section (Pane.lua)
+-- enchants through the same calls.
 -- The game's own Create buttons are plain buttons calling C_TradeSkillUI.CraftRecipe (and
 -- CraftEnchant with the item picked beforehand), so ours do the same. Stopping a cast is the one
 -- protected thing (SpellStopCasting): Stop is a secure /stopcasting button of the game's own
@@ -29,6 +30,8 @@ Craft.TS = TS
 
 local function Changed()
 	if ns.Window then ns.Window.CraftChanged() end
+	-- (The docked pane's enchant section makes things here too: Pane.lua.)
+	if ns.Pane then ns.Pane.CraftChanged() end
 end
 
 function Craft.Making() return making end

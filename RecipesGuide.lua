@@ -37,6 +37,9 @@ local function Get(key) return ns.Get and ns.Get(key) end
 local function Parts() return ns.Window and ns.Window.TourParts and ns.Window.TourParts() or {} end
 
 local NEWS = {
+	{ version = "2.5.0", lines = {
+		L["Enchanting in the Docked Pane: the item slot, Auto-replace and enchant runs beside Daylight UI's or DaylightMogul's profession window, as in the Recipes window."],
+	} },
 	{ version = "2.4.0", lines = {
 		L["Cooldowns: your recipes with a cooldown (transmutes, Mooncloth and more) above Tracking, with the time left. Click one to open it."],
 		L["Controller support: the whole window, the shopping panels and the tours work with a controller."],
@@ -224,5 +227,9 @@ Guide.AddTour("shop-trainer", { steps = {
 Guide.AddTour("enchant", { steps = {
 	{ title = L["Enchanting Runs"],
 	  text = string.format(L["The game needs a click for every enchant, so a run goes one at a time: %s for the next one, %s to stop."], Pop(L["Next"]), Pop(L["Done"])),
-	  part = function() return Parts().craft end },
+	  -- (The docked pane's enchant section while the pane is in use, else the window's craft bar.)
+	  part = function()
+		local pane = ns.Pane and ns.Pane.EnchantPart and ns.Pane.EnchantPart()
+		return pane or Parts().craft
+	  end },
 } })

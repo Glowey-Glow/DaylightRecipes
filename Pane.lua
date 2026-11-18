@@ -3,12 +3,16 @@
 -- of ours hung on DaylightMogul's window while Mogul runs the professions; the same page moves to
 -- whichever is in use. With Daylight Recipes' own profession window in use (Window.lua) the pane
 -- isn't used at all.
+-- With an enchant picked in the window beside, an enchant section sits flush along the pane's
+-- bottom edge: the item it goes on (EnchantRow.lua, as in our own window's craft bar), Auto-replace,
+-- and our own Enchant (the window's own Create can't use the kept item; Craft.Make can), with Next /
+-- Done during a run. It stays while a run of ours is under way, on any tab.
 local _, ns = ...
 if not ns.ok then return end
 
 local API, me = ns.API, ns.me
 local L = ns.L
-local Doc, Pages = ns.Doc, ns.Pages
+local Doc, Pages, Craft = ns.Doc, ns.Pages, ns.Craft
 local S = ns.state
 local Color, Hex, Text = Doc.Color, Doc.Hex, Doc.Text
 
@@ -69,6 +73,160 @@ local function PaintTabs()
 	end
 end
 
+-- ---------------------------------------------------------------------------------------------
+-- The enchant section (along the bottom edge)
+-- ---------------------------------------------------------------------------------------------
+
+local ENCH_BAR = 44       -- its buttons' line, under the item
+local ench                -- the section, built with the pane
+local PaintEnchant
+
+-- The enchant the section is for: a run of ours under way (on any tab), else the enchant picked in
+-- the window beside while the Recipe tab is up. Never for someone else's linked recipes.
+local function EnchantSpell()
+	local run = Craft.Making()
+	if run then return run.spell end
+	local spell = S.recipe
+	if S.linked or tab ~= "recipe" or type(spell) ~= "number" then return nil end
+	if Craft.IsEnchant(spell) then return spell end
+	return nil
+end
+
+local function EnchantCount()
+	local n = tonumber(ench.count:GetText() or "") or 1
+	return math.max(1, math.floor(n))
+end
+
+local function BuildEnchant()
+	local f = CreateFrame("Frame", nil, root)
+	f:SetPoint("BOTTOMLEFT", root, "BOTTOMLEFT", 0, 0)
+	f:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", 0, 0)
+	f:Hide()
+	local line = f:CreateTexture(nil, "ARTWORK")
+	line:SetHeight(1)
+	line:SetPoint("TOPLEFT", 0, 0)
+	line:SetPoint("TOPRIGHT", 0, 0)
+	line:SetColorTexture(1, 1, 1, 0.06)
+	f.row = ns.EnchantRow.New(f, { pad = PAD, stacked = true, onChange = function() PaintEnchant() end })
+	f.row:SetPoint("TOPLEFT", f, "TOPLEFT", 0, 0)
+	f.row:SetPoint("TOPRIGHT", f, "TOPRIGHT", 0, 0)
+	f.row:Show()
+	f:SetHeight(f.row:GetHeight() + ENCH_BAR)
+
+	-- Enchant (Next during a run). A plain button: the window beside has its own main one.
+	f.make = API.Button(f, L["Enchant"], 26)
+	f.make:SetPoint("RIGHT", f, "BOTTOMRIGHT", -PAD, ENCH_BAR / 2)
+	f.make:SetScript("OnClick", function()
+		local run = Craft.Making()
+		if run then
+			if run.paused then Craft.Continue() end
+			return
+		end
+		local spell = EnchantSpell()
+		-- (It goes on the kept item, as many times as asked: Craft.Make finds it.)
+		if spell then Craft.Make(spell, EnchantCount()) end
+	end)
+	f.done = API.Button(f, L["Done"], 26)
+	f.done:SetPoint("RIGHT", f.make, "LEFT", -8, 0)
+	f.done:SetScript("OnClick", function() Craft.Cancel() end)
+	f.done:Hide()
+
+	f.plus = API.Button(f, "+", 26)
+	f.plus:SetWidth(26)
+	f.plus:SetPoint("RIGHT", f.make, "LEFT", -12, 0)
+	f.count = API.Input(f, { numeric = true })
+	f.count:SetSize(46, 26)
+	f.count:SetPoint("RIGHT", f.plus, "LEFT", -4, 0)
+	f.count:SetText("1")
+	f.count:SetJustifyH("CENTER")
+	f.minus = API.Button(f, "-", 26)
+	f.minus:SetWidth(26)
+	f.minus:SetPoint("RIGHT", f.count, "LEFT", -4, 0)
+	local function Step(by) f.count:SetText(tostring(math.max(1, EnchantCount() + by))) end
+	f.plus:SetScript("OnClick", function() Step(IsShiftKeyDown() and 10 or 1) end)
+	f.minus:SetScript("OnClick", function() Step(IsShiftKeyDown() and -10 or -1) end)
+
+	f.status = Text(f, "body", "LEFT")
+	f.status:SetPoint("LEFT", f, "BOTTOMLEFT", PAD, ENCH_BAR / 2)
+	f.status:SetWordWrap(false)
+	f.status:Hide()
+	return f
+end
+
+-- The section shown (or not) for what's picked and what's being made; the page above ends at it.
+PaintEnchant = function()
+	if not ench then return end
+	local scroll = doc.scroll
+	local spell = EnchantSpell()
+	if not spell then
+		ench:Hide()
+		scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", 0, 10)
+		return
+	end
+	ench:Show()
+	scroll:SetPoint("BOTTOMRIGHT", ench, "TOPRIGHT", 0, 0)
+	local target = ench.row:Update(spell)
+	local run = Craft.Making()
+	local f = ench
+	local counting = not run and target ~= nil
+	f.minus:SetShown(counting)
+	f.count:SetShown(counting)
+	f.plus:SetShown(counting)
+	f.done:SetShown(run ~= nil and run.paused == true)
+	f.status:Hide()
+	if run then
+		if run.paused then
+			-- Between two enchants of a run: Next (one enchant a click) and Done.
+			f.make.text:SetText(L["Next (%d Left)"]:format(run.count - run.done))
+			f.make.SetOff(false)
+			f.make:Show()
+			f.status:SetText(L["%d of %d done"]:format(run.done, run.count))
+			f.status:SetTextColor(Color("LABEL"))
+			if ns.Guide then ns.Guide.Offer("enchant") end
+		else
+			f.make:Hide()
+			f.status:SetText(L["Making %d of %d"]:format(math.min(run.done + 1, run.count), run.count))
+			f.status:SetTextColor(API.Accent())
+		end
+	else
+		local info = Craft.TS("GetRecipeInfo", spell)
+		local verb = type(info) == "table" and info.alternateVerb
+		if type(verb) ~= "string" or verb == "" then verb = L["Enchant"] end
+		f.make.text:SetText(verb)
+		f.make.SetOff((type(info) == "table" and info.disabled == true) or Craft.Count(spell) < 1)
+		f.make:Show()
+	end
+	if f.make.FitWidth then f.make.FitWidth(96) end
+	if f.done.FitWidth then f.done.FitWidth(80) end
+	-- (The run's count on the left, only where it fits whole: Next says what's left as well.)
+	if run then
+		local room = (shownWidth or TargetWidth()) - 2 * PAD - 12
+		if f.make:IsShown() then room = room - f.make:GetWidth() end
+		if f.done:IsShown() then room = room - f.done:GetWidth() - 8 end
+		f.status:SetShown(f.status:GetStringWidth() <= room)
+	end
+end
+
+-- What the tour of enchanting runs lights while the pane is in use (RecipesGuide.lua).
+function Pane.EnchantPart()
+	if ench and ench:IsVisible() then return ench end
+	return nil
+end
+
+-- A craft of ours started, moved on or ended, or the kept item or Auto-replace changed (Craft.lua).
+function Pane.CraftChanged()
+	if not (ench and root:IsVisible()) or Folded() then return end
+	local was = ench:IsShown()
+	PaintEnchant()
+	-- (The section came or went: the page above takes the room. Else only buttons changed: the
+	-- controller's cursor finds them again.)
+	if ench:IsShown() ~= was then
+		ns.Changed()
+	elseif ns.Pad and ns.Pad.On() then
+		ns.Pad.Settle()
+	end
+end
+
 local function Build()
 	root = CreateFrame("Frame", nil, UIParent)
 	root:Hide()
@@ -124,6 +282,7 @@ local function Build()
 
 	doc = Doc.New(root, { pad = PAD, redraw = function() Pane.Render() end, idle = Folded })
 	doc.scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", 0, 10)
+	ench = BuildEnchant()
 end
 
 -- The pane in use: DaylightUI's docked one, or ours on Mogul's window.
@@ -202,6 +361,8 @@ function Pane.Render()
 	scroll:ClearAllPoints()
 	scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 0, missing and -(44 + root.search:GetHeight() + 8) or -40)
 	scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", 0, 10)
+	-- (An enchant picked, or a run of ours under way: the enchant section, the page ending above it.)
+	PaintEnchant()
 
 	if S.name and (S.max or 0) > 0 then
 		root.skill:SetText(Hex(Color("LABEL")) .. S.name .. "|r  " .. S.skill .. " / " .. S.max)

@@ -40,8 +40,9 @@ Learn.lua
 Doc.lua
 Pages.lua
 Camp.lua
-Pane.lua
 Craft.lua
+EnchantRow.lua
+Pane.lua
 Window.lua
 Cooldowns.lua
 Take.lua

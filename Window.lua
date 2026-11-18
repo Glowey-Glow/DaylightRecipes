@@ -372,8 +372,7 @@ end
 -- The picked recipe and making it
 -- ---------------------------------------------------------------------------------------------
 
-local ENCH = 46            -- an enchant's item row, above the buttons
-local EMPTY_SLOT = "Interface\\PaperDoll\\UI-Backpack-EmptySlot"
+local ENCH = ns.EnchantRow.HEIGHT   -- an enchant's item row, above the buttons (EnchantRow.lua)
 local countBox
 
 local function Linked() return S.linked == true end
@@ -515,16 +514,8 @@ local function PaintCraftBar()
 	local base = enchant and BAR + ENCH or BAR
 	cb:SetHeight(base)
 	if enchant then
-		local t = Craft.EnchantTarget(spell)
 		ench:Show()
-		ench.icon:SetTexture(t and t.icon or EMPTY_SLOT)
-		ench.icon:SetDesaturated(t == nil)
-		ench.name:SetText(t and t.name or L["Drag an item here"])
-		ench.name:SetTextColor(Color(t and "VALUE" or "LABEL"))
-		ench.hint:SetText(t and L["Every enchant here goes on it"] or L["or click to pick one from your bags"])
-		ench.hint:SetTextColor(Color("OFF"))
-		ench.auto.SetOn(Craft.AutoReplace())
-		ench.target = t
+		ench:Update(spell)
 	else
 		ench:Hide()
 		ench.target = nil
@@ -597,124 +588,6 @@ local function CountWanted()
 	return math.max(1, math.floor(n))
 end
 
-local function PickTarget(owner)
-	local spell = S.recipe
-	if not spell then return end
-	local list = Craft.Targets(spell)
-	if #list == 0 then
-		ns.Print(L["Nothing you carry can take this enchant."])
-		return
-	end
-	local keys, values, byKey = {}, {}, {}
-	for i, t in ipairs(list) do
-		local key = tostring(i)
-		keys[#keys + 1] = key
-		values[key] = t.name
-		byKey[key] = t
-	end
-	API.Menu(owner, keys, values, nil, function(key)
-		local t = byKey[key]
-		if t then Craft.KeepTarget(t.guid) end
-		PaintCraftBar()
-	end, 240)
-end
-
--- The enchant's item row: a slot the item goes in (dragged there, or picked from a menu of what
--- you carry that it can go on; right-click empties it), its name, and the Auto-replace switch
--- (the game's "replace the enchant?" answered yes during a run on this item).
-
-local function BuildEnchantRow(cb)
-	local row = CreateFrame("Frame", nil, cb)
-	row:SetPoint("TOPLEFT", cb, "TOPLEFT", 0, 0)
-	row:SetPoint("TOPRIGHT", cb, "TOPRIGHT", 0, 0)
-	row:SetHeight(ENCH)
-	row:Hide()
-	local slot = CreateFrame("Button", nil, row)
-	slot:SetSize(34, 34)
-	slot:SetPoint("LEFT", row, "LEFT", PAD, -2)
-	API.Skin(slot, { noBevel = true })
-	slot:RegisterForClicks("LeftButtonUp", "RightButtonUp")
-	row.icon = slot:CreateTexture(nil, "ARTWORK")
-	row.icon:SetPoint("TOPLEFT", 3, -3)
-	row.icon:SetPoint("BOTTOMRIGHT", -3, 3)
-	row.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
-	local function Take()
-		local spell = S.recipe
-		if not spell then return end
-		if not Craft.TakeFromCursor(spell) then ns.Print(L["That item can't take this enchant."]) end
-		PaintCraftBar()
-	end
-	slot:SetScript("OnReceiveDrag", Take)
-	slot:SetScript("OnClick", function(self, button)
-		if CursorHasItem() then
-			Take()
-		elseif button == "RightButton" then
-			if S.recipe then Craft.DropTarget(S.recipe) end
-			PaintCraftBar()
-		else
-			PickTarget(self)
-		end
-	end)
-	-- A controller's Y: the right-click (empties the slot).
-	slot.padMore = function()
-		if not (row.target and S.recipe) then return nil end
-		return function()
-			Craft.DropTarget(S.recipe)
-			PaintCraftBar()
-		end
-	end
-	slot:SetScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_TOP")
-		local t = row.target
-		if t and t.link then
-			GameTooltip:SetHyperlink(t.link)
-			GameTooltip:AddLine(" ")
-		else
-			GameTooltip:SetText(L["The item to enchant"])
-		end
-		GameTooltip:AddLine(L["Drag an item here, or click to pick one. Right-click empties it."], Color("LABEL"))
-		GameTooltip:Show()
-	end)
-	slot:SetScript("OnLeave", function(self)
-		if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
-	end)
-	row.slot = slot
-	-- (The name and hint run up to the Auto-replace label, anchored below once it's made.)
-	row.name = Text(row, "body")
-	row.name:SetPoint("TOPLEFT", slot, "TOPRIGHT", 10, -2)
-	row.name:SetJustifyH("LEFT")
-	row.name:SetWordWrap(false)
-	row.hint = Text(row, "small")
-	row.hint:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -3)
-	row.hint:SetJustifyH("LEFT")
-	row.hint:SetWordWrap(true)
-	row.hint:SetMaxLines(2)
-
-	row.auto = API.Switch(row)
-	row.auto:SetPoint("RIGHT", row, "RIGHT", -PAD, -2)
-	row.auto:SetScript("OnClick", function()
-		Craft.SetAutoReplace(not Craft.AutoReplace())
-		PaintCraftBar()
-	end)
-	row.auto:HookScript("OnEnter", function(self)
-		GameTooltip:SetOwner(self, "ANCHOR_TOP")
-		GameTooltip:SetText(L["Auto-replace"])
-		GameTooltip:AddLine(L["Answers the game's \"replace the enchant?\" with yes while a run of yours is putting enchants on this item, so it doesn't stop at every cast."], Color("TEXT"))
-		GameTooltip:AddLine(L["Off: the game asks each time."], Color("LABEL"))
-		GameTooltip:Show()
-	end)
-	row.auto:HookScript("OnLeave", function(self)
-		if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
-	end)
-	row.autoLabel = Text(row, "small", "RIGHT")
-	row.autoLabel:SetPoint("RIGHT", row.auto, "LEFT", -8, 0)
-	row.autoLabel:SetText(L["Auto-replace"])
-	row.autoLabel:SetTextColor(Color("LABEL"))
-	row.name:SetPoint("RIGHT", row.autoLabel, "LEFT", -12, 0)
-	row.hint:SetPoint("RIGHT", row.autoLabel, "LEFT", -12, 0)
-	return row
-end
-
 local function BuildCraftBar(parent)
 	local cb = CreateFrame("Frame", nil, parent)
 	cb:SetHeight(BAR)
@@ -782,7 +655,10 @@ local function BuildCraftBar(parent)
 		ns.Queue.Add(spell, CountWanted())
 	end)
 
-	cb.ench = BuildEnchantRow(cb)
+	-- (An enchant's item row: EnchantRow.lua, shared with the docked pane.)
+	cb.ench = ns.EnchantRow.New(cb, { pad = PAD, onChange = PaintCraftBar })
+	cb.ench:SetPoint("TOPLEFT", cb, "TOPLEFT", 0, 0)
+	cb.ench:SetPoint("TOPRIGHT", cb, "TOPRIGHT", 0, 0)
 
 	cb.stop = API.Button(cb, L["Stop"], 26)
 	cb.stop:SetWidth(110)

@@ -1,5 +1,9 @@
 # Daylight Recipes
 
+## 2.5.0
+- Enchanting in the Docked Pane: pick an enchant in Daylight UI's or DaylightMogul's profession window and the pane gets the same tools as the Recipes window, docked along its bottom: the item slot (drag an item on it or pick one from your bags; right-click empties it), the item every enchant goes on, Auto-replace, a count and an Enchant button, and enchant runs with Next and Done. A run's buttons stay up on any tab until it's done. Works with a controller too.
+- The Professions key (K) opens the Recipes window while Daylight UI's own profession window is off.
+
 ## 2.4.1
 - Fixed: the Daylight Recipes window didn't open in 2.4.0. The file that builds it had grown past a limit of the game's Lua and failed to load (an error naming Window.lua and "more than 60 upvalues").
 

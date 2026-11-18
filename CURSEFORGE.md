@@ -29,6 +29,9 @@ Drag a cheap item into the slot and level on it: enchant after enchant, with the
 ## Around the game
 Item tooltips (what uses a material, what your guides need of it, and for a recipe who on your account knows it and who could learn it, in class colors, with the skill still needed; only this character's guides), and trainer reminders in chat when a skill-up opens new recipes or you reach your rank's cap.
 
+## New in 2.5.0
+- **Enchanting in the Docked Pane:** the item slot, Auto-replace and enchant runs (Next / Done) beside Daylight UI's or DaylightMogul's profession window, as in the Recipes window.
+
 ## New in 2.4.0
 - **Cooldowns:** your craft cooldowns (transmutes, Mooncloth, Cured Rugged Hide…) as tiles under the professions list, with the time left. Click one to open the recipe.
 - **Controller support:** the whole window, the shopping panels and the tours work with a controller.
