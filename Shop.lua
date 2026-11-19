@@ -720,15 +720,15 @@ function Shop.Auction()
 			for _, r in ipairs(list) do
 				local name = Calc.ItemInfo(r.itemID) or ns.ItemNameOf(r.itemID)
 				if name then
-					local ok, text = pcall(api.ConvertToSearchString, "Daylight Recipes",
+					local ok, text = pcall(api.ConvertToSearchString, "Glowey's Recipes",
 						{ searchString = name, isExact = true, quantity = r.buy })
 					if ok and type(text) == "string" then searches[#searches + 1] = text end
 				end
 			end
 			if #searches == 0 then return end
-			local ok = pcall(api.CreateShoppingList, "Daylight Recipes", "Daylight Recipes", searches)
-			ns.Print(ok and Plural(#searches, "Auctionator list \"Daylight Recipes\" made: %d item.",
-				"Auctionator list \"Daylight Recipes\" made: %d items."):format(#searches)
+			local ok = pcall(api.CreateShoppingList, "Glowey's Recipes", "Glowey's Recipes", searches)
+			ns.Print(ok and Plural(#searches, "Auctionator list \"Glowey's Recipes\" made: %d item.",
+				"Auctionator list \"Glowey's Recipes\" made: %d items."):format(#searches)
 				or L["Auctionator didn't take the list."])
 		end)
 	else

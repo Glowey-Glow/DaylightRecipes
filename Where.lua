@@ -731,7 +731,7 @@ function Where.Go(name, place)
 	local x, y = place.x / 100, place.y / 100
 	local tomtom = _G.TomTom
 	if ns.Get("tomtom") and type(tomtom) == "table" and type(tomtom.AddWaypoint) == "function" then
-		pcall(tomtom.AddWaypoint, tomtom, place.mapID, x, y, { title = name, from = "Daylight Recipes" })
+		pcall(tomtom.AddWaypoint, tomtom, place.mapID, x, y, { title = name, from = "Glowey's Recipes" })
 		ns.Print(L["Waypoint: %s, %s (%d, %d)."]:format(name, place.zone, place.x + 0.5, place.y + 0.5))
 		return true
 	end

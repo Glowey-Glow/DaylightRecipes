@@ -1,9 +1,9 @@
--- The swap button (two arrows) beside the X of every profession window Daylight Recipes stands in
+-- The swap button (two arrows) beside the X of every profession window Glowey's Recipes stands in
 -- for: on ours it hands the profession to the game's own window ("game"); on that one (or
--- DaylightUI's or DaylightMogul's, in "pane") it brings Daylight Recipes' window back. It flips the
+-- DaylightUI's or DaylightMogul's, in "pane") it brings Glowey's Recipes' window back. It flips the
 -- "Profession window" choice, so the window picked stays picked, and reopens the profession that
 -- was open so it shows in the other window at once.
--- The first time Daylight Recipes loads it asks once: "Use Daylight Recipes' profession window?"
+-- The first time Glowey's Recipes loads it asks once: "Use Glowey's Recipes' profession window?"
 -- Yes makes ours the one, and switches DaylightUI's own profession window off (its Professions
 -- module's "enabled", which it reads at login: one reload), so a swap shows the game's window.
 -- What DaylightUI's switch was is recorded; picking "Docked pane" (theirs with our pane) in our
@@ -39,7 +39,7 @@ end
 -- What a click does: the other window, and the words for the tooltip.
 local function Target()
 	if ns.Get("window") == "recipes" then return "game", L["Use the game's profession window"] end
-	return "recipes", L["Use Daylight Recipes' window"]
+	return "recipes", L["Use Glowey's Recipes' window"]
 end
 
 -- DaylightUI 1.8.4 and later put a swap control of their own beside the X of the windows ours
@@ -60,7 +60,7 @@ end
 local function TipWords(b)
 	local to, words = Target()
 	if not b.dui then return words, nil end
-	words = to == "recipes" and L["Open in Daylight Recipes' window"] or L["Open in the game's window"]
+	words = to == "recipes" and L["Open in Glowey's Recipes' window"] or L["Open in the game's window"]
 	if b.dui == "icon" then
 		return words, L["The swap icon beside it is Daylight UI's own: it switches to the game's window."]
 	end
@@ -129,7 +129,7 @@ local function Ask()
 	-- (A first launch: the welcome asks this instead, Start Tour or Keep My Window. Guide.lua)
 	if ns.Guide and not (type(db.guide) == "table" and db.guide.welcomed) then return end
 	StaticPopupDialogs.DAYLIGHTRECIPES_WINDOW = {
-		text = L["Use Daylight Recipes' profession window?\n\nIt takes the place of the game's and Daylight UI's profession windows. The swap button beside its X switches to the game's window and back any time. You can change this later in Daylight Recipes' options."],
+		text = L["Use Glowey's Recipes' profession window?\n\nIt takes the place of the game's and Daylight UI's profession windows. The swap button beside its X switches to the game's window and back any time. You can change this later in Glowey's Recipes' options."],
 		button1 = L["Use Recipes' Window"],
 		button2 = L["Keep My Window"],
 		OnAccept = function()
@@ -300,7 +300,7 @@ local function Place(host, close)
 	return b
 end
 
--- On Daylight Recipes' own window (Window.lua calls this once it has its X).
+-- On Glowey's Recipes' own window (Window.lua calls this once it has its X).
 function Swap.OnWindow(win, close)
 	return Place(win, close)
 end

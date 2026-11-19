@@ -1,4 +1,4 @@
--- Daylight Recipes' own profession window in place of the game's (and DaylightUI's).
+-- Glowey's Recipes' own profession window in place of the game's (and DaylightUI's).
 -- The game's window (ProfessionsFrame) keeps running the trade skill: every way of opening and
 -- closing a profession still goes through the game's own code. While ours is in use the game's is
 -- held under a "veil" of ours: shown, see-through and clipped to a pixel off screen, so nothing of
@@ -40,7 +40,7 @@ local function TS(name, ...)
 	return ok and v or nil
 end
 
--- Whether Daylight Recipes' window is the one in use. It takes DaylightMogul's place as it takes
+-- Whether Glowey's Recipes' window is the one in use. It takes DaylightMogul's place as it takes
 -- DaylightUI's: Mogul parks the game's window the same way and backs off the same way (its own
 -- Look\Windows\Follow.lua, "Away"); Mogul's prices are still the ones used.
 function Take.Wanted()

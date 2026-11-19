@@ -1,4 +1,4 @@
--- Daylight Recipes: a DaylightUI plugin.
+-- Glowey's Recipes: a DaylightUI plugin.
 -- A profession window of its own in place of the game's and DaylightUI's (Window.lua, Take.lua):
 -- your professions and alts on the left; Recipes, Plan, Materials and Missing tabs. Or, by choice
 -- (and always while DaylightMogul runs the professions), a pane on the right of the profession
@@ -78,7 +78,7 @@ function ns.ReskinWindows()
 end
 
 function ns.Print(msg)
-	DEFAULT_CHAT_FRAME:AddMessage("|cff66ccffDaylight Recipes|r: " .. msg)
+	DEFAULT_CHAT_FRAME:AddMessage("|cff66ccffGlowey's Recipes|r: " .. msg)
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -425,9 +425,9 @@ local pages = {
 	  groups = {
 		{ label = L["Profession Window"], items = {
 			{ type = "dropdown", key = "window", label = L["Profession Window"], values = WINDOWS, order = { "recipes", "game", "pane" },
-			  desc = L["Recipes Window: Daylight Recipes' own (Daylight UI's profession window is switched off for it). The Game's Window: Blizzard's own, as the swap button beside the X picks. Docked Pane: Daylight UI's or DaylightMogul's window with a pane beside it (Daylight UI's comes back after a reload)."] },
+			  desc = L["Recipes Window: Glowey's Recipes' own (Daylight UI's profession window is switched off for it). The Game's Window: Blizzard's own, as the swap button beside the X picks. Docked Pane: Daylight UI's or DaylightMogul's window with a pane beside it (Daylight UI's comes back after a reload)."] },
 			{ type = "slider", key = "winScale", label = L["Window Size"], min = 0.7, max = 1.2, step = 0.05,
-			  desc = L["How large Daylight Recipes' window is."], disabled = WindowOff },
+			  desc = L["How large Glowey's Recipes' window is."], disabled = WindowOff },
 			{ type = "slider", key = "paneWidth", label = L["Pane Width"], min = 260, max = 400, step = 10,
 			  desc = L["How wide the pane beside Daylight UI's or DaylightMogul's profession window is."], disabled = PaneOff },
 		} },
@@ -478,6 +478,7 @@ if ns.Guide and ns.Guide.HelpGroup and pages[1] then table.insert(pages[1].group
 
 pcall(function()
 	DUI:RegisterPlugin(ADDON, {
+		title = "Glowey's Recipes",
 		icon = "Interface\\AddOns\\" .. ADDON .. "\\Media\\icon-glyph.png",
 		needs = { 1, 2 },
 		short = L["Recipes"],
@@ -539,7 +540,7 @@ SLASH_DAYLIGHTRECIPES1 = "/recipes"
 SLASH_DAYLIGHTRECIPES2 = "/dr"
 SlashCmdList.DAYLIGHTRECIPES = function()
 	if ns.Get("window") ~= "recipes" then
-		ns.Print(L["The pane beside the profession window is in use: pick Daylight Recipes' window in its options."])
+		ns.Print(L["The pane beside the profession window is in use: pick Glowey's Recipes' window in its options."])
 		return
 	end
 	if ns.Window then ns.Window.Toggle() end

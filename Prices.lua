@@ -1,4 +1,4 @@
--- Auction House prices of Daylight Recipes' own, for when DaylightMogul isn't loaded. With Mogul
+-- Auction House prices of Glowey's Recipes' own, for when DaylightMogul isn't loaded. With Mogul
 -- loaded its prices are used and nothing here runs at all: no events heard, no scan offered, so
 -- the two never read the Auction House twice.
 -- Prices come from what you look at anyway (every browse and search result while the Auction House

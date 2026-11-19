@@ -1,7 +1,7 @@
 -- The item an enchant goes on, as a row: a slot the item goes in (dragged there, or picked from a
 -- menu of what you carry that it can go on; right-click, or a controller's Y, empties it), its name,
 -- and the Auto-replace switch (the game's "replace the enchant?" answered yes during a run on this
--- item). Used by Daylight Recipes' window (its craft bar, Window.lua) and by the docked pane
+-- item). Used by Glowey's Recipes' window (its craft bar, Window.lua) and by the docked pane
 -- (Pane.lua); what it keeps and makes is Craft.lua's.
 --   EnchantRow.New(parent, opts)   a new row, hidden, not placed. opts: pad (the side margin),
 --                                  stacked (Auto-replace on a line of its own under the item, for

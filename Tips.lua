@@ -311,7 +311,7 @@ local function AskMastercraft()
 	-- (A first launch: the welcome says it instead. Guide.lua)
 	if ns.Guide and ns.Guide.Welcoming and ns.Guide.Welcoming() then return end
 	StaticPopupDialogs.DAYLIGHTRECIPES_MASTERCRAFT_TIPS = {
-		text = L["Mastercraft also lists your characters on recipe items. Show only Daylight Recipes' lines?\n\nMastercraft's come back if you pick Keep Both, or later in Daylight Recipes' options."],
+		text = L["Mastercraft also lists your characters on recipe items. Show only Glowey's Recipes' lines?\n\nMastercraft's come back if you pick Keep Both, or later in Glowey's Recipes' options."],
 		button1 = L["Only Recipes'"],
 		button2 = L["Keep Both"],
 		OnAccept = function() DUI:Set(ADDON, "mastercraftTips", true) end,

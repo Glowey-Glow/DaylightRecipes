@@ -1,4 +1,4 @@
-# Daylight Recipes
+# Glowey's Recipes
 
 A plugin for Daylight UI on WoW: Forever. It adds a pane beside your profession window showing what a recipe costs to make, what it's worth, how likely it is to give a skill point, and every recipe you don't know yet with where to get it.
 

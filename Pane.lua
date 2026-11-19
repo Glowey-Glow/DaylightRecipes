@@ -1,7 +1,7 @@
 -- The pane: three tabs (Recipe, Plan, Missing) over one scrolling page (a doc, Doc.lua; what the
 -- pages say is Pages.lua). It sits in the frame DaylightUI docks to its profession window, or in one
 -- of ours hung on DaylightMogul's window while Mogul runs the professions; the same page moves to
--- whichever is in use. With Daylight Recipes' own profession window in use (Window.lua) the pane
+-- whichever is in use. With Glowey's Recipes' own profession window in use (Window.lua) the pane
 -- isn't used at all.
 -- With an enchant picked in the window beside, an enchant section sits flush along the pane's
 -- bottom edge: the item it goes on (EnchantRow.lua, as in our own window's craft bar), Auto-replace,
@@ -318,7 +318,7 @@ function Pane.Shown()
 	return root ~= nil and root:IsVisible()
 end
 
--- Whether the pane is the one in use (not Daylight Recipes' own window).
+-- Whether the pane is the one in use (not Glowey's Recipes' own window).
 local function InUse() return S.mode == "dui" or S.mode == "mogul" end
 
 -- Whether the page now drawn is waiting on this item's data.
@@ -436,7 +436,7 @@ local function BuildTab()
 	foldTab:SetScript("OnEnter", function(self)
 		PaintGrip(true)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:SetText(Folded() and L["Open Daylight Recipes"] or L["Fold Daylight Recipes away"])
+		GameTooltip:SetText(Folded() and L["Open Glowey's Recipes"] or L["Fold Glowey's Recipes away"])
 		GameTooltip:Show()
 	end)
 	foldTab:SetScript("OnLeave", function()

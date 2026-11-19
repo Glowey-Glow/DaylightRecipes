@@ -1,4 +1,4 @@
--- What Daylight Recipes keeps between sessions, for every character on the account: professions and
+-- What Glowey's Recipes keeps between sessions, for every character on the account: professions and
 -- their skill, the recipes each knows, and what each holds (bags, bank, mail), plus the bank tabs
 -- the whole account shares and what vendors you've visited sell. Everything is read when the game
 -- says it changed (a bag change settled, the bank or mailbox open, a merchant open), a moment

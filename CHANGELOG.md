@@ -1,4 +1,7 @@
-# Daylight Recipes
+# Glowey's Recipes (DaylightUI Plugin)
+
+## 2.5.1
+- Daylight Recipes is now Glowey's Recipes (DaylightUI Plugin), so it's clear it's a plugin and not part of Daylight UI. Inside Daylight UI the section is Glowey's Recipes. Your settings are kept. New Auctionator shopping lists are named "Glowey's Recipes"; an old "Daylight Recipes" list stays until you delete it.
 
 ## 2.5.0
 - Enchanting in the Docked Pane: pick an enchant in Daylight UI's or DaylightMogul's profession window and the pane gets the same tools as the Recipes window, docked along its bottom: the item slot (drag an item on it or pick one from your bags; right-click empties it), the item every enchant goes on, Auto-replace, a count and an Enchant button, and enchant runs with Next and Done. A run's buttons stay up on any tab until it's done. Works with a controller too.

@@ -1,4 +1,4 @@
--- Daylight Recipes' profession window: in place of the game's (and DaylightUI's) while it's the one
+-- Glowey's Recipes' profession window: in place of the game's (and DaylightUI's) while it's the one
 -- chosen (Take.lua holds the game's out of sight; it keeps running the trade skill).
 --   Left:  your professions (click one to open it) and, below, your alts' on this realm.
 --   Top:   the open profession, its skill bar, and four tabs:
@@ -1885,7 +1885,7 @@ local function PaintHead()
 	end
 	headIcon:SetTexture(icon)
 	headIcon:SetShown(icon ~= nil)
-	headName:SetText(open and (S.name or L["Profession"]) or "Daylight Recipes")
+	headName:SetText(open and (S.name or L["Profession"]) or "Glowey's Recipes")
 	headName:SetTextColor(Color("VALUE"))
 	if open and (S.max or 0) > 0 then
 		headBar:SetMinMaxValues(0, S.max)

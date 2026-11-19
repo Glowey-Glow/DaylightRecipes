@@ -1,13 +1,13 @@
-# Daylight Recipes
+# Glowey's Recipes (DaylightUI Plugin)
 
 **A profession window that levels you up:** your recipes, a step-by-step Leveling Guide, a crafting queue, and buy lists at the vendor, the Auction House and the trainer, all in the Daylight UI look.
 
-Requires **Daylight UI**. Works on its own: it keeps its own Auction House prices, and uses **DaylightMogul**'s when Mogul is loaded. With it installed you can turn ForeverRecipes off.
+A plugin for Daylight UI, by Glowey (not part of Daylight UI itself: report its bugs here, not to Daylight UI). Requires **Daylight UI**. Works on its own: it keeps its own Auction House prices, and uses **DaylightMogul**'s when Mogul is loaded. With it installed you can turn ForeverRecipes off.
 
 ---
 
 ## The window
-Open any profession and Daylight Recipes' window takes the place of the game's (and Daylight UI's or Mogul's).
+Open any profession and Glowey's Recipes' window takes the place of the game's (and Daylight UI's or Mogul's).
 - **Your professions on the left** (click one to open it), with your alts' below: see what each alt knows. Herbalism, Skinning and Fishing open their own page (skill, rank, where to train next) and a **Camping** entry lists every profession's camping items. Right-click a main profession to **unlearn** it.
 - **Swap button** beside the X: switch to the game's profession window and back any time. It sits beside Daylight UI 1.8.4's own swap icon and link, never on top of them.
 - **Recipes:** search, "Can Make" and "Skill-ups" filters, folding categories and how many you can make. The picked recipe shows its skill-up chance, what its materials cost and what you hold of them (bags, bank, mail, alts), what it's worth, and Create / Create All / Queue.
@@ -40,10 +40,10 @@ Item tooltips (what uses a material, what your guides need of it, and for a reci
 - **Tracking:** your profession tracking spells (Find Minerals, Find Herbs) at the foot of the professions list. Click one to turn it on or off; the one on glows.
 
 ## New in 2.2.1
-- The window tour that starts by itself opens the Daylight Recipes window again.
+- The window tour that starts by itself opens the Glowey's Recipes window again.
 
 ## New in 2.2.0
-- **A welcome and tours:** on first launch a welcome lists what Daylight Recipes takes over; **Start Tour** walks you through the window, opening each tab as it goes (Recipes, Leveling Guide, Materials, Queue, Missing). The buy lists, the trainer panel and enchanting runs explain themselves the first time.
+- **A welcome and tours:** on first launch a welcome lists what Glowey's Recipes takes over; **Start Tour** walks you through the window, opening each tab as it goes (Recipes, Leveling Guide, Materials, Queue, Missing). The buy lists, the trainer panel and enchanting runs explain themselves the first time.
 - **Help** in the settings: **Retake Tour**, **What's New**, and **Revert to** the profession window you had (Daylight UI's, DaylightMogul's or the game's).
 - **Link your profession:** with the chat box open, Shift-click the profession's icon at the top of the window, or the profession on the left.
 - **Mastercraft's gathering node tooltips** read "Turns gray in 30 more skill", the color in its own color.
@@ -54,7 +54,7 @@ Item tooltips (what uses a material, what your guides need of it, and for a reci
 ---
 
 ## In your language
-Daylight Recipes speaks German, French, Spanish, Russian, Korean and Simplified Chinese (machine drafts, corrections welcome; words the game already translates use the game's own wording), and shows recipe, item, profession, zone and quest names in your game's language.
+Glowey's Recipes speaks German, French, Spanish, Russian, Korean and Simplified Chinese (machine drafts, corrections welcome; words the game already translates use the game's own wording), and shows recipe, item, profession, zone and quest names in your game's language.
 
 ---
 
@@ -63,4 +63,4 @@ Daylight UI options > **Plugins > Recipes**. Prefer Daylight UI's or Mogul's own
 
 ---
 
-*Daylight Recipes is free software under the GNU General Public License v3. Recipe and source data from ForeverRecipes (GPL-3.0); more recipe sources, reputation and camping data from Polestar (GPL-3.0); source corrections and additions from QuestieDB (under the Questie team's GPLv3 terms).*
+*Glowey's Recipes is free software under the GNU General Public License v3. Recipe and source data from ForeverRecipes (GPL-3.0); more recipe sources, reputation and camping data from Polestar (GPL-3.0); source corrections and additions from QuestieDB (under the Questie team's GPLv3 terms).*

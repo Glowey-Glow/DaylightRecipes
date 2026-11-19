@@ -1,4 +1,4 @@
--- Making things from Daylight Recipes' window: Create, Create All, enchanting onto an item, and
+-- Making things from Glowey's Recipes' window: Create, Create All, enchanting onto an item, and
 -- following the casts until they're done or stopped. The docked pane's enchant section (Pane.lua)
 -- enchants through the same calls.
 -- The game's own Create buttons are plain buttons calling C_TradeSkillUI.CraftRecipe (and

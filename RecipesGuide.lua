@@ -1,4 +1,4 @@
--- Daylight Recipes' welcome, what's new and tours (the engine: Guide.lua). Loaded before Core.lua,
+-- Glowey's Recipes' welcome, what's new and tours (the engine: Guide.lua). Loaded before Core.lua,
 -- so its options can show the Help card; Window.lua and the rest are looked up when needed.
 -- luacheck: read globals C_AddOns
 local ADDON, ns = ...
@@ -12,7 +12,7 @@ local function Loaded(name)
 	return C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded(name) or false
 end
 
--- DaylightUI's own profession window is the one to go back to: it's on, or Daylight Recipes
+-- DaylightUI's own profession window is the one to go back to: it's on, or Glowey's Recipes
 -- switched it off (Swap.lua records that). Read after login, when DaylightUI's modules are up.
 local function DaylightHasCraft()
 	local db = _G.DaylightRecipesDB
@@ -21,7 +21,7 @@ local function DaylightHasCraft()
 	return ok and on ~= false and on ~= nil
 end
 
--- The window Daylight Recipes takes the place of, and the "Profession window" choice that gives it
+-- The window Glowey's Recipes takes the place of, and the "Profession window" choice that gives it
 -- back ("pane": DaylightUI's or DaylightMogul's window, which Swap.lua turns back on).
 local function Theirs()
 	if Loaded("DaylightMogul") then return L["DaylightMogul's profession window"], "pane", L["Revert to DaylightMogul's Window"] end
@@ -60,7 +60,7 @@ local NEWS = {
 }
 
 Guide.Setup({
-	name = "Daylight Recipes",
+	name = "Glowey's Recipes",
 	db = function() return _G.DaylightRecipesDB end,
 	existing = function()
 		local db = _G.DaylightRecipesDB
@@ -73,7 +73,7 @@ Guide.Setup({
 	intro = L["A profession window with costs, skill-up chances, a Leveling Guide, a crafting queue and the recipes you're missing. Open a profession, or type /recipes."],
 	takes = function()
 		local list = {
-			string.format(L["Your profession window: Daylight Recipes' own opens in place of %s. The swap button beside its X opens the game's window any time."], (Theirs())),
+			string.format(L["Your profession window: Glowey's Recipes' own opens in place of %s. The swap button beside its X opens the game's window any time."], (Theirs())),
 			L["Vendors, the auction house and trainers: a panel beside them with what to buy or learn for your plan."],
 			L["Recipe tooltips: who knows the recipe and who can still learn it."],
 		}
@@ -101,7 +101,7 @@ Guide.Setup({
 	revert = {
 		label = L["Profession Window"],
 		text = function() local _, _, label = Theirs() return label end,
-		desc = L["Puts the profession window you had back in place of Daylight Recipes' window. Daylight Recipes' window comes back from the Profession Window choice above."],
+		desc = L["Puts the profession window you had back in place of Glowey's Recipes' window. Glowey's Recipes' window comes back from the Profession Window choice above."],
 		available = function() return Get("window") == "recipes" end,
 		fn = GiveBack,
 	},

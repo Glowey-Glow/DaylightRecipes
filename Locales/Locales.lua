@@ -1,4 +1,4 @@
--- Daylight Recipes' own text in the player's language.
+-- Glowey's Recipes' own text in the player's language.
 -- The English text is the key and the fallback: L["Recipes"] gives "Recipes" when the
 -- language has no line for it, so a missing line never breaks anything.
 -- Each language has a file next to this one that returns at once unless the game runs in that
