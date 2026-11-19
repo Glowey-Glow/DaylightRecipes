@@ -6,8 +6,11 @@
 --     fainter when it's for later (more skill needed) or for an alt. On DaylightUI's vendor page
 --     through its API ("shoptile" paint, redone on every fill of the shelf); on the game's own
 --     vendor window through a post-hook on its shelf update (nothing of the game's written: our
---     own small frames ride over its item buttons). DaylightMogul's vendor window has no way in
---     through its API, so no badges there (the tooltip still says it all).
+--     own small frames ride over its item buttons). DaylightMogul's vendor window: from
+--     DaylightUI 1.9.4 Mogul hands its tiles to DaylightUI as "shoptile" frames too (DaylightUI's
+--     MogulShop, API.md "the vendor's tiles"), so the same paint badges them, and API.RefreshShop
+--     refills Mogul's shelf; on an older DaylightUI or Mogul, no badges there (the tooltip still
+--     says it all).
 --   * the "Can learn" line under "Known by" in item tooltips (Tips.lua).
 -- This character's skill is read live from the game; an alt's is what it had when last played.
 -- A character whose recipe list was never read (its profession window not opened yet) counts as
