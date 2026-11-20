@@ -1,5 +1,11 @@
 # Glowey's Recipes (DaylightUI Plugin)
 
+## 2.5.3
+- Checked against Daylight UI 2.0.
+- Fixed: the Auction House Buy List didn't show with Daylight UI 2.0's new Auction House window. It now docks to that window: under it when there's room, else beside it. On a screen with no room on any side it stays folded to its tab on the window's corner, so it never covers the window by itself; click the tab to open the list over the window, and again to put it away. It follows the window when you drag or scale it, and moves to the game's own window when you swap to that one. With Daylight UI's Auction House turned off, on Daylight UI 1.9, or with DaylightMogul, it docks where it always did.
+- Fixed: a click on a Buy List row did nothing at Daylight UI's Auction House window. It now opens the Buy tab and searches for that item. At the game's own window a click still puts the name in the search box.
+- Fixed: with Mastercraft, a gathering node's "Turns gray in 30 more skill" line kept Mastercraft's own wording in Daylight UI 2.0's Rich tooltip style. It now reads the same in both tooltip styles.
+
 ## 2.5.2
 - Checked against Daylight UI 1.9.6.
 - Fixed: with the Recipes window in use, opening a game window in a fight could raise an "action blocked" error. Recipes told the game how wide its window is so the next game window opened beside it, and the game then ran that part of its window code as an addon's. Recipes no longer does (Daylight UI 1.9.6 made the same fix for its own windows), so a game window that opens beside the Recipes window sits where the game's own profession window would have put it.

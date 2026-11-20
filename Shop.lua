@@ -7,7 +7,8 @@
 --             the number needed ("Buy all here" for the lot); what it doesn't is grayed out,
 --             [Not Available].
 --   Auction House: under its window, the same list with the Auction House and vendor prices side
---             by side and which is cheaper. A click puts the item in the game's search box.
+--             by side and which is cheaper. A click puts the item in the game's search box, or
+--             searches for it in DaylightUI 2.0's own Auction House window when that's the one up.
 --   Trainer:  beside a profession trainer, "Recommended": only the recipes your leveling route
 --             learns, with the skill range it uses each for ("All Leveling Recipes Known" when
 --             there are none left). A click learns one; "Learn all" the lot. Not shown once the
@@ -115,11 +116,17 @@ local function AtLeast(version, want)
 	return true
 end
 
-local function DuiListsHoldings()
+-- Whether the DaylightUI installed is at least `want` ({ major, minor, patch }), by its .toc
+-- version ("2.0", "1.9.6"). When that can't be read, no.
+local function DaylightAtLeast(want)
 	local meta = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata
 	if type(meta) ~= "function" then return false end
 	local ok, version = pcall(meta, "DaylightUI", "Version")
-	if not ok or not AtLeast(version, { 1, 8, 3 }) then return false end
+	return ok and AtLeast(version, want)
+end
+
+local function DuiListsHoldings()
+	if not DaylightAtLeast({ 1, 8, 3 }) then return false end
 	local on, bags = pcall(API.IsModuleEnabled, "Bags")
 	if not on or not bags then return false end
 	local got, viewer = pcall(API.GetSetting, "Bags", "viewer.enabled")
@@ -181,6 +188,28 @@ local function PaintGrip(t, hover)
 	for _, bar in ipairs(t.bars) do bar:SetColorTexture(r, g, b, 1) end
 end
 
+-- Run every frame by a panel and by its tab, whichever is up. The window it hangs from gone: it
+-- goes too (p.lost, when set, then looks for another host: the Auction House's two windows can
+-- swap while it stays open). With p.follow, a host that was moved or scaled gets the panel docked
+-- again once it has been still for a moment.
+local function Watch(p, piece)
+	local host = piece.host
+	if not Visible(host) then
+		piece:Hide()
+		if p.lost then p.lost() end
+		return
+	end
+	if not p.follow then return end
+	local l, t, s = host:GetLeft(), host:GetTop(), host:GetEffectiveScale()
+	if l ~= p.hostL or t ~= p.hostT or s ~= p.hostS then
+		p.hostL, p.hostT, p.hostS = l, t, s
+		p.moved = GetTime()
+	elseif p.moved and GetTime() - p.moved > 0.3 then
+		p.moved = nil
+		if p.redraw then p.redraw() end
+	end
+end
+
 local function MakeTab(p)
 	local t = CreateFrame("Button", nil, UIParent)
 	t:SetFrameStrata("HIGH")
@@ -191,23 +220,32 @@ local function MakeTab(p)
 	PaintGrip(t, false)
 	t:SetScript("OnClick", function()
 		local folds = Folds()
-		folds[p.key] = not folds[p.key] or nil
+		if p.tight then
+			-- (No room beside the window, Dock: the tab opens the list over it and puts it away
+			-- again, remembered apart from the fold.)
+			local over = p.key .. "Over"
+			if p.folded then
+				folds[over], folds[p.key] = true, nil
+			else
+				folds[over] = nil
+			end
+		else
+			folds[p.key] = not folds[p.key] or nil
+		end
 		GameTooltip:Hide()
 		if p.redraw then p.redraw() end
 	end)
 	t:SetScript("OnEnter", function(self)
 		PaintGrip(self, true)
 		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:SetText((Folds()[p.key] and L["Show %s"] or L["Hide %s"]):format(p.label))
+		GameTooltip:SetText((p.folded and L["Show %s"] or L["Hide %s"]):format(p.label))
 		GameTooltip:Show()
 	end)
 	t:SetScript("OnLeave", function(self)
 		PaintGrip(self, false)
 		GameTooltip:Hide()
 	end)
-	t:SetScript("OnUpdate", function(self)
-		if not Visible(self.host) then self:Hide() end
-	end)
+	t:SetScript("OnUpdate", function(self) Watch(p, self) end)
 	-- A controller: the tab is one more stop the triggers reach (LT / RT), never taking the cursor
 	-- as it shows; A folds or opens the panel. Guide.lua's Pad
 	t.padSecond = true
@@ -289,9 +327,7 @@ local function NewPanel(name, title, key)
 	p.line:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, FOOT - 2)
 	p.line:SetColorTexture(1, 1, 1, 0.06)
 	-- Gone with the window it hangs from.
-	p:SetScript("OnUpdate", function(self)
-		if not Visible(self.host) then self:Hide() end
-	end)
+	p:SetScript("OnUpdate", function(self) Watch(p, self) end)
 	-- A controller (Guide.lua's Pad): the cursor moves over the panel's rows and button once the
 	-- triggers (LT / RT) bring it from the window it hangs on (it never takes the cursor as it
 	-- shows), A presses, X buys a row's item (its double-click), B folds the panel away.
@@ -315,36 +351,54 @@ local function FitFoot(p, least)
 	p.total:SetWidth(math.max(40, room))
 end
 
--- Places a panel by its host: under it (side = "below") or beside it, wherever there's room.
+-- Where a panel with no room on any edge of its host opens, when the player asks for it: over
+-- the host's top right corner, this far down, under a DaylightUI window's header and its close
+-- button, swap icon and tabs (the header is Win.HEADER = 56 tall and the pages start 57 down:
+-- DaylightUI 2.0 Windows\Frame.lua:17, :298-299).
+local OVER_TOP = 58
+
+-- Places a panel by its host: under it (side = "below") or beside it, wherever there's room,
+-- 6 away from that edge with the tops (beside) or the left edges (under) level. A panel with
+-- p.tuck and no room on any edge (DaylightUI 2.0's Auction House window is 960 wide: on a
+-- narrower screen, or scaled up, neither side has 320 free) is "tight": Paint then shows only
+-- its tab, and a click on that opens it over the window.
 local function Dock(p, host, side)
 	if p.host ~= host then
 		p.host = host
 		p:SetParent(UIParent)
 	end
 	p:SetScale(host:GetEffectiveScale() / UIParent:GetEffectiveScale())
-	local h = p:GetHeight()
+	local h, w = p:GetHeight(), p:GetWidth()
 	p:ClearAllPoints()
-	local bottom = host:GetBottom() or 0
-	local right = host:GetRight() or 0
+	p.tight = false
+	local k = host:GetEffectiveScale() / p:GetEffectiveScale()
+	local bottom = (host:GetBottom() or 0) * k
+	local right = (host:GetRight() or 0) * k
+	local left = (host:GetLeft() or 0) * k
 	local screenW = UIParent:GetWidth() / p:GetScale()
-	if side == "below" and bottom * host:GetEffectiveScale() / p:GetEffectiveScale() > h + 8 then
+	if side == "below" and bottom > h + 8 then
 		p:SetPoint("TOPLEFT", host, "BOTTOMLEFT", 0, -6)
 		p.edge = "below"
-	elseif right * host:GetEffectiveScale() / p:GetEffectiveScale() + p:GetWidth() + 8 < screenW then
+	elseif right + w + 8 < screenW then
 		p:SetPoint("TOPLEFT", host, "TOPRIGHT", 6, 0)
 		p.edge = "right"
-	else
+	elseif not p.tuck or left - w - 8 > 0 then
 		p:SetPoint("TOPRIGHT", host, "TOPLEFT", -6, 0)
 		p.edge = "left"
+	else
+		p:SetPoint("TOPRIGHT", host, "TOPRIGHT", 0, -OVER_TOP)
+		p.edge = "right"
+		p.tight = true
 	end
 end
 
 -- Draws a panel's rows with fill(doc), sizes it to them, docks it; folded, only its tab shows.
 local function Paint(p, host, side, fill)
-	local folded = Folds()[p.key] == true
-	if folded then
+	local folds = Folds()
+	if folds[p.key] == true then
 		Dock(p, host, side)
 		p:Hide()
+		p.folded = true
 		PlaceTab(p, host, true)
 		return
 	end
@@ -361,6 +415,15 @@ local function Paint(p, host, side, fill)
 	d.scroll:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, foot)
 	p:SetHeight(math.min(MAX_H, HEAD + d.y + foot))
 	Dock(p, host, side)
+	-- (No room on any edge of the host: only the tab, until the player opens the list over the
+	-- window with it. Never over the host's own controls by itself.)
+	if p.tight and not folds[p.key .. "Over"] then
+		p:Hide()
+		p.folded = true
+		PlaceTab(p, host, true)
+		return
+	end
+	p.folded = false
 	p:Show()
 	PlaceTab(p, host, false)
 end
@@ -630,19 +693,84 @@ end
 local auction
 local ahOpen = false
 
+-- The window the list hangs from went away with the Auction House still open: DaylightUI 2.0's
+-- window and the game's can swap in place (the swap icon on DaylightUI's header and the link back
+-- on the game's, DaylightUI_AuctionHouse\Window.lua:376-399; another addon taking the game's
+-- frame, :365-374), and no game event says so. The list then looks for the one that's up now.
+local rehosting = false
+
+-- DaylightUI 2.0 has an Auction House window of its own, the frame "DaylightUIAuctionHouse"
+-- (DaylightUI_AuctionHouse\Window.lua:33, made by Win.New at :430, 960 x 620 at :34, opening at
+-- the screen's TOPLEFT 16, -116 at :277-282 or where the player dragged it; nothing of it hangs
+-- outside that frame: its tabs are in its header, Windows\Frame.lua:239-256). While it is up the
+-- game's AuctionHouseFrame stays shown but parked under a veil at alpha 0 (Window.lua:1-10, :449;
+-- Windows\Follow.lua:38-43, :110-121), which Visible turns down, so DaylightUI's window is the host.
+-- The game's frame is the host when it is the one on screen: DaylightUI's Auction House off or
+-- swapped away (Window.lua:376-399), an Auction House opened in a fight (:409-412), or a
+-- DaylightUI before 2.0, which has no such frame (not in the v1.9.6 tag: the global is nil there).
+-- With DaylightMogul loaded DaylightUI builds none of it (Module.lua:17-22) and Mogul's is first.
+-- Told by the frame being there, not by a version.
+local function DaylightAH() return _G.DaylightUIAuctionHouse end
+
 local function AHHost()
 	return FirstShown({
 		function() return _G.DaylightMogulMain end,
+		DaylightAH,
 		function() return _G.AuctionHouseFrame end,
 	})
 end
 
--- The item's name in the game's own Auction House search (when it's the window showing).
+-- A search in DaylightUI 2.0's Auction House window, as if the name were typed in its Buy tab's
+-- box and Enter pressed. DaylightUI has no public call for this (nothing about the Auction House
+-- in its API.md or API.lua), so this goes through its module's own, internal functions, which a
+-- later DaylightUI may rename or change without notice:
+--   DaylightUI:GetModule("AuctionHouse") (Core.lua:721) is the module, registered with ns = ns
+--     (DaylightUI_AuctionHouse\Module.lua:5-8);
+--   ns.Window.ShowTab("buy") is what a click on the Buy tab runs (Window.lua:225-233, :438); the
+--     window's shown tab is its frame's .tab (Windows\Frame.lua:217-222; read at Window.lua:255);
+--   ns.BuyPage.Submit(text) (BuyPage.lua:542-547) is what Enter in the search box and a click on a
+--     recent search run (:1772, :1533): it writes the box and starts the search.
+-- Safe from plugin code as read in 2.0: Submit only queues a browse query in DaylightUI's own
+-- request line (BuyPage.lua:518-538 > Browse.lua:204-224 > AH.Request, AH.lua:228), which sends it
+-- when the game is ready and keeps to the game's limits; the game call at the end,
+-- C_AuctionHouse.SendBrowseQuery (Browse.lua:187), is not a protected or click-only one (no
+-- HasRestrictions on it in the game's AuctionHouseDocumentation.lua, unlike PlaceBid, PostItem or
+-- StartCommoditiesPurchase), and DaylightUI itself sends it from its queue, outside any click.
+-- Nothing here is bought, bid on or posted. So: only on DaylightUI 2.0 or later, every step
+-- type-checked and in pcall; false when any of it isn't as read (the caller then says so in chat).
+local function SearchDaylight(name)
+	if not DaylightAtLeast({ 2, 0, 0 }) then return false end
+	local DUI = _G.DaylightUI
+	if type(DUI) ~= "table" or type(DUI.GetModule) ~= "function" then return false end
+	local got, mod = pcall(DUI.GetModule, DUI, "AuctionHouse")
+	local m = got and type(mod) == "table" and mod.ns
+	if type(m) ~= "table" then return false end
+	local page, win = m.BuyPage, m.Window
+	if type(page) ~= "table" or type(page.Submit) ~= "function" then return false end
+	-- (On Sell or My Auctions the search would run unseen: the Buy tab first. Without it the
+	-- search still runs and shows when the player picks Buy.)
+	if type(win) == "table" and type(win.ShowTab) == "function" and type(win.frame) == "table"
+		and win.frame.tab ~= "buy" then
+		pcall(win.ShowTab, "buy")
+	end
+	-- (Submit answers false when it couldn't start, and has then said why on its own page.)
+	return (pcall(page.Submit, name))
+end
+
+-- The item searched for in the Auction House window that's up: DaylightUI 2.0's own (searched
+-- at once), else the game's (the name put in its search box).
 local function SearchFor(itemID)
+	local name = Calc.ItemInfo(itemID) or ns.ItemNameOf(itemID)
+	if type(name) ~= "string" or name == "" then return false end
+	if Visible(DaylightAH()) then
+		if SearchDaylight(name) then return true end
+		-- (DaylightUI's search couldn't be reached, a later version having changed it: the click
+		-- isn't silent, the player is told what to type.)
+		ns.Print(L["Couldn't start the search. Type %s in the Auction House's search box."]:format(name))
+		return false
+	end
 	local f = _G.AuctionHouseFrame
 	if not Visible(f) or type(f.SearchBar) ~= "table" then return false end
-	local name = Calc.ItemInfo(itemID) or ns.ItemNameOf(itemID)
-	if not name then return false end
 	local box = f.SearchBar.SearchBox
 	if type(box) == "table" and box.SetText then
 		box:SetText(name)
@@ -658,6 +786,11 @@ function Shop.Auction()
 	if not host then return false end
 	auction = auction or NewPanel("DaylightRecipesAHList", L["Buy List"], "auction")
 	auction.redraw = Shop.Auction
+	auction.lost = Shop.AuctionLost
+	-- (DaylightUI's window can be dragged and scaled, Window.lua:446-447: the list follows it. And
+	-- it is wide: with no room on any edge the list tucks away to its tab rather than cover it.)
+	local daylight = host == DaylightAH()
+	auction.follow, auction.tuck = daylight, daylight
 	local list = Shop.List()
 	if #list == 0 then
 		Shop.HidePanel(auction)
@@ -736,6 +869,13 @@ function Shop.Auction()
 	end
 	FitFoot(auction, 140)
 	return true
+end
+
+function Shop.AuctionLost()
+	if rehosting or not ahOpen then return end
+	rehosting = true
+	Soon(Shop.Auction)
+	C_Timer.After(1.5, function() rehosting = false end)
 end
 
 -- ---------------------------------------------------------------------------------------------

@@ -550,3 +550,6 @@ L["Tracking: Find Minerals and Find Herbs under your professions on the left. Cl
 L["Cooldowns: your recipes with a cooldown (transmutes, Mooncloth and more) above Tracking, with the time left. Click one to open it."] = "재사용 대기시간: 재사용 대기시간이 있는 제조법(변환, 달빛 옷감 등)이 추적 위에 남은 시간과 함께 표시됩니다. 클릭하면 열립니다."
 L["Controller support: the whole window, the shopping panels and the tours work with a controller."] = "컨트롤러 지원: 창 전체, 구매 패널과 안내 투어를 컨트롤러로 사용할 수 있습니다."
 L["Enchanting in the Docked Pane: the item slot, Auto-replace and enchant runs beside Daylight UI's or DaylightMogul's profession window, as in the Recipes window."] = "도킹 패널에서 마법부여: 아이템 칸, 자동 교체, 연속 마법부여를 Daylight UI 또는 DaylightMogul의 전문 기술 창 옆에서 제조법 창과 똑같이 사용할 수 있습니다."
+
+-- 2.5.3: Daylight UI 2.0's Auction House window
+L["Couldn't start the search. Type %s in the Auction House's search box."] = "검색을 시작하지 못했습니다. 경매장 검색창에 다음을 입력하세요: %s"

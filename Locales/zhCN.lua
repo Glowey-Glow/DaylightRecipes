@@ -550,3 +550,6 @@ L["Tracking: Find Minerals and Find Herbs under your professions on the left. Cl
 L["Cooldowns: your recipes with a cooldown (transmutes, Mooncloth and more) above Tracking, with the time left. Click one to open it."] = "冷却：有冷却时间的配方（转化、月布等）显示在追踪上方，并附剩余时间。点击即可打开该配方。"
 L["Controller support: the whole window, the shopping panels and the tours work with a controller."] = "手柄支持：整个窗口、购物面板和引导教程都可以用手柄操作。"
 L["Enchanting in the Docked Pane: the item slot, Auto-replace and enchant runs beside Daylight UI's or DaylightMogul's profession window, as in the Recipes window."] = "停靠面板中的附魔：物品槽、自动替换和连续附魔出现在 Daylight UI 或 DaylightMogul 的专业窗口旁，与配方窗口中一样。"
+
+-- 2.5.3: Daylight UI 2.0's Auction House window
+L["Couldn't start the search. Type %s in the Auction House's search box."] = "无法开始搜索。请在拍卖行的搜索框中输入%s。"

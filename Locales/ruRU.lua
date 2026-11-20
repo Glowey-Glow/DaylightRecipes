@@ -557,3 +557,6 @@ L["Tracking: Find Minerals and Find Herbs under your professions on the left. Cl
 L["Cooldowns: your recipes with a cooldown (transmutes, Mooncloth and more) above Tracking, with the time left. Click one to open it."] = "Восстановление: ваши рецепты с восстановлением (трансмутации, луноткань и другие) над Отслеживанием, с оставшимся временем. Щёлкните, чтобы открыть рецепт."
 L["Controller support: the whole window, the shopping panels and the tours work with a controller."] = "Поддержка геймпада: всё окно, панели покупок и обучение работают с геймпадом."
 L["Enchanting in the Docked Pane: the item slot, Auto-replace and enchant runs beside Daylight UI's or DaylightMogul's profession window, as in the Recipes window."] = "Наложение чар в пристыкованной панели: ячейка предмета, автозамена и серии чар рядом с окном профессии Daylight UI или DaylightMogul, как в окне рецептов."
+
+-- 2.5.3: Daylight UI 2.0's Auction House window
+L["Couldn't start the search. Type %s in the Auction House's search box."] = "Не удалось начать поиск. Введите %s в поле поиска аукциона."

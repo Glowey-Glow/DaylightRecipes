@@ -550,3 +550,6 @@ L["Tracking: Find Minerals and Find Herbs under your professions on the left. Cl
 L["Cooldowns: your recipes with a cooldown (transmutes, Mooncloth and more) above Tracking, with the time left. Click one to open it."] = "Reutilizaciones: tus recetas con tiempo de reutilización (transmutaciones, tela lunar y más) encima de Rastreo, con el tiempo restante. Haz clic en una para abrirla."
 L["Controller support: the whole window, the shopping panels and the tours work with a controller."] = "Compatibilidad con mando: toda la ventana, los paneles de compra y los recorridos funcionan con un mando."
 L["Enchanting in the Docked Pane: the item slot, Auto-replace and enchant runs beside Daylight UI's or DaylightMogul's profession window, as in the Recipes window."] = "Encantamiento en el panel acoplado: la casilla del objeto, Reemplazar automáticamente y las tandas de encantamientos junto a la ventana de profesión de Daylight UI o DaylightMogul, como en la ventana de recetas."
+
+-- 2.5.3: Daylight UI 2.0's Auction House window
+L["Couldn't start the search. Type %s in the Auction House's search box."] = "No se pudo iniciar la búsqueda. Escribe %s en el cuadro de búsqueda de la casa de subastas."
