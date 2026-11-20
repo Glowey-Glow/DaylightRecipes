@@ -1,5 +1,9 @@
 # Glowey's Recipes (DaylightUI Plugin)
 
+## 2.5.4
+- Checked against Daylight UI 2.1.1.
+- Fixed with Daylight UI 2.1.1: its bags now add what your own bank (and the account bank) holds to an item's tooltip, so a Buy List row's tooltip said it twice ("You have 12 in bags, 5 in the bank" under Daylight UI's own lines). The row now leaves it to Daylight UI and says only what's in the mail, as it already did when an alt holds the item. With Daylight UI's "Item counts on tooltips" switched off, the row says it all itself again.
+
 ## 2.5.3
 - Checked against Daylight UI 2.0.
 - Fixed: the Auction House Buy List didn't show with Daylight UI 2.0's new Auction House window. It now docks to that window: under it when there's room, else beside it. On a screen with no room on any side it stays folded to its tab on the window's corner, so it never covers the window by itself; click the tab to open the list over the window, and again to put it away. It follows the window when you drag or scale it, and moves to the game's own window when you swap to that one. With Daylight UI's Auction House turned off, on Daylight UI 1.9, or with DaylightMogul, it docks where it always did.

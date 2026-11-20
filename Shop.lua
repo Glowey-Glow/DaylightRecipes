@@ -131,6 +131,9 @@ local function DuiListsHoldings()
 	if not on or not bags then return false end
 	local got, viewer = pcall(API.GetSetting, "Bags", "viewer.enabled")
 	if not got then return false end
+	-- (Its "Item counts on tooltips" switch off: it adds nothing, DaylightUI_Bags\Saved.lua:265.)
+	local read, counts = pcall(API.GetSetting, "Bags", "viewer.tipCounts")
+	if read and counts == false then return false end
 	return viewer ~= false
 end
 
@@ -147,8 +150,12 @@ local function RowTip(r, hint)
 		local where, have = nil, nil
 		if ns.Pages then where, have = ns.Pages.HaveText(r.itemID) end
 		-- DaylightUI's bags (1.8.3) add every character's bags and bank to an item's tooltip when an
-		-- alt holds it in theirs: then only the mail is said here, which DaylightUI doesn't count.
-		if where and have and (have.altHeld or 0) > 0 and DuiListsHoldings() then
+		-- alt holds it in theirs, and from 2.1.1 also when only your own bank or the account's holds
+		-- some (2.1.1 DaylightUI_Bags\Saved.lua:259-273; 2.0 asked for an alt, :266-271): then only
+		-- the mail is said here, which DaylightUI doesn't count.
+		local listed = (have and have.altHeld or 0) > 0
+			or ((have and have.bank or 0) > 0 and DaylightAtLeast({ 2, 1, 1 }))
+		if where and have and listed and DuiListsHoldings() then
 			where = have.mail > 0 and L["%d in the mail"]:format(have.mail) or nil
 		end
 		if where then tip:AddLine(L["You have %s"]:format(where), Color("TEXT")) end
