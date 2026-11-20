@@ -595,3 +595,22 @@ L["Buy List: two lists, Queue List and Guide List, picked with the tabs under it
 L["Buy List: each place shows only what is cheapest there. A line under the list brings the rest back."] = "Список покупок: в каждом месте показано только то, что там дешевле всего. Строка под списком возвращает остальное."
 L["Buy List: hold Shift over a row and Shift-click to remove it. What you buy on the Auction House comes off the list right away."] = "Список покупок: удерживайте Shift над строкой и щёлкните с Shift, чтобы убрать её. Купленное на аукционе сразу уходит из списка."
 L["Prices: with Daylight UI's Auction House, the prices it has already collected are used, so fewer materials say \"No price\"."] = "Цены: с аукционом Daylight UI используются уже собранные им цены, поэтому меньше материалов с пометкой «Нет цены»."
+
+-- Buy list: Auction House price steps, Check Prices (Shop.lua, Prices.lua)
+L["Check Prices"] = "Проверить цены"
+L["Checking prices: %d of %d"] = "Проверка цен: %d из %d"
+L["Prices checked %s"] = "Цены проверены %s"
+L["Reads how many are for sale at each price."] = "Читает, сколько продаётся по каждой цене."
+L["only %d for sale"] = "в продаже только %d"
+L["None for sale"] = "Нет в продаже"
+L["AH about %s"] = "Аук. примерно %s"
+L["On the AH: about %s"] = "На аукционе: примерно %s"
+L["%d at %s each"] = "%d по %s за шт."
+L["and %d more step"] = "и ещё %d ценовая ступень"
+L["and %d more steps"] = "и ещё %d ценовых ступеней"
+L["and %d more steps|few"] = "и ещё %d ценовые ступени"
+L["Average: %s each"] = "В среднем: %s за шт."
+
+-- 2.7.0: What's New
+L["Buy List: Check Prices at the Auction House reads how many are for sale at each price, so a row shows what the amount you need really costs."] = "Список покупок: «Проверить цены» на аукционе читает, сколько продаётся по каждой цене, и строка показывает настоящую стоимость нужного количества."
+L["Buy List: when a vendor also sells an item, the Auction House row asks only for the cheaper units and the vendor's list for the rest."] = "Список покупок: если предмет продаёт и торговец, строка аукциона просит только более дешёвые единицы, а список торговца — остальное."

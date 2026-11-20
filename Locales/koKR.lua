@@ -584,3 +584,21 @@ L["Buy List: two lists, Queue List and Guide List, picked with the tabs under it
 L["Buy List: each place shows only what is cheapest there. A line under the list brings the rest back."] = "구매 목록: 각 장소에서는 그곳이 가장 싼 것만 보여 줍니다. 목록 아래 줄로 나머지를 다시 볼 수 있습니다."
 L["Buy List: hold Shift over a row and Shift-click to remove it. What you buy on the Auction House comes off the list right away."] = "구매 목록: 줄 위에서 Shift를 누른 채 Shift-클릭하면 제거됩니다. 경매장에서 산 것은 바로 목록에서 빠집니다."
 L["Prices: with Daylight UI's Auction House, the prices it has already collected are used, so fewer materials say \"No price\"."] = "가격: Daylight UI의 경매장이 이미 모은 가격을 사용하므로 \"가격 없음\"인 재료가 줄어듭니다."
+
+-- Buy list: Auction House price steps, Check Prices (Shop.lua, Prices.lua)
+L["Check Prices"] = "가격 확인"
+L["Checking prices: %d of %d"] = "가격 확인 중: %d/%d"
+L["Prices checked %s"] = "가격 확인: %s"
+L["Reads how many are for sale at each price."] = "가격별 판매 수량을 읽습니다."
+L["only %d for sale"] = "판매 중 %d개뿐"
+L["None for sale"] = "판매 중인 물품 없음"
+L["AH about %s"] = "경매장 약 %s"
+L["On the AH: about %s"] = "경매장: 약 %s"
+L["%d at %s each"] = "%d개, 개당 %s"
+L["and %d more step"] = "그 외 가격대 %d개"
+L["and %d more steps"] = "그 외 가격대 %d개"
+L["Average: %s each"] = "평균: 개당 %s"
+
+-- 2.7.0: What's New
+L["Buy List: Check Prices at the Auction House reads how many are for sale at each price, so a row shows what the amount you need really costs."] = "구매 목록: 경매장의 가격 확인이 가격대별 판매 수량을 읽어, 필요한 수량의 실제 비용을 줄에 보여 줍니다."
+L["Buy List: when a vendor also sells an item, the Auction House row asks only for the cheaper units and the vendor's list for the rest."] = "구매 목록: 상인도 파는 아이템은 경매장 줄에서 더 싼 수량만, 상인 목록에서 나머지를 요청합니다."

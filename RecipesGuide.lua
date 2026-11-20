@@ -37,6 +37,10 @@ local function Get(key) return ns.Get and ns.Get(key) end
 local function Parts() return ns.Window and ns.Window.TourParts and ns.Window.TourParts() or {} end
 
 local NEWS = {
+	{ version = "2.7.0", lines = {
+		L["Buy List: Check Prices at the Auction House reads how many are for sale at each price, so a row shows what the amount you need really costs."],
+		L["Buy List: when a vendor also sells an item, the Auction House row asks only for the cheaper units and the vendor's list for the rest."],
+	} },
 	{ version = "2.6.0", lines = {
 		L["Buy List: two lists, Queue List and Guide List, picked with the tabs under its title, and profession tags when it covers more than one profession."],
 		L["Buy List: each place shows only what is cheapest there. A line under the list brings the rest back."],

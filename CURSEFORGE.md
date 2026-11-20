@@ -29,6 +29,11 @@ Drag a cheap item into the slot and level on it: enchant after enchant, with the
 ## Around the game
 Item tooltips (what uses a material, what your guides need of it, and for a recipe who on your account knows it and who could learn it, in class colors, with the skill still needed; only this character's guides), and trainer reminders in chat when a skill-up opens new recipes or you reach your rank's cap.
 
+## New in 2.7.0
+- **Check Prices:** a button on the Auction House Buy List reads how many are for sale at each price for everything on the list. A row then shows what the amount you need really costs (not the amount times the lowest price), says "only N for sale" when there aren't enough, and its tooltip lists the price steps. Until checked, a row says "about".
+- **Vendor split:** when a vendor also sells an item, the Auction House row asks only for the units cheaper than the vendor, and the vendor's Buy List asks for the rest.
+- **Leveling Guide:** material costs, step costs and the route total follow the checked prices.
+
 ## New in 2.6.0
 - **Buy List, two lists:** Queue List and Guide List, picked with the tabs under its title, plus profession tags when the list covers more than one profession.
 - **Only what is cheapest where you are:** at the Auction House the list leaves out what a vendor sells for less, and the other way round at a vendor. A line under the list brings the rest back.

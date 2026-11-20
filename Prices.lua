@@ -6,6 +6,12 @@
 -- pages asked for as the server allows, the results gone through a few hundred a frame. Only items
 -- recipes use, make or disenchant into are kept (lowest buyout and when it was seen), per realm and
 -- faction.
+-- Price steps: besides the lowest price, an item's whole ladder as last seen, "4 at 11s 75c, 51 at
+-- 12s...", cheapest first (Prices.Steps), so a purchase of many is costed by what's really for sale
+-- (Calc.AHCost). Read from every search result that passes while the Auction House is open, and
+-- from "Check Prices" on the Auction House's buy list (Prices.Check: one search an item, one at a
+-- time). Kept for the session only and trusted for FRESH seconds: a ladder changes with every
+-- purchase and undercut, so one from an earlier session would be wrong more often than right.
 local _, ns = ...
 if not ns.ok then return end
 local L = ns.L
@@ -88,6 +94,8 @@ function Prices.Quantity(itemID)
 	if not row or time() - (row.t or 0) > STALE then return nil end
 	return row.q
 end
+
+local Touched             -- (below) prices changed: what's drawn from them is drawn again
 
 -- ---------------------------------------------------------------------------------------------
 -- Daylight UI's prices
@@ -191,12 +199,38 @@ function Prices.Has()
 	return ok and type(n) == "number" and n > 0 or false
 end
 
--- Its prices changed (a scan's batch): everything worked out from prices is worked out again.
-local function DaylightChanged()
-	if ns.Calc then ns.Calc.Forget() end
+-- Prices changed (Daylight UI's, a scan's batch or a search of its; a price ladder read): what's
+-- worked out from prices is forgotten now, which costs nothing until someone asks, and the buy
+-- lists follow at once. The Leveling Guide, whose route is the costly part, is worked out and
+-- drawn again once things have been quiet for half a second, and not at all while a check of
+-- prices runs: once, when it ends (now = true).
+local later = false
+local function Redraw()
+	later = false
+	if Prices.Checking() then return end
 	if ns.Plan and ns.Plan.Forget then ns.Plan.Forget() end
 	if ns.ShowingPlan() then ns.Changed() end
 end
+local quietAt = 0
+local function Wait()
+	local left = quietAt - GetTime()
+	if left > 0.01 then
+		C_Timer.After(left, Wait)
+	else
+		Redraw()
+	end
+end
+function Touched(now)
+	if ns.Calc then ns.Calc.Forget() end
+	if ns.Shop then ns.Shop.Refresh() end
+	if now then return Redraw() end
+	quietAt = GetTime() + 0.5
+	if later then return end
+	later = true
+	C_Timer.After(0.5, Wait)
+end
+
+local function DaylightChanged() Touched() end
 
 local function HearDaylight()
 	local D = _G.DaylightUI
@@ -204,6 +238,306 @@ local function HearDaylight()
 	local ok, mod = pcall(D.GetModule, D, "AuctionHouse")
 	local m = ok and type(mod) == "table" and mod.ns or nil
 	if type(m) == "table" and type(m.On) == "function" then pcall(m.On, "PricesChanged", DaylightChanged) end
+end
+
+-- ---------------------------------------------------------------------------------------------
+-- Price steps
+-- ---------------------------------------------------------------------------------------------
+
+-- A ladder is believed this long. Long enough to check prices, walk the list and buy; short enough
+-- that the list doesn't cost a purchase by auctions that were sold a while ago. Past it the buy
+-- list goes back to "about": the lowest price times the count.
+local FRESH = 15 * 60
+
+local steps = {}          -- realm key -> itemID -> { at, list = { { q, p }, ... } cheapest first, full }
+
+local function Ladders()
+	local key = ns.Store.RealmKey()
+	local t = steps[key]
+	if not t then
+		t = {}
+		steps[key] = t
+	end
+	return t
+end
+
+-- An item's steps as last read, when that was no longer than FRESH ago:
+-- { at = time(), list = { { q = how many, p = copper each }, ... }, full = the whole ladder was read }.
+-- An empty list: none were for sale. nil: not read, or too long ago.
+function Prices.Steps(itemID)
+	local e = Ladders()[itemID]
+	if not e or time() - e.at > FRESH then return nil end
+	return e
+end
+
+-- Keeps an item's steps: rows = { { q, p }, ... } in any order (rows of one price are joined).
+function Prices.SetSteps(itemID, rows, full)
+	if type(itemID) ~= "number" or type(rows) ~= "table" or not Wanted()[itemID] then return end
+	local list = {}
+	for _, r in ipairs(rows) do
+		local q, price = tonumber(r.q), tonumber(r.p)
+		if q and price and q > 0 and price > 0 then list[#list + 1] = { q = q, p = price } end
+	end
+	table.sort(list, function(a, b) return a.p < b.p end)
+	local joined = {}
+	for _, r in ipairs(list) do
+		local last = joined[#joined]
+		if last and last.p == r.p then last.q = last.q + r.q else joined[#joined + 1] = r end
+	end
+	Ladders()[itemID] = { at = time(), list = joined, full = full ~= false }
+	-- (The lowest price kept between sessions follows: the first step's.)
+	if joined[1] then Seen(itemID, joined[1].p, Book().items, time()) end
+	Touched()
+end
+
+-- `count` of an item bought just now: gone from its cheapest steps (what a purchase takes).
+function Prices.Took(itemID, count)
+	local e = Ladders()[itemID]
+	if not e or type(count) ~= "number" then return end
+	while count > 0 and e.list[1] do
+		local first = e.list[1]
+		if first.q > count then
+			first.q = first.q - count
+			count = 0
+		else
+			count = count - first.q
+			table.remove(e.list, 1)
+		end
+	end
+	Touched()
+end
+
+-- A commodity's search result, every row (GetNumCommoditySearchResults /
+-- GetCommoditySearchResultInfo, AuctionHouseDocumentation.lua:504-517, :240-254; a row is
+-- { quantity, unitPrice, numOwnerItems, containsOwnerItem, ... } :1620-1634). What's the player's
+-- own in a row (numOwnerItems) is left out: it can't be bought.
+local function ReadCommodity(itemID)
+	local count, get = C_AuctionHouse.GetNumCommoditySearchResults, C_AuctionHouse.GetCommoditySearchResultInfo
+	if type(count) ~= "function" or type(get) ~= "function" or type(itemID) ~= "number" then return end
+	local ok, n = pcall(count, itemID)
+	if not ok or type(n) ~= "number" then return end
+	local rows = {}
+	for i = 1, n do
+		local got, r = pcall(get, itemID, i)
+		if got and type(r) == "table" and type(r.unitPrice) == "number" and type(r.quantity) == "number" then
+			local own = r.containsOwnerItem and tonumber(r.numOwnerItems) or 0
+			rows[#rows + 1] = { q = r.quantity - math.min(own, r.quantity), p = r.unitPrice }
+		end
+	end
+	local full = true
+	if type(C_AuctionHouse.HasFullCommoditySearchResults) == "function" then
+		local got, all = pcall(C_AuctionHouse.HasFullCommoditySearchResults, itemID)
+		if got and all == false then full = false end
+	end
+	Prices.SetSteps(itemID, rows, full)
+end
+
+-- An item search's result (auctions of single items, :374-388; a row is { quantity, buyoutAmount,
+-- containsOwnerItem, ... } :1665-1684): each auction with a buyout that isn't the player's own is
+-- a step of its quantity at its buyout (the price of one).
+local function ReadItem(itemKey)
+	local count, get = C_AuctionHouse.GetNumItemSearchResults, C_AuctionHouse.GetItemSearchResultInfo
+	if type(count) ~= "function" or type(get) ~= "function" or type(itemKey) ~= "table" or not itemKey.itemID then return end
+	local ok, n = pcall(count, itemKey)
+	if not ok or type(n) ~= "number" then return end
+	local rows = {}
+	for i = 1, n do
+		local got, r = pcall(get, itemKey, i)
+		if got and type(r) == "table" and type(r.buyoutAmount) == "number" and r.buyoutAmount > 0
+			and r.containsOwnerItem ~= true then
+			rows[#rows + 1] = { q = tonumber(r.quantity) or 1, p = r.buyoutAmount }
+		end
+	end
+	local full = true
+	if type(C_AuctionHouse.HasFullItemSearchResults) == "function" then
+		local got, all = pcall(C_AuctionHouse.HasFullItemSearchResults, itemKey)
+		if got and all == false then full = false end
+	end
+	Prices.SetSteps(itemKey.itemID, rows, full)
+end
+
+-- ---------------------------------------------------------------------------------------------
+-- "Check Prices": the steps of a list of items, one search each, one at a time
+-- ---------------------------------------------------------------------------------------------
+-- The game takes one Auction House message at a time (C_AuctionHouse.IsThrottledMessageSystemReady,
+-- :825-832) and 100 searches a minute (SendSearchQuery's note, :1031-1044; it is not a
+-- hardware-only call: no HasRestrictions on it, unlike PlaceBid or StartCommoditiesPurchase).
+--
+-- With Daylight UI's own Auction House running, every request of its goes through its one line
+-- (DaylightUI_AuctionHouse\AH.lua:1-58: one in flight, first in first out, sent only when the
+-- game is ready, the searches counted against the 100 a minute). A search of ours sent beside that
+-- line would take the game's one slot from under it. So ours go through it: its
+-- ns.Search.Item(itemID, done) (Search.lua:1-33, :413-435) queues a search on that line, waits for
+-- the item's key, reads every page and answers done(rows, reason, auctions), auctions being the
+-- raw rows cheapest first, a commodity's { unit, qty, own } per price, an item's { unit (0: bid
+-- only), qty, own } (Search.lua:192-232). Its Buy page shows only what its own calls answered
+-- (each caller gets its own copy of the rows, Search.lua:111-129), so a search of ours changes
+-- nothing on it. Not part of Daylight UI's API: every step is checked and wrapped, and without it
+-- the game is asked directly, as below.
+--
+-- Without it (the game's own window, a Daylight UI before 2.0): SendSearchQuery(MakeItemKey(id),
+-- price order, false) once the game says it is ready and knows the item's key (it ignores a search
+-- for a key it has no info on: GetItemKeyInfo first, as Daylight UI found, Search.lua:36-40); the
+-- answer is COMMODITY_SEARCH_RESULTS_UPDATED(itemID) or ITEM_SEARCH_RESULTS_UPDATED(itemKey), read
+-- by the same code as any other search result. The game's window doesn't change what it shows for
+-- a result it didn't ask for: its frame only clears width caches (Blizzard_AuctionHouseFrame.lua:
+-- 422-432) and an open price list draws its own item again (Blizzard_AuctionHouseCommoditiesList
+-- .lua:46-55).
+--
+-- Never while a purchase is being made (ours heard through Shop.Buying, Daylight UI's
+-- ns.Buy.Pending(), Buy.lua:101, the game's buy dialog or buyout question up), never with
+-- DaylightMogul owning the Auction House, and it ends when the window closes.
+local GAP = 0.7            -- seconds between two searches of ours (the game's limit is 100 a minute)
+local ANSWER = 8           -- seconds an answer is waited for before the next item is asked
+local run                  -- { ids, at, total, token, onChange }
+local ahOpen = false       -- (also the full scan's, below)
+
+local function DaylightHouse()
+	local D = _G.DaylightUI
+	if type(D) ~= "table" or D.ahMogul == true or type(D.GetModule) ~= "function" then return nil end
+	local ok, mod = pcall(D.GetModule, D, "AuctionHouse")
+	if not ok or type(mod) ~= "table" or mod.enabled ~= true or type(mod.ns) ~= "table" then return nil end
+	return mod.ns
+end
+
+-- Whether something is being bought right now: nothing is asked of the Auction House then.
+local function Buying()
+	if ns.Shop and ns.Shop.Buying and ns.Shop.Buying() then return true end
+	local m = DaylightHouse()
+	if m and type(m.Buy) == "table" and type(m.Buy.Pending) == "function" then
+		local ok, kind = pcall(m.Buy.Pending)
+		if ok and kind ~= nil then return true end
+	end
+	local f = _G.AuctionHouseFrame
+	local dialog = type(f) == "table" and f.BuyDialog
+	if type(dialog) == "table" and dialog.IsShown and dialog:IsShown() then return true end
+	local visible = _G.StaticPopup_Visible
+	if type(visible) == "function" then
+		local ok, shown = pcall(visible, "BUYOUT_AUCTION")
+		if ok and shown then return true end
+	end
+	return false
+end
+
+function Prices.CanCheck()
+	return ahOpen and not Prices.Mogul() and C_AuctionHouse ~= nil and ns.Get("useAH") and true or false
+end
+
+-- done, total while a check runs; nil otherwise.
+function Prices.Checking()
+	if not run then return nil end
+	return run.at - 1, run.total
+end
+
+local function Told()
+	if run and run.onChange then pcall(run.onChange) end
+end
+
+function Prices.StopCheck()
+	if not run then return end
+	local was = run
+	run = nil
+	Touched(true)
+	if was.onChange then pcall(was.onChange) end
+end
+
+local Next
+
+-- One item answered (or given up on): on to the next, a moment later.
+local function Advance(token, wait)
+	if not run or run.token ~= token then return end
+	run.at = run.at + 1
+	run.token = run.token + 1
+	run.waiting, run.tries = nil, 0
+	Told()
+	C_Timer.After(wait or 0, Next)
+end
+
+-- What Daylight UI's search answered, as steps.
+local function FromDaylight(itemID, rows, auctions)
+	if rows == nil then return end           -- (failed: closed, timeout, uncached... not known)
+	local list = {}
+	for _, a in ipairs(type(auctions) == "table" and auctions or {}) do
+		local unit, qty, own = tonumber(a.unit), tonumber(a.qty), tonumber(a.own) or 0
+		if unit and qty and unit > 0 and qty - own > 0 then list[#list + 1] = { q = qty - own, p = unit } end
+	end
+	Prices.SetSteps(itemID, list, true)
+end
+
+function Next()
+	if not run then return end
+	if not ahOpen or not Prices.CanCheck() then return Prices.StopCheck() end
+	local itemID = run.ids[run.at]
+	if not itemID then return Prices.StopCheck() end
+	if Buying() then
+		C_Timer.After(0.5, Next)
+		return
+	end
+	local token = run.token
+	local m = DaylightHouse()
+	if m and type(m.Search) == "table" and type(m.Search.Item) == "function" then
+		-- (Its line: it waits its turn there, and its answer comes here, once.)
+		local ok = pcall(m.Search.Item, itemID, function(rows, _, auctions)
+			if not run or run.token ~= token then return end
+			FromDaylight(itemID, rows, auctions)
+			Advance(token, 0)
+		end)
+		if not ok then Advance(token, 0) end
+		return
+	end
+	-- The game asked directly. (Daylight UI's line there but not its search: only while it's idle.)
+	if m and type(m.AH) == "table" and type(m.AH.Busy) == "function" then
+		local ok, busy = pcall(m.AH.Busy)
+		if ok and busy then
+			C_Timer.After(0.5, Next)
+			return
+		end
+	end
+	local ready = C_AuctionHouse.IsThrottledMessageSystemReady
+	if type(ready) == "function" and not ready() then
+		C_Timer.After(0.3, Next)
+		return
+	end
+	if type(C_AuctionHouse.MakeItemKey) ~= "function" or type(C_AuctionHouse.SendSearchQuery) ~= "function" then
+		return Prices.StopCheck()
+	end
+	local made, key = pcall(C_AuctionHouse.MakeItemKey, itemID)
+	if not made or type(key) ~= "table" then return Advance(token, 0) end
+	if type(C_AuctionHouse.GetItemKeyInfo) == "function" then
+		local got, info = pcall(C_AuctionHouse.GetItemKeyInfo, key)
+		if not got or info == nil then
+			-- (Asked for by that call: looked at again shortly, a few times, then passed over.)
+			run.tries = (run.tries or 0) + 1
+			if run.tries > 10 then return Advance(token, 0) end
+			C_Timer.After(0.3, Next)
+			return
+		end
+	end
+	local order = Enum and Enum.AuctionHouseSortOrder and Enum.AuctionHouseSortOrder.Price
+	local sorts = order and { { sortOrder = order, reverseSort = false } } or {}
+	if not pcall(C_AuctionHouse.SendSearchQuery, key, sorts, false) then return Advance(token, 0) end
+	run.waiting = itemID
+	C_Timer.After(ANSWER, function() Advance(token, 0) end)
+end
+
+-- Reads the steps of every item in ids ({ itemID, ... }), in order. onChange() after each one and
+-- when it ends (for the panel's "Checking prices: 3 of 12"). False when it can't start.
+function Prices.Check(ids, onChange)
+	if run or not Prices.CanCheck() or type(ids) ~= "table" or #ids == 0 then return false end
+	local list = {}
+	for _, itemID in ipairs(ids) do
+		if type(itemID) == "number" then list[#list + 1] = itemID end
+	end
+	if #list == 0 then return false end
+	run = { ids = list, at = 1, total = #list, token = 1, tries = 0, onChange = onChange }
+	Told()
+	Next()
+	return true
+end
+
+-- A search result came for an item (ours or anyone's): when it's the one a check waits for, on.
+local function Answered(itemID)
+	if run and run.waiting == itemID then Advance(run.token, GAP) end
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -247,7 +581,7 @@ end
 -- The full scan
 -- ---------------------------------------------------------------------------------------------
 
-local ahOpen, scanning = false, false
+local scanning = false
 local firstRead = false   -- a scan's first page has been read
 
 -- (Not while Daylight UI's own Auction House window is the one in use and its prices are read:
@@ -350,8 +684,9 @@ f:SetScript("OnEvent", function(self, event, arg)
 		if ns.ShowingPlan() then ns.Changed() end
 	elseif event == "AUCTION_HOUSE_CLOSED" then
 		ahOpen, scanning = false, false
+		Prices.StopCheck()
 		-- (What Daylight UI saw in its searches this visit is read from here on.)
-		if Prices.Daylight() then DaylightChanged() end
+		if Prices.Daylight() then Touched(true) end
 	elseif event == "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED" or event == "AUCTION_HOUSE_BROWSE_RESULTS_ADDED" then
 		-- (An answer came: the watch on the last request stands down.)
 		if scanning then
@@ -371,26 +706,12 @@ f:SetScript("OnEvent", function(self, event, arg)
 		Queue(arg)
 		if scanning then C_Timer.After(0.1, More) end
 	elseif event == "COMMODITY_SEARCH_RESULTS_UPDATED" then
-		local get = C_AuctionHouse.GetCommoditySearchResultInfo
-		local info = get and arg and get(arg, 1)
-		if info and info.unitPrice then
-			Seen(arg, info.unitPrice, Book().items, time())
-			if ns.Calc then ns.Calc.Forget() end
-		end
+		-- (Every row, not the first alone: the whole ladder, and its first step the lowest price.)
+		ReadCommodity(arg)
+		Answered(arg)
 	elseif event == "ITEM_SEARCH_RESULTS_UPDATED" then
-		-- (The rows follow your sort and some are bids only: the lowest buyout among them.)
-		local get, count = C_AuctionHouse.GetItemSearchResultInfo, C_AuctionHouse.GetNumItemSearchResults
-		if get and count and type(arg) == "table" and arg.itemID then
-			local best
-			for i = 1, count(arg) or 0 do
-				local info = get(arg, i)
-				local buy = info and info.buyoutAmount
-				if buy and buy > 0 and (not best or buy < best) then best = buy end
-			end
-			if best then
-				Seen(arg.itemID, best, Book().items, time())
-				if ns.Calc then ns.Calc.Forget() end
-			end
-		end
+		-- (The rows follow your sort and some are bids only: the buyouts, sorted here.)
+		ReadItem(arg)
+		if type(arg) == "table" then Answered(arg.itemID) end
 	end
 end)

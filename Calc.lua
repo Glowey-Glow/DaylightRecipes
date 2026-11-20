@@ -233,13 +233,102 @@ function Calc.Vendor(itemID)
 	if v then return v.unit, v.who end
 end
 
+-- An item's price steps on the Auction House as last read, while they're fresh (Prices.Steps):
+-- { at, list = { { q, p }, ... } cheapest first, full }, an empty list when none were for sale.
+-- nil when not read lately, with Auction House prices off, or with DaylightMogul's prices in use
+-- (it gives one price an item, no steps).
+function Calc.Steps(itemID)
+	if not ns.Get("useAH") or not ns.Prices or not ns.Prices.Steps then return nil end
+	if ns.Prices.Mogul() then return nil end
+	return ns.Prices.Steps(itemID)
+end
+
+-- What buying n of an item on the Auction House costs, walking its steps cheapest first:
+--   cost     copper for the ones the steps cover
+--   covered  how many of n that is (less than n: not that many for sale, or not below `below`)
+--   known    whether steps were known (false: cost and covered are nil)
+--   used     the steps the purchase takes, { { q, p }, ... }
+-- below: only steps cheaper than this (a vendor's price for one: dearer steps aren't worth buying).
+-- skip: this many of the cheapest are taken already (the route's earlier steps).
+function Calc.AHCost(itemID, n, below, skip)
+	local steps = Calc.Steps(itemID)
+	if not steps then return nil, nil, false end
+	local cost, covered, used = 0, 0, {}
+	local left, over = max(0, n or 0), max(0, skip or 0)
+	for _, s in ipairs(steps.list) do
+		if left <= 0 or (below and s.p >= below) then break end
+		local q = s.q
+		if over > 0 then
+			local gone = min(over, q)
+			over, q = over - gone, q - gone
+		end
+		if q > 0 then
+			local take = min(left, q)
+			cost = cost + take * s.p
+			covered, left = covered + take, left - take
+			used[#used + 1] = { q = take, p = s.p }
+		end
+	end
+	return floor(cost + 0.5), covered, true, used
+end
+
+-- Where n of an item are best bought, with its steps known: how many on the Auction House (the
+-- ones cheaper than the cheapest vendor, as far as they go), how many from a vendor (the rest,
+-- when one sells it), and true. With no vendor all n are the Auction House's, for sale or not.
+-- Steps not known: nil, nil, false (Calc.Unit's one answer for the item stands).
+function Calc.Split(itemID, n)
+	local steps = Calc.Steps(itemID)
+	if not steps then return nil, nil, false end
+	local vendor = Calc.Vendor(itemID)
+	if not vendor then return n, 0, true end
+	local _, covered = Calc.AHCost(itemID, n, vendor)
+	return covered, n - covered, true
+end
+
+-- What n of an item cost bought the cheapest way, and whether that is exact (worked out from
+-- fresh steps) or the old estimate, n times Calc.Unit's price. With steps: the Auction House's
+-- ones cheaper than a vendor, the rest at the vendor's price; with no vendor, what isn't for sale
+-- is counted at the dearest step read (then not exact). nil when the item has no price.
+-- skip: as Calc.AHCost's.
+function Calc.BuyCost(itemID, n, skip)
+	local vendor = Calc.Vendor(itemID)
+	local cost, covered, known, used = Calc.AHCost(itemID, n, vendor, skip)
+	if not known then
+		local unit = Calc.Unit(itemID)
+		if not unit then return nil, false end
+		return floor(unit * n + 0.5), false
+	end
+	local rest = n - covered
+	if rest <= 0 then return cost, true end
+	if vendor then return floor(cost + rest * vendor + 0.5), true end
+	local last = used[#used] and used[#used].p
+	if not last then
+		local steps = Calc.Steps(itemID)
+		local top = steps.list[#steps.list]
+		last = top and top.p or Calc.AH(itemID)
+	end
+	if not last then return nil, false end
+	return floor(cost + rest * last + 0.5), false
+end
+
 -- The cheaper of the two: unit, "ah" | "vendor", the vendor's name.
--- (A vendor wins over an Auction House a little cheaper but nearly sold out: a route needs more than
--- a handful, and the vendor always has them.)
+-- With the item's steps known they decide: the Auction House when its cheapest step is under the
+-- vendor's price (how many that holds for is Calc.Split's to say), else the vendor.
+-- Without them: a vendor wins over an Auction House a little cheaper but nearly sold out (a route
+-- needs more than a handful, and the vendor always has them).
 local THIN = 10
 function Calc.Unit(itemID)
 	local vendor, who = Calc.Vendor(itemID)
 	local ah = Calc.AH(itemID)
+	local steps = Calc.Steps(itemID)
+	if steps then
+		local first = steps.list[1]
+		if first and (not vendor or first.p < vendor) then return first.p, "ah" end
+		if vendor then return vendor, "vendor", who end
+		-- (None for sale and no vendor: the last price seen, as before.)
+		if ah then return ah, "ah" end
+		return nil
+	end
 	if ah and vendor and ah < vendor and ns.Prices and ns.Prices.Quantity then
 		local q = ns.Prices.Quantity(itemID)
 		if q and q < THIN then ah = nil end

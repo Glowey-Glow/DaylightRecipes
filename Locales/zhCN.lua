@@ -584,3 +584,21 @@ L["Buy List: two lists, Queue List and Guide List, picked with the tabs under it
 L["Buy List: each place shows only what is cheapest there. A line under the list brings the rest back."] = "购买清单：每个地点只显示在那里最便宜的物品。清单下方的一行可以找回其余的。"
 L["Buy List: hold Shift over a row and Shift-click to remove it. What you buy on the Auction House comes off the list right away."] = "购买清单：在某一行上按住 Shift 并 Shift 点击即可移除。在拍卖行买到的会立刻从清单中扣除。"
 L["Prices: with Daylight UI's Auction House, the prices it has already collected are used, so fewer materials say \"No price\"."] = "价格：使用 Daylight UI 拍卖行已收集的价格，因此显示“无价格”的材料更少。"
+
+-- Buy list: Auction House price steps, Check Prices (Shop.lua, Prices.lua)
+L["Check Prices"] = "检查价格"
+L["Checking prices: %d of %d"] = "正在检查价格：%d/%d"
+L["Prices checked %s"] = "价格检查于%s"
+L["Reads how many are for sale at each price."] = "读取每个价格的在售数量。"
+L["only %d for sale"] = "仅有%d个在售"
+L["None for sale"] = "无在售"
+L["AH about %s"] = "拍卖行约%s"
+L["On the AH: about %s"] = "拍卖行：约%s"
+L["%d at %s each"] = "%d个，每个%s"
+L["and %d more step"] = "另有%d个价位"
+L["and %d more steps"] = "另有%d个价位"
+L["Average: %s each"] = "平均：每个%s"
+
+-- 2.7.0: What's New
+L["Buy List: Check Prices at the Auction House reads how many are for sale at each price, so a row shows what the amount you need really costs."] = "购买清单：拍卖行的“检查价格”会读取每个价位的在售数量，使每行显示所需数量的真实花费。"
+L["Buy List: when a vendor also sells an item, the Auction House row asks only for the cheaper units and the vendor's list for the rest."] = "购买清单：当商人也出售某物品时，拍卖行一行只要求更便宜的部分，其余由商人清单要求。"

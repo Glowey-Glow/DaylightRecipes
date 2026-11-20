@@ -1,5 +1,12 @@
 # Glowey's Recipes (DaylightUI Plugin)
 
+## 2.7.0
+- New: the Buy List costs an Auction House purchase by what is really for sale. When an item's prices are known step by step ("4 at 11s 75c, 51 at 12s..."), the row's cost walks those steps, cheapest first, for the number you need, instead of the number times the lowest price. With fewer for sale than you need the row says so ("only 40 for sale") and costs what is there. The row's tooltip lists the steps your purchase would take, the average for one, and when the prices were read.
+- New: Check Prices, a button on the Auction House Buy List. It asks the Auction House for the price steps of every item on the list shown, one after another ("Checking prices: 3 of 12"); press it again (Stop) to end it, and it ends by itself when the window closes or you change the list. Any search you make yourself, a click on a row included, reads that item's steps too. Steps are trusted for 15 minutes; a cost worked out without them reads "about".
+- New: where a vendor also sells an item, the Auction House Buy List asks only for the ones that are cheaper than the vendor, and the vendor's Buy List for the rest, so the two together ask for exactly what you need.
+- The Leveling Guide's Materials ("To buy" and each material's cost), each step's cost and the route's total use the same step-by-step prices when they are known. Which recipes the route picks is still decided on one price an item.
+- Controller support: Check Prices / Stop is a stop for the D-pad.
+
 ## 2.6.0
 - Fixed: in the Leveling Guide, an "Or Instead" recipe with a material that has no price showed a cost of 100,000 gold or more a point ("200000 gold a point"). That figure was only the guide's own weight for ranking unpriced recipes last, never a price. Such a recipe now says "no price".
 - New: with Daylight UI 2.0 or later and its Auction House on, Glowey's Recipes reads the prices Daylight UI has already collected (its searches and its Full scan), so materials no longer stand at "No price" when Daylight UI knows them. The newer of its price and yours is used; nothing of Daylight UI's is changed. The guide says "Auction House prices from Daylight UI" and when they were read, and its own Scan Auction House Prices button is left out while Daylight UI's window is the one in use (scan from that window instead). Without Daylight UI's Auction House, or with DaylightMogul, prices work as before.

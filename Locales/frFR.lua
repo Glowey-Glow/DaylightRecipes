@@ -584,3 +584,21 @@ L["Buy List: two lists, Queue List and Guide List, picked with the tabs under it
 L["Buy List: each place shows only what is cheapest there. A line under the list brings the rest back."] = "Liste d'achats : chaque lieu ne montre que ce qui y est le moins cher. Une ligne sous la liste ramène le reste."
 L["Buy List: hold Shift over a row and Shift-click to remove it. What you buy on the Auction House comes off the list right away."] = "Liste d'achats : maintenez Maj sur une ligne et faites Maj-clic pour la retirer. Ce que vous achetez à l'hôtel des ventes quitte la liste aussitôt."
 L["Prices: with Daylight UI's Auction House, the prices it has already collected are used, so fewer materials say \"No price\"."] = "Prix : avec l'hôtel des ventes de Daylight UI, les prix qu'il a déjà relevés sont utilisés, donc moins de matériaux affichent \"Aucun prix\"."
+
+-- Buy list: Auction House price steps, Check Prices (Shop.lua, Prices.lua)
+L["Check Prices"] = "Vérifier les prix"
+L["Checking prices: %d of %d"] = "Vérification des prix : %d sur %d"
+L["Prices checked %s"] = "Prix vérifiés %s"
+L["Reads how many are for sale at each price."] = "Lit combien sont en vente à chaque prix."
+L["only %d for sale"] = "seulement %d en vente"
+L["None for sale"] = "Aucun en vente"
+L["AH about %s"] = "HV environ %s"
+L["On the AH: about %s"] = "À l'HV : environ %s"
+L["%d at %s each"] = "%d à %s pièce"
+L["and %d more step"] = "et %d autre palier de prix"
+L["and %d more steps"] = "et %d autres paliers de prix"
+L["Average: %s each"] = "Moyenne : %s pièce"
+
+-- 2.7.0: What's New
+L["Buy List: Check Prices at the Auction House reads how many are for sale at each price, so a row shows what the amount you need really costs."] = "Liste d'achats : Vérifier les prix à l'hôtel des ventes lit combien sont en vente à chaque prix, pour qu'une ligne montre ce que coûte vraiment la quantité nécessaire."
+L["Buy List: when a vendor also sells an item, the Auction House row asks only for the cheaper units and the vendor's list for the rest."] = "Liste d'achats : quand un marchand vend aussi un objet, la ligne de l'hôtel des ventes ne demande que les unités moins chères et la liste du marchand le reste."

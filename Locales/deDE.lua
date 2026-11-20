@@ -584,3 +584,21 @@ L["Buy List: two lists, Queue List and Guide List, picked with the tabs under it
 L["Buy List: each place shows only what is cheapest there. A line under the list brings the rest back."] = "Einkaufsliste: jeder Ort zeigt nur, was dort am günstigsten ist. Eine Zeile unter der Liste holt den Rest zurück."
 L["Buy List: hold Shift over a row and Shift-click to remove it. What you buy on the Auction House comes off the list right away."] = "Einkaufsliste: Umschalt über einer Zeile halten und Umschalt-Klick, um sie zu entfernen. Was Ihr im Auktionshaus kauft, verschwindet sofort von der Liste."
 L["Prices: with Daylight UI's Auction House, the prices it has already collected are used, so fewer materials say \"No price\"."] = "Preise: mit dem Auktionshaus von Daylight UI werden die Preise genutzt, die es bereits gesammelt hat, sodass weniger Materialien \"Kein Preis\" anzeigen."
+
+-- Buy list: Auction House price steps, Check Prices (Shop.lua, Prices.lua)
+L["Check Prices"] = "Preise prüfen"
+L["Checking prices: %d of %d"] = "Preise werden geprüft: %d von %d"
+L["Prices checked %s"] = "Preise geprüft %s"
+L["Reads how many are for sale at each price."] = "Liest, wie viele zu welchem Preis angeboten werden."
+L["only %d for sale"] = "nur %d im Angebot"
+L["None for sale"] = "Keine im Angebot"
+L["AH about %s"] = "AH etwa %s"
+L["On the AH: about %s"] = "Im AH: etwa %s"
+L["%d at %s each"] = "%d zu je %s"
+L["and %d more step"] = "und %d weitere Preisstufe"
+L["and %d more steps"] = "und %d weitere Preisstufen"
+L["Average: %s each"] = "Durchschnitt: %s pro Stück"
+
+-- 2.7.0: What's New
+L["Buy List: Check Prices at the Auction House reads how many are for sale at each price, so a row shows what the amount you need really costs."] = "Einkaufsliste: Preise prüfen im Auktionshaus liest, wie viele zu jedem Preis angeboten werden, sodass eine Zeile zeigt, was die benötigte Menge wirklich kostet."
+L["Buy List: when a vendor also sells an item, the Auction House row asks only for the cheaper units and the vendor's list for the rest."] = "Einkaufsliste: verkauft auch ein Händler einen Gegenstand, fragt die Auktionshaus-Zeile nur nach den günstigeren Einheiten und die Händlerliste nach dem Rest."

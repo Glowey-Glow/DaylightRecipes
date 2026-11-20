@@ -584,3 +584,21 @@ L["Buy List: two lists, Queue List and Guide List, picked with the tabs under it
 L["Buy List: each place shows only what is cheapest there. A line under the list brings the rest back."] = "Lista de compra: cada lugar muestra solo lo que es más barato allí. Una línea bajo la lista recupera el resto."
 L["Buy List: hold Shift over a row and Shift-click to remove it. What you buy on the Auction House comes off the list right away."] = "Lista de compra: mantén Mayús sobre una fila y haz Mayús-clic para quitarla. Lo que compras en la Casa de subastas sale de la lista al instante."
 L["Prices: with Daylight UI's Auction House, the prices it has already collected are used, so fewer materials say \"No price\"."] = "Precios: con la Casa de subastas de Daylight UI se usan los precios que ya ha recogido, así menos materiales dicen \"Sin precio\"."
+
+-- Buy list: Auction House price steps, Check Prices (Shop.lua, Prices.lua)
+L["Check Prices"] = "Comprobar precios"
+L["Checking prices: %d of %d"] = "Comprobando precios: %d de %d"
+L["Prices checked %s"] = "Precios comprobados %s"
+L["Reads how many are for sale at each price."] = "Lee cuántos hay a la venta a cada precio."
+L["only %d for sale"] = "solo %d a la venta"
+L["None for sale"] = "Ninguno a la venta"
+L["AH about %s"] = "CS unos %s"
+L["On the AH: about %s"] = "En la CS: unos %s"
+L["%d at %s each"] = "%d a %s cada uno"
+L["and %d more step"] = "y %d escalón de precio más"
+L["and %d more steps"] = "y %d escalones de precio más"
+L["Average: %s each"] = "Media: %s cada uno"
+
+-- 2.7.0: What's New
+L["Buy List: Check Prices at the Auction House reads how many are for sale at each price, so a row shows what the amount you need really costs."] = "Lista de compra: Comprobar precios en la Casa de subastas lee cuántos hay a la venta a cada precio, así una fila muestra lo que cuesta de verdad la cantidad que necesitas."
+L["Buy List: when a vendor also sells an item, the Auction House row asks only for the cheaper units and the vendor's list for the rest."] = "Lista de compra: cuando un vendedor también vende un objeto, la fila de la Casa de subastas pide solo las unidades más baratas y la lista del vendedor el resto."

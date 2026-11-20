@@ -587,7 +587,10 @@ local function Shopping(route)
 				vendor = kind == "vendor" and who or nil, makers = Plan.MadeBy(itemID) }
 			if buy > 0 then
 				if unit then
-					row.cost = floor(unit * buy + 0.5)
+					-- (With the item's Auction House steps read: what `buy` of them really cost,
+					-- step by step and a vendor's for the rest. Else the count times one's price.)
+					row.cost, row.exact = Calc.BuyCost(itemID, buy)
+					row.cost = row.cost or floor(unit * buy + 0.5)
 					buyTotal = buyTotal + row.cost
 				else
 					complete = false
@@ -625,6 +628,43 @@ function Plan.CurrentSpell()
 		if s.kind == "craft" or s.kind == "tool" then return s.spell end
 	end
 	return nil
+end
+
+-- The route's choice of recipes is made on one price an item (Calc.Unit). Its steps' costs and
+-- its total, as shown, then follow the Auction House's price steps where those are known: each
+-- step's materials are costed walking the steps cheapest first, the steps before it having taken
+-- the cheapest ones (so step 1 isn't costed at the price step 3 will pay), a vendor's price for
+-- what the Auction House has dearer. Only materials the route buys there: not ones it makes
+-- itself, a vendor's, or ones whose steps weren't read (those keep the count times one's price).
+local function Repriced(route)
+	local made = {}
+	for _, s in ipairs(route.steps) do
+		if s.kind == "craft" or s.kind == "tool" then
+			local out = Calc.Output(s.spell)
+			if out then made[out] = true end
+		end
+	end
+	local taken = {}       -- itemID -> how many the steps so far use
+	for _, s in ipairs(route.steps) do
+		if (s.kind == "craft" or s.kind == "tool") and s.complete then
+			local delta = 0
+			for _, m in ipairs(Calc.Materials(s.spell)) do
+				local itemID, n = m[1], m[2] * s.count
+				if not made[itemID] and Calc.Steps(itemID) then
+					local unit, kind = Calc.Unit(itemID)
+					if unit and kind == "ah" then
+						local cost = Calc.BuyCost(itemID, n, taken[itemID] or 0)
+						if cost then delta = delta + cost - unit * n end
+						taken[itemID] = (taken[itemID] or 0) + n
+					end
+				end
+			end
+			if delta ~= 0 then
+				s.cost = s.cost + delta
+				route.total = route.total + delta
+			end
+		end
+	end
 end
 
 -- { target, route, shopping } for the open profession, or nil (none open, someone else's).
@@ -666,6 +706,7 @@ function Plan.Get()
 	local key = routeKey .. ":" .. skill .. ":" .. ns.Store.version
 	if kept and keptKey == key then return kept end
 	local route = Trim(full, skill)
+	Repriced(route)
 	local shopping = Shopping(route)
 	kept, keptKey = { target = target, route = route, shopping = shopping }, key
 	-- What it needs, kept for the item tooltips (yours and, on an alt, theirs).

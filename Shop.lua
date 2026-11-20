@@ -19,6 +19,14 @@
 -- Y) takes the item off the list shown, for this character (c.shopRemoved, beside its plans),
 -- until that list stops needing it or needs more than it did. A quiet last line counts the removed
 -- and puts them back ("2 removed from this list: put them back").
+-- Auction House prices follow what is really for sale when an item's price steps are known
+-- (Prices.Steps: read from any search result, and for the whole list by the panel's "Check Prices"
+-- button): a row's cost walks the steps cheapest first (Calc.AHCost), says "only 40 for sale" when
+-- there are fewer than needed, and its tooltip lists the steps the purchase takes. Without steps
+-- the cost is the count times the lowest price, said as "about". Where a vendor sells the item
+-- too, only the units cheaper than the vendor are the Auction House's (Calc.Split): the rest is the
+-- vendor panel's, counted here in the "cheaper at a vendor" line, so the two panels ask for the
+-- whole between them and nothing twice.
 -- What you buy comes off the lists at once: at a vendor through the panel (settled against each
 -- read of the bags), and on the Auction House, whose purchases come by mail (kept per character
 -- until the mailbox is next read). Bought by hand at a vendor, looted, crafted, traded or taken
@@ -163,6 +171,8 @@ function Shop.NoteAuction(itemID, count)
 	if not t then return end
 	local had = Shop.Mailed(itemID)
 	t[itemID] = { count = had + count, at = time() }
+	-- (And gone from the item's price steps: what's left for sale starts at the next price.)
+	if ns.Prices and ns.Prices.Took then ns.Prices.Took(itemID, count) end
 	Shop.Refresh()
 end
 
@@ -386,7 +396,8 @@ local function DuiListsHoldings()
 end
 
 -- The tooltip of a buy list row: the item, then what each plan needs of it and what you hold.
-local function RowTip(r, hint)
+-- more(tip): lines of the panel's own after those (the Auction House's price steps).
+local function RowTip(r, hint, more)
 	return function(tip)
 		tip:SetItemByID(r.itemID)
 		if hint then tip:AddLine(hint, Color("ACCENT")) end
@@ -411,6 +422,7 @@ local function RowTip(r, hint)
 		if (r.mailed or 0) > 0 then
 			tip:AddLine(L["Bought on the Auction House, in the mail: %d"]:format(r.mailed), Color("TEXT"))
 		end
+		if more then more(tip) end
 	end
 end
 
@@ -738,6 +750,15 @@ local function NewPanel(name, title, key, lists)
 	-- (Under the title, or under the list tabs of a panel that has them: Paint.)
 	p.doc.scroll:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -HEAD + 6)
 	if lists then AddListTabs(p) end
+	-- (The Auction House's list: "Check Prices" and what it's doing, under the tabs and tags.)
+	if key == "auction" then
+		p.check = API.Button(p, "", 22)
+		p.check:Hide()
+		p.checkNote = Doc.Text(p, "small")
+		p.checkNote:SetJustifyH("LEFT")
+		p.checkNote:SetWordWrap(true)
+		p.checkNote:Hide()
+	end
 	p.doc.scroll:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, FOOT)
 	-- (The total sits beside the button, wrapping onto a second line rather than running under it:
 	-- FitFoot sizes both.)
@@ -1014,6 +1035,144 @@ local function LeftOut(d, key, count, text, redraw)
 	end)
 end
 
+-- A row showing part of what its item still needs (the Auction House's share, or the vendor's):
+-- a view of the list's row with its own buy; everything else reads through.
+local function Part(r, n)
+	return setmetatable({ buy = n }, { __index = r })
+end
+
+-- A list as one of the two places shows it. place: "auction" or "vendor"; reveal: what the source
+-- filter leaves out is shown after all; shelf: what this vendor sells (the vendor's panel).
+-- With an item's price steps known (Calc.Split) the Auction House's rows ask for the units cheaper
+-- than a vendor and the vendor's for the rest, so the two together ask for the whole and nothing
+-- twice; an item with a share for the other place is also counted as left out here. Without steps
+-- the item is one place's as a whole (Shop.AtAuction, Shop.AtVendor).
+-- Answers: rows (listed, then the revealed), out (the items left out, whole or in part), own (how
+-- many rows are this place's own, not revealed ones), unknown (left out at a vendor for having no
+-- price anywhere).
+local function Placed(list, place, reveal, shelf)
+	local rows, out, tail, own, unknown = {}, {}, {}, 0, 0
+	for _, r in ipairs(list) do
+		local atAH, atVendor, known = Calc.Split(r.itemID, r.buy)
+		if known then
+			local mine, theirs = atAH, atVendor
+			if place == "vendor" then mine, theirs = atVendor, atAH end
+			if mine > 0 then
+				own = own + 1
+				rows[#rows + 1] = (reveal or theirs == 0) and r or Part(r, mine)
+			end
+			if theirs > 0 then
+				out[#out + 1] = r
+				if mine == 0 then tail[#tail + 1] = r end
+			end
+		else
+			local listed, why
+			if place == "vendor" then
+				local s = shelf and shelf[r.itemID]
+				listed, why = Shop.AtVendor(r.itemID, s and s.unit)
+			else
+				listed = Shop.AtAuction(r.itemID)
+			end
+			if listed then
+				own = own + 1
+				rows[#rows + 1] = r
+			else
+				out[#out + 1] = r
+				tail[#tail + 1] = r
+				if why == "unknown" then unknown = unknown + 1 end
+			end
+		end
+	end
+	if reveal then
+		for _, r in ipairs(tail) do rows[#rows + 1] = r end
+	end
+	return rows, out, own, unknown
+end
+
+-- The lines an Auction House row's tooltip adds when the item's price steps are known: the steps
+-- buying r.buy of it takes (the first few, then how many more), the average for one, a warning
+-- when there aren't that many, and when the prices were read.
+local STEP_LINES = 4
+local function StepLines(r)
+	return function(tip)
+		local cost, covered, known, used = Calc.AHCost(r.itemID, r.buy)
+		if not known then return end
+		tip:AddLine(" ")
+		for i = 1, math.min(#used, STEP_LINES) do
+			tip:AddLine(L["%d at %s each"]:format(used[i].q, Calc.Money(used[i].p)), Color("TEXT"))
+		end
+		if #used > STEP_LINES then
+			local rest = #used - STEP_LINES
+			tip:AddLine(Plural(rest, "and %d more step", "and %d more steps"):format(rest), Color("LABEL"))
+		end
+		if covered > 0 then tip:AddLine(L["Average: %s each"]:format(Calc.Money(cost / covered)), Color("TEXT")) end
+		if covered < r.buy then tip:AddLine(L["only %d for sale"]:format(covered), Color("WARN")) end
+		local steps = Calc.Steps(r.itemID)
+		if steps then tip:AddLine(L["Prices checked %s"]:format(Doc.Ago(steps.at)), Color("LABEL")) end
+	end
+end
+
+-- The Auction House panel's "Check Prices" row, under its tabs and tags: the button (it reads
+-- "Stop" while a check runs) and beside it what's going on ("Checking prices: 3 of 12"), when the
+-- rows' prices were last checked, or what the button is for. Only where prices can be checked
+-- (Prices.CanCheck: not with DaylightMogul's prices, nor with Auction House prices off). rows: the
+-- rows shown; sig: what the list is made of now, so a check started on another list is stopped.
+-- Adds its room to p.extra (after FitTags).
+local function FitCheck(p, rows, sig)
+	local P = ns.Prices
+	if not (p.check and P and P.CanCheck and P.CanCheck()) then
+		if p.check then
+			p.check:Hide()
+			p.checkNote:Hide()
+		end
+		return
+	end
+	-- (The list changed under a check: it stops, cleanly, and says so by going back to its words.)
+	if P.Checking() and p.checkSig ~= sig then P.StopCheck() end
+	local done, total = P.Checking()
+	local ids, seen, oldest = {}, {}, nil
+	for _, r in ipairs(rows) do
+		if not seen[r.itemID] then
+			seen[r.itemID] = true
+			ids[#ids + 1] = r.itemID
+			local steps = Calc.Steps(r.itemID)
+			if steps and (not oldest or steps.at < oldest) then oldest = steps.at end
+		end
+	end
+	local b, note = p.check, p.checkNote
+	b.text:SetText(done and L["Stop"] or L["Check Prices"])
+	b.FitWidth(90)
+	b.SetOff(not done and #ids == 0)
+	b:SetScript("OnClick", function()
+		if P.Checking() then
+			P.StopCheck()
+		else
+			p.checkSig = sig
+			P.Check(ids, function() Shop.Refresh() end)
+		end
+		Shop.Auction()
+	end)
+	local y = TAB_TOP + (p.extra or 0) + 2
+	b:ClearAllPoints()
+	b:SetPoint("TOPLEFT", p, "TOPLEFT", 10, -y)
+	b:Show()
+	if done then
+		note:SetText(L["Checking prices: %d of %d"]:format(math.min(done + 1, total), total))
+		note:SetTextColor(Color("VALUE"))
+	elseif oldest then
+		note:SetText(L["Prices checked %s"]:format(Doc.Ago(oldest)))
+		note:SetTextColor(Color("LABEL"))
+	else
+		note:SetText(L["Reads how many are for sale at each price."])
+		note:SetTextColor(Color("OFF"))
+	end
+	note:SetWidth(math.max(60, WIDTH - 10 - b:GetWidth() - 8 - 12))
+	note:ClearAllPoints()
+	note:SetPoint("TOPLEFT", p, "TOPLEFT", 10 + b:GetWidth() + 8, -y - 3)
+	note:Show()
+	p.extra = (p.extra or 0) + math.max(22, math.ceil(note:GetStringHeight()) + 6) + 6
+end
+
 -- The quiet line at the end of a list with removed items: how many, and a click puts them back.
 local function PutBack(d, which, back)
 	if #back == 0 then return end
@@ -1209,20 +1368,8 @@ function Shop.Vendor()
 	local shelf = Shelf()
 	-- What's listed here, and what the source filter leaves out (shown after the rest once the
 	-- player asks for it): cheaper on the Auction House, or (unknown) no price known and not here.
-	local rows, out, unknown = {}, {}, 0
-	for _, r in ipairs(list) do
-		local s = shelf[r.itemID]
-		local listed, why = Shop.AtVendor(r.itemID, s and s.unit)
-		if listed then
-			rows[#rows + 1] = r
-		else
-			out[#out + 1] = r
-			if why == "unknown" then unknown = unknown + 1 end
-		end
-	end
-	if visit.vendor.reveal then
-		for _, r in ipairs(out) do rows[#rows + 1] = r end
-	end
+	-- (With an item's Auction House steps known, a row here asks only for what isn't cheaper there.)
+	local rows, out, _, unknown = Placed(list, "vendor", visit.vendor.reveal, shelf)
 	-- here: the listed rows this vendor sells (what "Buy All Here" buys); ready: how many of them
 	-- it can sell you now (not sold out, not past your gold), the "N to buy" at the top.
 	local here, cost, ready = {}, 0, 0
@@ -1427,20 +1574,24 @@ function Shop.Auction()
 	local daylight = host == DaylightAH()
 	auction.follow, auction.tuck = daylight, daylight
 	local view = View(auction, "auction")
-	if not view then return true end
+	if not view then
+		if ns.Prices and ns.Prices.StopCheck then ns.Prices.StopCheck() end
+		return true
+	end
 	local which, list, back = view.which, view.list, view.back
 	-- What's listed here, and what the source filter leaves out (shown after the rest once the
-	-- player asks for it): everything a vendor is the cheapest source of.
-	local rows, out = {}, {}
-	for _, r in ipairs(list) do
-		if Shop.AtAuction(r.itemID) then rows[#rows + 1] = r else out[#out + 1] = r end
+	-- player asks for it): everything a vendor is the cheapest source of, and with an item's
+	-- price steps known, the part of it a vendor sells for less.
+	-- (own, the "N to buy" at the top: the Auction House's own, not what a vendor is cheapest for.)
+	local rows, out, own = Placed(list, "auction", visit.auction.reveal)
+	do
+		local sig = { which, tostring(auction.tag) }
+		for _, r in ipairs(list) do sig[#sig + 1] = r.itemID end
+		table.sort(sig, function(a, b) return tostring(a) < tostring(b) end)
+		FitCheck(auction, rows, table.concat(sig, ","))
 	end
-	-- (The "N to buy" at the top: the Auction House's own, not what a vendor is cheapest for.)
-	local own = #rows
-	if visit.auction.reveal then
-		for _, r in ipairs(out) do rows[#rows + 1] = r end
-	end
-	local ahTotal, saved = 0, 0
+	-- (about: some row's cost is the count times the lowest price, its steps not read.)
+	local ahTotal, saved, about = 0, 0, false
 	Paint(auction, host, "below", function(d)
 		if #list == 0 then
 			if #back == 0 then d:Line(NothingToBuy(which), "small", "OFF") end
@@ -1451,29 +1602,52 @@ function Shop.Auction()
 			local name, icon = Doc.ItemName(r.itemID, d)
 			local ah = Calc.AH(r.itemID)
 			local vend, who = Calc.Vendor(r.itemID)
+			-- With the price steps known: what r.buy of them cost, step by step, and how many of
+			-- them are for sale. Else the count times the lowest price, said as "about".
+			local cost, covered, known = Calc.AHCost(r.itemID, r.buy)
 			local right, ink
-			if ah and vend then
+			local parts = { L["Buy %d"]:format(r.buy) }
+			local subInk = "TEXT"
+			if r.alert then parts[#parts + 1] = r.alert end
+			if known then
+				local low = covered > 0 and cost / covered or nil
+				if not low then
+					right, ink = vend and L["Vendor only"] or L["None for sale"], "OFF"
+				elseif vend and low >= vend then
+					right, ink = L["Vendor is cheaper"], "WARN"
+				else
+					right, ink = vend and L["AH is cheaper"] or L["Auction House"], vend and "GOOD" or "VALUE"
+					ahTotal = ahTotal + cost
+					if vend then saved = saved + math.max(0, vend * covered - cost) end
+				end
+				if low then parts[#parts + 1] = L["AH %s"]:format(Calc.Money(cost)) end
+				if covered < r.buy then
+					parts[#parts + 1] = L["only %d for sale"]:format(covered)
+					subInk = "WARN"
+				end
+			elseif ah and vend then
 				if ah < vend then
 					right, ink = L["AH is cheaper"], "GOOD"
 					ahTotal = ahTotal + ah * r.buy
 					saved = saved + (vend - ah) * r.buy
+					about = true
 				else
 					right, ink = L["Vendor is cheaper"], "WARN"
 				end
 			elseif ah then
 				right, ink = L["Auction House"], "VALUE"
 				ahTotal = ahTotal + ah * r.buy
+				about = true
 			elseif vend then
 				right, ink = L["Vendor only"], "OFF"
 			else
 				right, ink = L["No price"], "OFF"
 			end
-			local parts = { L["Buy %d"]:format(r.buy) }
-			if r.alert then parts[#parts + 1] = r.alert end
-			if ah then parts[#parts + 1] = L["AH %s"]:format(Calc.Money(ah * r.buy)) end
+			if not known and ah then parts[#parts + 1] = L["AH about %s"]:format(Calc.Money(ah * r.buy)) end
 			if vend then parts[#parts + 1] = L["Vendor %s (%s)"]:format(Calc.Money(vend * r.buy), who or L["vendor"]) end
 			d:Row({ icon = icon, left = name, right = right, rightInk = ink,
-				sub = table.concat(parts, " · "), subInk = "TEXT", tip = RowTip(r), shift = RemoveAction(which, r),
+				sub = table.concat(parts, " · "), subInk = subInk, tip = RowTip(r, nil, StepLines(r)),
+				shift = RemoveAction(which, r),
 				-- (With the mouse on the row its right text says what the click does; Shift: Remove.)
 				hint = { text = L["Left Click to Search"], ink = "ACCENT" },
 				onClick = function() SearchFor(r.itemID) end })
@@ -1489,7 +1663,9 @@ function Shop.Auction()
 	auction.note:SetText(L["%d to buy"]:format(own))
 	auction.note:SetTextColor(Color("LABEL"))
 	if ahTotal > 0 then
-		auction.total:SetText(saved > 0 and L["On the AH: %s (saves %s)"]:format(Calc.Money(ahTotal), Calc.Money(saved))
+		-- (Any row's cost an estimate: so is the total, and it says so.)
+		auction.total:SetText(about and L["On the AH: about %s"]:format(Calc.Money(ahTotal))
+			or saved > 0 and L["On the AH: %s (saves %s)"]:format(Calc.Money(ahTotal), Calc.Money(saved))
 			or L["On the AH: %s"]:format(Calc.Money(ahTotal)))
 		auction.total:SetTextColor(Color("VALUE"))
 	else
@@ -1804,6 +1980,12 @@ if type(C_AuctionHouse) == "table" and type(C_AuctionHouse.ConfirmCommoditiesPur
 	pcall(hooksecurefunc, C_AuctionHouse, "ConfirmCommoditiesPurchase", function(itemID, count)
 		asked = { itemID = itemID, count = count, at = GetTime() }
 	end)
+end
+
+-- Whether a purchase on the Auction House is being confirmed right now (asked of the game and not
+-- answered yet): Prices' check of prices sends nothing meanwhile.
+function Shop.Buying()
+	return asked ~= nil and GetTime() - asked.at < 60
 end
 
 local function AuctionEvent(event, a, b)
