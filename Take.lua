@@ -55,32 +55,26 @@ function Take.Ours()
 	return true
 end
 
--- The panel width the game gives the next window it opens beside ours.
-local GAP = 20
-local function WriteWidth(f, width)
-	if type(SetUIPanelAttribute) ~= "function" or InCombatLockdown() then return end
-	pcall(SetUIPanelAttribute, f, "width", width)
-end
-
-local widthOwed = false -- released in a fight: its width is written back after it
-local widthBefore       -- the panel width the window had before we held it (the game's or DaylightUI's)
+-- The game's panel layout is never written to (no SetUIPanelAttribute): a layout attribute keeps
+-- the taint of the addon that wrote it, the game's next ShowUIPanel reads it back and runs
+-- tainted, and in a fight the game is then blocked from what it does next ("action blocked" on
+-- opening a game window). The game sets this window's layout width itself for each page, so the
+-- next game window opens beside the game's width, as it does under DaylightUI's own profession
+-- window (which stopped writing it in 1.9.6).
 
 local function Hold()
 	local f = Game()
 	if not f or InCombatLockdown() then return false end
 	if f:GetParent() ~= veil then
 		before = f:GetParent()
-		widthOwed = false
-		widthBefore = f.GetAttribute and f:GetAttribute("UIPanelLayout-width") or nil
 		f:SetParent(veil)
 	end
 	holding = true
-	if ns.Window then WriteWidth(f, math.floor(ns.Window.Width() + GAP + 0.5)) end
 	return true
 end
 
--- The game window back where it was (the game's, or DaylightUI's to show again), with the panel
--- width it had. inFight: only the parent (a hidden window, as a fight starts: the width waits).
+-- The game window back where it was (the game's, or DaylightUI's to show again). inFight: a hidden
+-- window, as a fight starts (its parent can still be set then).
 -- toGame: to the screen itself, never back under DaylightUI's (or DaylightMogul's) holder: the
 -- game's own window is the one wanted ("The game's window", the swap button). They read it moved
 -- under another parent as taken (their "Away" rule) and step aside, as they do for ours.
@@ -93,24 +87,11 @@ local function Release(inFight, toGame)
 	before = nil
 	-- (A controller: back on the game's list, if it's showing on the screen itself.)
 	if ns.Pad and f:GetParent() == UIParent then ns.Pad.Remember(f) end
-	-- (In a fight the width can't be written: it is once the fight ends.)
-	if InCombatLockdown() then
-		widthOwed = true
-	else
-		WriteWidth(f, widthBefore)
-		widthBefore = nil
-	end
 	return true
 end
 function Take.Release() return Release(false, ns.Get("window") == "game") end
 
 function Take.Holding() return holding end
-
--- Ours is a bit wider or narrower (the window size changed): the next game window opens beside it.
-function Take.Rewidth()
-	local f = Game()
-	if f and holding and ns.Window then WriteWidth(f, math.floor(ns.Window.Width() + GAP + 0.5)) end
-end
 
 -- Closes the trade skill the way the game does (our window's X): the game's window hides and its
 -- own OnHide ends the session. In a fight the panel can't be hidden: the session is ended directly.
@@ -198,12 +179,6 @@ events:SetScript("OnEvent", function(_, event)
 		local f = Game()
 		if holding and f and not f:IsShown() then Release(true, ns.Get("window") == "game") end
 	elseif event == "PLAYER_REGEN_ENABLED" then
-		if widthOwed and not holding then
-			widthOwed = false
-			local f = Game()
-			if f then WriteWidth(f, widthBefore) end
-			widthBefore = nil
-		end
 		if open and ours and Hold() and ns.Window then ns.Window.SessionStarted() end
 	end
 end)

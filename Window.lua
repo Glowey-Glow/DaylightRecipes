@@ -1647,7 +1647,7 @@ local function Build()
 	side:SetWidth(SIDE)
 	side:SetClipsChildren(true)
 	side:EnableMouseWheel(true)
-	side:SetScript("OnMouseWheel", function(self, delta)
+	side:SetScript("OnMouseWheel", function(_, delta)
 		local most = math.max(0, sideTall - sideList:GetHeight() + 8)
 		local to = math.max(0, math.min(most, sideScroll - delta * 44))
 		if to ~= sideScroll then
@@ -2243,7 +2243,6 @@ function Window.Rescale()
 		win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left * old / new, top * old / new)
 		SavePlace()
 	end
-	if ns.Take then ns.Take.Rewidth() end
 	PaintCraftBar()
 end
 

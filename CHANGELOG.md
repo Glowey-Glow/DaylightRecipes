@@ -1,5 +1,9 @@
 # Glowey's Recipes (DaylightUI Plugin)
 
+## 2.5.2
+- Checked against Daylight UI 1.9.6.
+- Fixed: with the Recipes window in use, opening a game window in a fight could raise an "action blocked" error. Recipes told the game how wide its window is so the next game window opened beside it, and the game then ran that part of its window code as an addon's. Recipes no longer does (Daylight UI 1.9.6 made the same fix for its own windows), so a game window that opens beside the Recipes window sits where the game's own profession window would have put it.
+
 ## 2.5.1
 - Daylight Recipes is now Glowey's Recipes (DaylightUI Plugin), so it's clear it's a plugin and not part of Daylight UI. Inside Daylight UI the section is Glowey's Recipes. Your settings are kept. New Auctionator shopping lists are named "Glowey's Recipes"; an old "Daylight Recipes" list stays until you delete it.
 
