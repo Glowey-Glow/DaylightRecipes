@@ -553,3 +553,34 @@ L["Enchanting in the Docked Pane: the item slot, Auto-replace and enchant runs b
 
 -- 2.5.3: Daylight UI 2.0's Auction House window
 L["Couldn't start the search. Type %s in the Auction House's search box."] = "Die Suche konnte nicht gestartet werden. Gebt %s in das Suchfeld des Auktionshauses ein."
+
+-- Daylight UI's own prices read
+L["Auction House prices from Daylight UI, read %s."] = "Auktionshauspreise von Daylight UI, gelesen %s."
+
+-- Buy lists: Queue List and Guide List tabs, the source filter (Shop.lua)
+L["Queue List (%d)"] = "Warteschlangenliste (%d)"
+L["Guide List (%d)"] = "Leitfadenliste (%d)"
+L["Your crafting queue needs nothing you don't have."] = "Eure Herstellungswarteschlange braucht nichts, was Ihr nicht habt."
+L["Your Leveling Guides need nothing you don't have."] = "Eure Leitfäden brauchen nichts, was Ihr nicht habt."
+L["Nothing on this list is cheapest here."] = "Nichts auf dieser Liste ist hier am günstigsten."
+L["Hide what isn't cheapest here"] = "Ausblenden, was hier nicht am günstigsten ist"
+L["%d more is cheaper at a vendor: show it"] = "%d weiterer ist beim Händler günstiger: anzeigen"
+L["%d more are cheaper at a vendor: show them"] = "%d weitere sind beim Händler günstiger: anzeigen"
+L["%d more is cheaper on the Auction House: show it"] = "%d weiterer ist im Auktionshaus günstiger: anzeigen"
+L["%d more are cheaper on the Auction House: show them"] = "%d weitere sind im Auktionshaus günstiger: anzeigen"
+L["%d more to look for on the Auction House: show it"] = "%d weiteren im Auktionshaus suchen: anzeigen"
+L["%d more to look for on the Auction House: show them"] = "%d weitere im Auktionshaus suchen: anzeigen"
+
+-- Buy lists: Remove (Shift-click), profession tags, Auction House purchases in the mail (Shop.lua)
+L["All"] = "Alle"
+L["Shift-click to remove this from the list."] = "Umschaltklick, um dies von der Liste zu entfernen."
+L["%d removed from this list: put it back"] = "%d von dieser Liste entfernt: zurücklegen"
+L["%d removed from this list: put them back"] = "%d von dieser Liste entfernt: zurücklegen"
+L["Bought on the Auction House, in the mail: %d"] = "Im Auktionshaus gekauft, in der Post: %d"
+L["Left Click to Search"] = "Linksklick zum Suchen"
+
+-- 2.6.0: What's New
+L["Buy List: two lists, Queue List and Guide List, picked with the tabs under its title, and profession tags when it covers more than one profession."] = "Einkaufsliste: zwei Listen, Warteschlangenliste und Leitfadenliste, wählbar über die Reiter unter dem Titel, und Berufsmarken, wenn sie mehr als einen Beruf abdeckt."
+L["Buy List: each place shows only what is cheapest there. A line under the list brings the rest back."] = "Einkaufsliste: jeder Ort zeigt nur, was dort am günstigsten ist. Eine Zeile unter der Liste holt den Rest zurück."
+L["Buy List: hold Shift over a row and Shift-click to remove it. What you buy on the Auction House comes off the list right away."] = "Einkaufsliste: Umschalt über einer Zeile halten und Umschalt-Klick, um sie zu entfernen. Was Ihr im Auktionshaus kauft, verschwindet sofort von der Liste."
+L["Prices: with Daylight UI's Auction House, the prices it has already collected are used, so fewer materials say \"No price\"."] = "Preise: mit dem Auktionshaus von Daylight UI werden die Preise genutzt, die es bereits gesammelt hat, sodass weniger Materialien \"Kein Preis\" anzeigen."

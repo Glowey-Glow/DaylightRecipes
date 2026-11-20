@@ -29,6 +29,13 @@ Drag a cheap item into the slot and level on it: enchant after enchant, with the
 ## Around the game
 Item tooltips (what uses a material, what your guides need of it, and for a recipe who on your account knows it and who could learn it, in class colors, with the skill still needed; only this character's guides), and trainer reminders in chat when a skill-up opens new recipes or you reach your rank's cap.
 
+## New in 2.6.0
+- **Buy List, two lists:** Queue List and Guide List, picked with the tabs under its title, plus profession tags when the list covers more than one profession.
+- **Only what is cheapest where you are:** at the Auction House the list leaves out what a vendor sells for less, and the other way round at a vendor. A line under the list brings the rest back.
+- **Remove:** hold Shift over a row and Shift-click to take it off the list; a line under the list puts it back.
+- **Counts down as you buy:** what you buy on the Auction House comes off the list right away, before you visit a mailbox, and buying by hand at a vendor is followed at once.
+- **Daylight UI's prices:** with Daylight UI 2.0's Auction House, the prices it has already collected are used, so fewer materials say "No price". Fixed a Leveling Guide alternative showing "200000 gold a point".
+
 ## New in 2.5.0
 - **Enchanting in the Docked Pane:** the item slot, Auto-replace and enchant runs (Next / Done) beside Daylight UI's or DaylightMogul's profession window, as in the Recipes window.
 

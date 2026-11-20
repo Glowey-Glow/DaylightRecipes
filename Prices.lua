@@ -90,6 +90,123 @@ function Prices.Quantity(itemID)
 end
 
 -- ---------------------------------------------------------------------------------------------
+-- Daylight UI's prices
+-- ---------------------------------------------------------------------------------------------
+-- Daylight UI 2.0's own Auction House keeps a price for every item it sees: its searches, its
+-- browses and its Full scan. That scan reads the game's whole-house list, which never passes the
+-- browse events heard below, so without this a material Daylight UI has a price for could stand
+-- here with none (and the guide then rated every recipe using it as unpriced). Its prices are read
+-- here, and one wins over ours when it was seen later. Read only: nothing of its is written, and
+-- nothing of its is scanned from here.
+-- Daylight UI has no public call for prices (nothing in its API.md), so this goes through its
+-- module's own tables, which a later Daylight UI may change without notice; every step is checked
+-- and wrapped, and when one is missing our own prices are used as before:
+--   DaylightUI:GetModule("AuctionHouse") (Core.lua:721), registered with ns = ns
+--     (DaylightUI_AuctionHouse\Module.lua:5-8), .enabled once it runs (Core.lua:773);
+--   ns.Ruleset.Key() (Ruleset.lua:54) names the price book of this realm's rules;
+--   ns.Store.Min / SeenAt / Seen / Count / LastAt (Store.lua:80-131): the lowest unit buyout of the
+--     last sighting, when (the server's clock), how many were up (0 when it wasn't told), how many
+--     items it knows, when anything was last seen. Keys are the item's ID as text.
+--   ns.On("PricesChanged", fn) (Base.lua:21; fired once a batch, Scan.lua:155).
+local function DaylightBook()
+	local D = _G.DaylightUI
+	if type(D) ~= "table" or D.ahMogul == true or type(D.GetModule) ~= "function" then return nil end
+	local ok, mod = pcall(D.GetModule, D, "AuctionHouse")
+	if not ok or type(mod) ~= "table" or mod.enabled ~= true then return nil end
+	local m = mod.ns
+	if type(m) ~= "table" or type(m.Store) ~= "table" or type(m.Ruleset) ~= "table" then return nil end
+	if type(m.Store.Min) ~= "function" or type(m.Store.SeenAt) ~= "function" or type(m.Ruleset.Key) ~= "function" then
+		return nil
+	end
+	local got, rkey = pcall(m.Ruleset.Key)
+	if not got or rkey == nil then return nil end
+	return m.Store, rkey
+end
+
+local function Now() return _G.GetServerTime and _G.GetServerTime() or time() end
+
+-- Daylight UI's price for an item: copper and how old it is, or nil (none, or over our two weeks).
+local function Daylight(itemID)
+	if not ns.Get("useAH") then return nil end
+	local store, rkey = DaylightBook()
+	if not store then return nil end
+	local key = tostring(itemID)
+	local ok, copper = pcall(store.Min, rkey, key)
+	if not ok or type(copper) ~= "number" or copper <= 0 then return nil end
+	local got, at = pcall(store.SeenAt, rkey, key)
+	if not got or type(at) ~= "number" then return nil end
+	local age = Now() - at
+	if age > STALE then return nil end
+	return copper, age
+end
+
+-- Whether its price is the one to use: it has one, and ours isn't the later sighting.
+local function DaylightWins(itemID)
+	local copper, age = Daylight(itemID)
+	if not copper then return nil end
+	local row = Book().items[itemID]
+	if row and row.p and time() - (row.t or 0) < age then return nil end
+	return copper
+end
+
+-- Whether Daylight UI's prices are being read, and when it last saw anything (on this clock).
+function Prices.Daylight()
+	return ns.Get("useAH") and DaylightBook() ~= nil or false
+end
+
+function Prices.DaylightAt()
+	local store, rkey = DaylightBook()
+	if not store or type(store.LastAt) ~= "function" then return nil end
+	local ok, at = pcall(store.LastAt, rkey)
+	if not ok or type(at) ~= "number" then return nil end
+	return time() - math.max(0, Now() - at)
+end
+
+local OwnGet, OwnQuantity, OwnHas = Prices.Get, Prices.Quantity, Prices.Has
+
+function Prices.Get(itemID)
+	return DaylightWins(itemID) or OwnGet(itemID)
+end
+
+function Prices.Quantity(itemID)
+	if DaylightWins(itemID) then
+		local store, rkey = DaylightBook()
+		local seen
+		if type(store.Seen) == "function" then
+			local ok, v = pcall(store.Seen, rkey, tostring(itemID))
+			if ok then seen = v end
+		end
+		local q = type(seen) == "table" and seen.q or nil
+		-- (Its 0 is "not told how many", never "none": an item it saw had at least one up.)
+		return type(q) == "number" and q > 0 and q or nil
+	end
+	return OwnQuantity(itemID)
+end
+
+function Prices.Has()
+	if OwnHas() then return true end
+	local store, rkey = DaylightBook()
+	if not store or type(store.Count) ~= "function" then return false end
+	local ok, n = pcall(store.Count, rkey)
+	return ok and type(n) == "number" and n > 0 or false
+end
+
+-- Its prices changed (a scan's batch): everything worked out from prices is worked out again.
+local function DaylightChanged()
+	if ns.Calc then ns.Calc.Forget() end
+	if ns.Plan and ns.Plan.Forget then ns.Plan.Forget() end
+	if ns.ShowingPlan() then ns.Changed() end
+end
+
+local function HearDaylight()
+	local D = _G.DaylightUI
+	if type(D) ~= "table" or type(D.GetModule) ~= "function" then return end
+	local ok, mod = pcall(D.GetModule, D, "AuctionHouse")
+	local m = ok and type(mod) == "table" and mod.ns or nil
+	if type(m) == "table" and type(m.On) == "function" then pcall(m.On, "PricesChanged", DaylightChanged) end
+end
+
+-- ---------------------------------------------------------------------------------------------
 -- Results, a few hundred a frame
 -- ---------------------------------------------------------------------------------------------
 
@@ -133,8 +250,18 @@ end
 local ahOpen, scanning = false, false
 local firstRead = false   -- a scan's first page has been read
 
+-- (Not while Daylight UI's own Auction House window is the one in use and its prices are read:
+-- its Full scan fills the book above, and two scans would share the game's one request line.)
+local function DaylightScans()
+	if not Prices.Daylight() then return false end
+	local D = _G.DaylightUI
+	if type(D) ~= "table" or type(D.ahCovers) ~= "function" then return false end
+	local ok, covers = pcall(D.ahCovers)
+	return ok and covers and true or false
+end
+
 function Prices.CanScan()
-	return ahOpen and not scanning and not Prices.Mogul() and C_AuctionHouse ~= nil
+	return ahOpen and not scanning and not Prices.Mogul() and C_AuctionHouse ~= nil and not DaylightScans()
 end
 
 function Prices.Scanning() return scanning end
@@ -210,6 +337,7 @@ f:RegisterEvent("PLAYER_LOGIN")
 f:SetScript("OnEvent", function(self, event, arg)
 	if event == "PLAYER_LOGIN" then
 		self:UnregisterEvent("PLAYER_LOGIN")
+		if not Prices.Mogul() then HearDaylight() end
 		if Prices.Mogul() or not C_AuctionHouse then return end
 		for _, e in ipairs({ "AUCTION_HOUSE_SHOW", "AUCTION_HOUSE_CLOSED", "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED",
 			"AUCTION_HOUSE_BROWSE_RESULTS_ADDED", "COMMODITY_SEARCH_RESULTS_UPDATED", "ITEM_SEARCH_RESULTS_UPDATED" }) do
@@ -222,6 +350,8 @@ f:SetScript("OnEvent", function(self, event, arg)
 		if ns.ShowingPlan() then ns.Changed() end
 	elseif event == "AUCTION_HOUSE_CLOSED" then
 		ahOpen, scanning = false, false
+		-- (What Daylight UI saw in its searches this visit is read from here on.)
+		if Prices.Daylight() then DaylightChanged() end
 	elseif event == "AUCTION_HOUSE_BROWSE_RESULTS_UPDATED" or event == "AUCTION_HOUSE_BROWSE_RESULTS_ADDED" then
 		-- (An answer came: the watch on the last request stands down.)
 		if scanning then

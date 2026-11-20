@@ -560,3 +560,38 @@ L["Enchanting in the Docked Pane: the item slot, Auto-replace and enchant runs b
 
 -- 2.5.3: Daylight UI 2.0's Auction House window
 L["Couldn't start the search. Type %s in the Auction House's search box."] = "Не удалось начать поиск. Введите %s в поле поиска аукциона."
+
+-- Daylight UI's own prices read
+L["Auction House prices from Daylight UI, read %s."] = "Цены аукциона из Daylight UI, прочитаны %s."
+
+-- Buy lists: Queue List and Guide List tabs, the source filter (Shop.lua)
+L["Queue List (%d)"] = "Список очереди (%d)"
+L["Guide List (%d)"] = "Список руководства (%d)"
+L["Your crafting queue needs nothing you don't have."] = "Для очереди создания у вас всё есть."
+L["Your Leveling Guides need nothing you don't have."] = "Для руководств у вас всё есть."
+L["Nothing on this list is cheapest here."] = "В этом списке нет ничего, что здесь дешевле всего."
+L["Hide what isn't cheapest here"] = "Скрыть то, что здесь не дешевле всего"
+L["%d more is cheaper at a vendor: show it"] = "Ещё %d дешевле у торговца: показать"
+L["%d more are cheaper at a vendor: show them"] = "Ещё %d дешевле у торговца: показать"
+L["%d more are cheaper at a vendor: show them|few"] = "Ещё %d дешевле у торговца: показать"
+L["%d more is cheaper on the Auction House: show it"] = "Ещё %d дешевле на аукционе: показать"
+L["%d more are cheaper on the Auction House: show them"] = "Ещё %d дешевле на аукционе: показать"
+L["%d more are cheaper on the Auction House: show them|few"] = "Ещё %d дешевле на аукционе: показать"
+L["%d more to look for on the Auction House: show it"] = "Ещё %d стоит поискать на аукционе: показать"
+L["%d more to look for on the Auction House: show them"] = "Ещё %d стоит поискать на аукционе: показать"
+L["%d more to look for on the Auction House: show them|few"] = "Ещё %d стоит поискать на аукционе: показать"
+
+-- Buy lists: Remove (Shift-click), profession tags, Auction House purchases in the mail (Shop.lua)
+L["All"] = "Все"
+L["Shift-click to remove this from the list."] = "Shift+ЛКМ: убрать это из списка."
+L["%d removed from this list: put it back"] = "Убрано из этого списка: %d. Вернуть"
+L["%d removed from this list: put them back"] = "Убрано из этого списка: %d. Вернуть"
+L["%d removed from this list: put them back|few"] = "Убрано из этого списка: %d. Вернуть"
+L["Bought on the Auction House, in the mail: %d"] = "Куплено на аукционе, на почте: %d"
+L["Left Click to Search"] = "ЛКМ: искать"
+
+-- 2.6.0: What's New
+L["Buy List: two lists, Queue List and Guide List, picked with the tabs under its title, and profession tags when it covers more than one profession."] = "Список покупок: два списка, «Список очереди» и «Список руководства», выбираются вкладками под заголовком, и метки профессий, когда в нём больше одной профессии."
+L["Buy List: each place shows only what is cheapest there. A line under the list brings the rest back."] = "Список покупок: в каждом месте показано только то, что там дешевле всего. Строка под списком возвращает остальное."
+L["Buy List: hold Shift over a row and Shift-click to remove it. What you buy on the Auction House comes off the list right away."] = "Список покупок: удерживайте Shift над строкой и щёлкните с Shift, чтобы убрать её. Купленное на аукционе сразу уходит из списка."
+L["Prices: with Daylight UI's Auction House, the prices it has already collected are used, so fewer materials say \"No price\"."] = "Цены: с аукционом Daylight UI используются уже собранные им цены, поэтому меньше материалов с пометкой «Нет цены»."

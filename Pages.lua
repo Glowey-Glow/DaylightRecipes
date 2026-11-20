@@ -335,6 +335,11 @@ local STALE = 12 * 3600      -- s before the last Auction House scan is called o
 function Pages.Prices(d)
 	local P = ns.Prices
 	if not P or P.Mogul() or not ns.Get("useAH") then return end
+	if P.Daylight and P.Daylight() and not P.Scanning() then
+		local at = P.DaylightAt()
+		if at then d:Line(L["Auction House prices from Daylight UI, read %s."]:format(Doc.Ago(at)), "tiny", "OFF") end
+		if at and not P.CanScan() then return end
+	end
 	if P.Scanning() then
 		d:Line(L["Reading Auction House prices..."], "small", "ACCENT")
 	elseif P.CanScan() then
@@ -550,6 +555,9 @@ local function StepCard(d, ctx, s, n, glowTop)
 		d:Line(L["Or Instead"], "small", "LABEL")
 		for _, a in ipairs(s.alts) do
 			local m, k = Net(a.perPoint, true)
+			-- (A material with no price: its cost a point is not known. The route's own figure
+			-- for it carries the weight that ranks it last, which is no price to show.)
+			if a.complete == false then m, k = L["no price"], "OFF" end
 			d:Row({ left = RecipeName(a.spell), leftInk = "TEXT", right = m, rightInk = k,
 				tip = SpellTip(a.spell), onClick = ctx.pick and function() ctx.pick(a.spell) end or nil })
 		end

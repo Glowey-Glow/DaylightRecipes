@@ -107,6 +107,25 @@ function Queue.NextHere()
 	end
 end
 
+-- What the queue takes for each profession, by its queued recipes' own (the recipe data's, else
+-- the profession it was queued from): line -> { itemID -> count }. For the buy list's profession
+-- tags; Queue.Needs is the total.
+function Queue.NeedsByLine()
+	local out = {}
+	for _, e in ipairs(Queue.List()) do
+		local data = ns.Recipes and ns.Recipes[e.spell]
+		local line = data and data[1] or e.line
+		if line then
+			local items = out[line] or {}
+			out[line] = items
+			for _, m in ipairs(ns.Calc.Materials(e.spell)) do
+				items[m[1]] = (items[m[1]] or 0) + m[2] * e.count
+			end
+		end
+	end
+	return out
+end
+
 -- What the whole queue takes: itemID -> count.
 function Queue.Needs()
 	local out = {}

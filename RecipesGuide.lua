@@ -37,6 +37,12 @@ local function Get(key) return ns.Get and ns.Get(key) end
 local function Parts() return ns.Window and ns.Window.TourParts and ns.Window.TourParts() or {} end
 
 local NEWS = {
+	{ version = "2.6.0", lines = {
+		L["Buy List: two lists, Queue List and Guide List, picked with the tabs under its title, and profession tags when it covers more than one profession."],
+		L["Buy List: each place shows only what is cheapest there. A line under the list brings the rest back."],
+		L["Buy List: hold Shift over a row and Shift-click to remove it. What you buy on the Auction House comes off the list right away."],
+		L["Prices: with Daylight UI's Auction House, the prices it has already collected are used, so fewer materials say \"No price\"."],
+	} },
 	{ version = "2.5.0", lines = {
 		L["Enchanting in the Docked Pane: the item slot, Auto-replace and enchant runs beside Daylight UI's or DaylightMogul's profession window, as in the Recipes window."],
 	} },

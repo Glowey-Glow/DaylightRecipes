@@ -553,3 +553,34 @@ L["Enchanting in the Docked Pane: the item slot, Auto-replace and enchant runs b
 
 -- 2.5.3: Daylight UI 2.0's Auction House window
 L["Couldn't start the search. Type %s in the Auction House's search box."] = "无法开始搜索。请在拍卖行的搜索框中输入%s。"
+
+-- Daylight UI's own prices read
+L["Auction House prices from Daylight UI, read %s."] = "拍卖行价格来自 Daylight UI，读取于%s。"
+
+-- Buy lists: Queue List and Guide List tabs, the source filter (Shop.lua)
+L["Queue List (%d)"] = "队列清单 (%d)"
+L["Guide List (%d)"] = "指南清单 (%d)"
+L["Your crafting queue needs nothing you don't have."] = "制作队列所需的材料你都有了。"
+L["Your Leveling Guides need nothing you don't have."] = "升级指南所需的材料你都有了。"
+L["Nothing on this list is cheapest here."] = "此清单中没有在这里最便宜的物品。"
+L["Hide what isn't cheapest here"] = "隐藏在这里不是最便宜的物品"
+L["%d more is cheaper at a vendor: show it"] = "另有%d个在商人处更便宜：显示"
+L["%d more are cheaper at a vendor: show them"] = "另有%d个在商人处更便宜：显示"
+L["%d more is cheaper on the Auction House: show it"] = "另有%d个在拍卖行更便宜：显示"
+L["%d more are cheaper on the Auction House: show them"] = "另有%d个在拍卖行更便宜：显示"
+L["%d more to look for on the Auction House: show it"] = "另有%d个可去拍卖行找找：显示"
+L["%d more to look for on the Auction House: show them"] = "另有%d个可去拍卖行找找：显示"
+
+-- Buy lists: Remove (Shift-click), profession tags, Auction House purchases in the mail (Shop.lua)
+L["All"] = "全部"
+L["Shift-click to remove this from the list."] = "Shift+点击可将其从清单中移除。"
+L["%d removed from this list: put it back"] = "已从此清单移除%d个：放回"
+L["%d removed from this list: put them back"] = "已从此清单移除%d个：放回"
+L["Bought on the Auction House, in the mail: %d"] = "已在拍卖行购买，在邮箱中：%d"
+L["Left Click to Search"] = "左键点击搜索"
+
+-- 2.6.0: What's New
+L["Buy List: two lists, Queue List and Guide List, picked with the tabs under its title, and profession tags when it covers more than one profession."] = "购买清单：两个清单，队列清单和指南清单，用标题下的标签选择；涵盖多个专业时还有专业标签。"
+L["Buy List: each place shows only what is cheapest there. A line under the list brings the rest back."] = "购买清单：每个地点只显示在那里最便宜的物品。清单下方的一行可以找回其余的。"
+L["Buy List: hold Shift over a row and Shift-click to remove it. What you buy on the Auction House comes off the list right away."] = "购买清单：在某一行上按住 Shift 并 Shift 点击即可移除。在拍卖行买到的会立刻从清单中扣除。"
+L["Prices: with Daylight UI's Auction House, the prices it has already collected are used, so fewer materials say \"No price\"."] = "价格：使用 Daylight UI 拍卖行已收集的价格，因此显示“无价格”的材料更少。"

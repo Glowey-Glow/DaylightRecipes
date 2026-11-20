@@ -1,14 +1,39 @@
 -- Small windows where you shop and train, from your plans (the route each profession's Leveling
 -- Guide works out, kept per character: Plan.Get saves what it needs and which recipes it learns)
--- and your crafting queue:
---   Vendor:   under the vendor's window, the buy list: every material your plans and queue still
---             need that this character doesn't have (in bags, bank or mail; an alt holding some is
---             only mentioned, "[Mira has 12]"). What this vendor sells is one click to buy, exactly
---             the number needed ("Buy all here" for the lot); what it doesn't is grayed out,
---             [Not Available].
---   Auction House: under its window, the same list with the Auction House and vendor prices side
---             by side and which is cheaper. A click puts the item in the game's search box, or
---             searches for it in DaylightUI 2.0's own Auction House window when that's the one up.
+-- and your crafting queue.
+-- The buy list is two lists, picked with the two tabs under the panel's title: "Queue List" (what
+-- the crafting queue needs) and "Guide List" (what the Leveling Guide plans need, every profession),
+-- each tab with how many items it still has to buy. The pick is kept per account
+-- (DaylightRecipesDB.shopList, beside the folds) and is the same at vendors and the Auction House;
+-- Guide List until one is picked. A window opened while the kept list has nothing to buy and the
+-- other has shows the other for that visit, the kept pick unchanged.
+-- Each panel lists only what is cheapest where you stand (Calc.Unit's answer): the rest is left
+-- out and counted in one quiet line under the list ("3 more are cheaper at a vendor: show them"),
+-- which a click shows for that visit and hides again.
+-- Under the tabs, when the list shown has items for two professions or more, a row of profession
+-- tags: "All" and one for each. A tag shows only that profession's items, each with that
+-- profession's share of what's still to buy; the tag again, or "All", shows everything. Kept per
+-- account (DaylightRecipesDB.shopTag), the same in both panels; a list without that profession
+-- shows All and leaves the kept tag alone. The tab counts stay the whole lists'.
+-- Shift held with the mouse on a row turns its right text to "Remove"; Shift-click (a controller:
+-- Y) takes the item off the list shown, for this character (c.shopRemoved, beside its plans),
+-- until that list stops needing it or needs more than it did. A quiet last line counts the removed
+-- and puts them back ("2 removed from this list: put them back").
+-- What you buy comes off the lists at once: at a vendor through the panel (settled against each
+-- read of the bags), and on the Auction House, whose purchases come by mail (kept per character
+-- until the mailbox is next read). Bought by hand at a vendor, looted, crafted, traded or taken
+-- from the bank or mail: with the Store's next read of the bags, half a second after they settle.
+--   Vendor:   under the vendor's window, the picked list: every material it still needs that this
+--             character doesn't have (in bags, bank or mail; an alt holding some is only mentioned,
+--             "[Mira has 12]"). What this vendor sells is a double-click to buy, exactly the
+--             number needed ("Buy All Here" for the lot); what a vendor is cheapest for but this
+--             one doesn't sell is grayed out, [Not Available]. Left out: what's cheaper on the
+--             Auction House, and what has no known price and isn't sold here.
+--   Auction House: under its window, the picked list with the Auction House and vendor prices
+--             side by side. A click puts the item in the game's search box, or searches for it in
+--             DaylightUI 2.0's own Auction House window when that's the one up; with the mouse on
+--             a row its right text says so, "Left Click to Search". Left out: what a
+--             vendor is cheapest for (vendor-only items too); what has no known price stays.
 --   Trainer:  beside a profession trainer, "Recommended": only the recipes your leveling route
 --             learns, with the skill range it uses each for ("All Leveling Recipes Known" when
 --             there are none left). A click learns one; "Learn all" the lot. Not shown once the
@@ -35,63 +60,250 @@ local HEAD, FOOT = 38, 44
 -- What your plans need
 -- ---------------------------------------------------------------------------------------------
 
--- Bought here a moment ago and not read in the bags yet: itemID -> { count, version }.
+-- Bought and not yet where the Store counts it (its bags, bank and mail snapshots), so the lists
+-- drop by what was bought at once and never count it twice.
+--
+-- At a vendor, through the panel: itemID -> { count, base, at }, in memory. count is what was
+-- asked of the vendor and hasn't shown up in the bags yet; base is the bag snapshot's count for
+-- the item when that was last looked at. Every bag read (Store's, half a second after the bags
+-- settle) takes what arrived since off the count (Shop.BagsRead), so a purchase that lands in two
+-- reads, or a read that had nothing to do with it, never puts the items back on the list, and what
+-- the bags hold is never counted along with it. A purchase the vendor refused (bags full, a unique
+-- item) is given up WAIT seconds after the last one asked for, and the list drawn again.
 local bought = {}
-function Shop.Bought(itemID)
-	local b = bought[itemID]
-	if not b then return 0 end
-	-- (Once the bags have been read again, they count it themselves.)
-	if not ns.Store or ns.Store.version ~= b.version or GetTime() - b.at > 5 then
-		bought[itemID] = nil
-		return 0
+local WAIT = 5
+
+-- What the bags hold of an item now: the Store's snapshot, raised to the game's own count
+-- (C_Item.GetItemCount: bags only by default, ItemDocumentation.lua:451-467) when that is higher.
+-- The snapshot is read half a second after the bags settle; in that half second something bought
+-- by hand in the merchant's window is in the bags and not in the snapshot, and a press here would
+-- buy it again. Only ever raised: what left the bags is the snapshot's to say.
+local function InBags(itemID)
+	local c = ns.Store and ns.Store.Char()
+	local n = c and type(c.bags) == "table" and c.bags[itemID] or 0
+	local get = C_Item and C_Item.GetItemCount
+	if type(get) == "function" then
+		local ok, live = pcall(get, itemID)
+		if ok and type(live) == "number" and live > n then n = live end
 	end
-	return b.count
+	return n
 end
+
+-- Store.Count's answer with the bags as they are now (InBags).
+local function Have(itemID)
+	local have = ns.Store.Count(itemID)
+	local live = InBags(itemID)
+	if live > (have.bags or 0) then
+		have.mine = (have.mine or 0) + live - (have.bags or 0)
+		have.bags = live
+	end
+	return have
+end
+
 local function NoteBought(itemID, count)
 	if count <= 0 then return end
 	local b = bought[itemID]
-	local version = ns.Store and ns.Store.version or 0
-	if b and b.version == version then
+	if b and GetTime() - b.at <= WAIT then
 		b.count = b.count + count
 	else
-		bought[itemID] = { count = count, version = version, at = GetTime() }
+		b = { count = count, base = InBags(itemID) }
+		bought[itemID] = b
+	end
+	b.at = GetTime()
+	-- (Still not in the bags by then: back on the list, without waiting for another event.)
+	C_Timer.After(WAIT + 0.1, function() Shop.Refresh() end)
+end
+
+-- Store.lua, after every read of the bags (bags: itemID -> count, the new snapshot).
+function Shop.BagsRead(bags)
+	for itemID, b in pairs(bought) do
+		local now = type(bags) == "table" and bags[itemID] or 0
+		if now > b.base then b.count = b.count - (now - b.base) end
+		b.base = now
+		if b.count <= 0 then bought[itemID] = nil end
 	end
 end
 
--- Every material this character's plans still have to buy:
--- { { itemID, need, have (Store.Count), buy, lines = { [line] = n } } } most needed first.
-function Shop.List()
+-- On the Auction House: what's bought there comes by mail (the game's mail window has the
+-- buyer's invoice for it, Blizzard_MailFrame\MailFrame.lua:790-803), and the mailbox is only read
+-- while it's open (Store.lua's ReadMail). So what was bought is kept here until then, per
+-- character and between sessions (c.ahBought: itemID -> { count, at }): the lists count it as held
+-- from the moment the game says the purchase went through. The next read of an open mailbox
+-- clears it all: by then every purchase is either in the inbox, which that read counts, or taken
+-- out of it and in the bags. Never collected: forgotten after MAIL_DAYS, as long as the game keeps
+-- such mail.
+local MAIL_DAYS = 30
+local mailOpen = false
+
+local function Mailed(make)
 	local c = ns.Store and ns.Store.Char()
-	local out = {}
-	if not c then return out end
-	local need, lines = {}, {}
-	for line, plan in pairs(type(c.plans) == "table" and c.plans or {}) do
-		if type(plan) == "table" and type(plan.need) == "table" then
-			for itemID, n in pairs(plan.need) do
-				if type(n) == "number" and n > 0 then
-					need[itemID] = (need[itemID] or 0) + n
-					lines[itemID] = lines[itemID] or {}
-					lines[itemID][line] = n
+	if not c then return nil end
+	if type(c.ahBought) ~= "table" then
+		if not make then return nil end
+		c.ahBought = {}
+	end
+	return c.ahBought
+end
+
+function Shop.Mailed(itemID)
+	local t = Mailed()
+	local e = t and t[itemID]
+	if type(e) ~= "table" then return 0 end
+	if time() - (tonumber(e.at) or 0) > MAIL_DAYS * 86400 then
+		t[itemID] = nil
+		return 0
+	end
+	return tonumber(e.count) or 0
+end
+
+-- `count` of an item bought on the Auction House just now.
+function Shop.NoteAuction(itemID, count)
+	if type(itemID) ~= "number" or type(count) ~= "number" or count <= 0 then return end
+	local t = Mailed(true)
+	if not t then return end
+	local had = Shop.Mailed(itemID)
+	t[itemID] = { count = had + count, at = time() }
+	Shop.Refresh()
+end
+
+-- Store.lua, after every read of the mailbox.
+function Shop.MailRead()
+	-- (Only a mailbox that's open: the inbox answers nothing away from one.)
+	if not mailOpen then return end
+	local t = Mailed()
+	if t and next(t) then wipe(t) end
+end
+
+-- How many of an item were bought and aren't in the Store's counts yet: at a vendor a moment ago,
+-- and on the Auction House since the mailbox was last read (the second answer: that part).
+function Shop.Bought(itemID)
+	local n = 0
+	local b = bought[itemID]
+	if b then
+		if GetTime() - b.at > WAIT then
+			bought[itemID] = nil
+		else
+			-- (Less what has reached the bags since, read or not: the bags count that themselves.)
+			n = math.max(0, b.count - math.max(0, InBags(itemID) - b.base))
+		end
+	end
+	local mailed = Shop.Mailed(itemID)
+	return n + mailed, mailed
+end
+
+-- Items the player took off a list (Shift-click a row, or a controller's Y): kept per character
+-- beside its plans, c.shopRemoved[which][itemID] = what that list needed of it then. The plan and
+-- the queue stay as they are. It ends by itself when the list stops needing the item (the step
+-- done, the queue entry gone), so a later need shows again, and when the list needs more of it
+-- than it did then (a new step or queue entry).
+local function RemovedOf(c, which, make)
+	local all = c.shopRemoved
+	if type(all) ~= "table" then
+		if not make then return nil end
+		all = {}
+		c.shopRemoved = all
+	end
+	local t = all[which]
+	if type(t) ~= "table" then
+		if not make then return nil end
+		t = {}
+		all[which] = t
+	end
+	return t
+end
+
+-- The removals of a list that still stand, given what it needs now (need: itemID -> count).
+local function Standing(c, which, need)
+	local t = RemovedOf(c, which)
+	if not t then return nil end
+	for itemID, was in pairs(t) do
+		local n = need[itemID]
+		if not n or type(was) ~= "number" or n > was then t[itemID] = nil end
+	end
+	return t
+end
+
+-- Every material this character still has to buy:
+-- { { itemID, need, have (Store.Count), buy, bought, mailed, lines = { [line] = n },
+--     byLine = { [profession] = n } } } most needed first.
+-- which: "guide" (only what the Leveling Guide plans need, every profession), "queue" (only what
+-- the crafting queue needs), or nothing ("all") for the two together, an item in both counted once.
+-- (What you hold is counted against each list by itself: 20 in the bags cover a queue needing 20
+-- and a guide needing 20 alike.)
+-- lines is for the tooltip ("queue" for the queue's share); byLine is what each profession needs
+-- of the item (the plan's line, or the queued recipes' profession), for the profession tags.
+-- bought: of what's needed, how many were bought and aren't in the bags or the mailbox's count
+-- yet (Shop.Bought); mailed: the Auction House's part of that.
+-- Second answer: what the player removed from the list(s) asked for and would be on it otherwise,
+-- { { itemID, byLine } }.
+function Shop.List(which)
+	local c = ns.Store and ns.Store.Char()
+	local out, gone = {}, {}
+	if not c then return out, gone end
+	-- Each list's need by itself, then its removals taken out.
+	local parts = {}
+	if which ~= "queue" then
+		local need, by = {}, {}
+		for line, plan in pairs(type(c.plans) == "table" and c.plans or {}) do
+			if type(plan) == "table" and type(plan.need) == "table" then
+				for itemID, n in pairs(plan.need) do
+					if type(n) == "number" and n > 0 then
+						need[itemID] = (need[itemID] or 0) + n
+						by[itemID] = by[itemID] or {}
+						by[itemID][line] = n
+					end
 				end
 			end
 		end
+		parts[#parts + 1] = { which = "guide", need = need, by = by }
 	end
-	-- The queue's too ("queue" in lines: its share). (A Leveling Guide step queued is in both: the
-	-- larger of the two is what's needed, not the sum.)
-	if ns.Queue then
+	if ns.Queue and which ~= "guide" then
+		local need, by = {}, {}
 		for itemID, n in pairs(ns.Queue.Needs()) do
-			need[itemID] = math.max(need[itemID] or 0, n)
-			lines[itemID] = lines[itemID] or {}
-			lines[itemID].queue = n
+			if type(n) == "number" and n > 0 then need[itemID] = n end
+		end
+		if ns.Queue.NeedsByLine then
+			for line, items in pairs(ns.Queue.NeedsByLine()) do
+				for itemID, n in pairs(items) do
+					if need[itemID] and n > 0 then
+						by[itemID] = by[itemID] or {}
+						by[itemID][line] = n
+					end
+				end
+			end
+		end
+		parts[#parts + 1] = { which = "queue", need = need, by = by }
+	end
+	-- (A Leveling Guide step queued is in both: with the two together, the larger of the two is
+	-- what's needed, not the sum.)
+	local need, lines, byLine, taken = {}, {}, {}, {}
+	for _, part in ipairs(parts) do
+		local removed = Standing(c, part.which, part.need)
+		for itemID, n in pairs(part.need) do
+			if removed and removed[itemID] then
+				taken[itemID] = taken[itemID] or {}
+				taken[itemID][#taken[itemID] + 1] = { need = n, by = part.by[itemID] or {} }
+			else
+				need[itemID] = math.max(need[itemID] or 0, n)
+				lines[itemID] = lines[itemID] or {}
+				byLine[itemID] = byLine[itemID] or {}
+				for line, m in pairs(part.by[itemID] or {}) do
+					if part.which == "guide" then lines[itemID][line] = m end
+					byLine[itemID][line] = math.max(byLine[itemID][line] or 0, m)
+				end
+				if part.which == "queue" then lines[itemID].queue = n end
+			end
 		end
 	end
 	for itemID, n in pairs(need) do
-		local have = ns.Store.Count(itemID)
+		local have = Have(itemID)
 		-- (What this character lacks: an alt's are only mentioned. Just bought, not in the bag
-		-- snapshot yet: taken off already.)
-		local buy = math.max(0, n - have.mine - Shop.Bought(itemID))
+		-- or mail snapshot yet: taken off already.)
+		local pending, mailed = Shop.Bought(itemID)
+		local buy = math.max(0, n - have.mine - pending)
 		if buy > 0 then
 			out[#out + 1] = { itemID = itemID, need = n, have = have, buy = buy, lines = lines[itemID],
+				byLine = byLine[itemID], bought = pending, mailed = mailed,
 				alert = ns.Pages and ns.Pages.AltAlert(have) }
 		end
 	end
@@ -99,7 +311,43 @@ function Shop.List()
 		if a.buy ~= b.buy then return a.buy > b.buy end
 		return a.itemID < b.itemID
 	end)
-	return out
+	-- What's removed and would be listed (still short of it, and not on the list through the
+	-- other list's need).
+	for itemID, list in pairs(taken) do
+		if not need[itemID] then
+			local most, by = 0, {}
+			for _, t in ipairs(list) do
+				most = math.max(most, t.need)
+				for line, m in pairs(t.by) do by[line] = math.max(by[line] or 0, m) end
+			end
+			if most - Have(itemID).mine - Shop.Bought(itemID) > 0 then
+				gone[#gone + 1] = { itemID = itemID, byLine = by }
+			end
+		end
+	end
+	table.sort(gone, function(a, b) return a.itemID < b.itemID end)
+	return out, gone
+end
+
+-- Takes an item off a list ("queue" or "guide"); need: what that list needs of it now.
+function Shop.Remove(which, itemID, need)
+	local c = ns.Store and ns.Store.Char()
+	if not c or (which ~= "queue" and which ~= "guide") or type(itemID) ~= "number" then return end
+	RemovedOf(c, which, true)[itemID] = tonumber(need) or 0
+	Shop.Redraw()
+end
+
+-- Puts removed items back on a list: the ones in `ids` ({ itemID, ... }), or all of them.
+function Shop.Restore(which, ids)
+	local c = ns.Store and ns.Store.Char()
+	local t = c and RemovedOf(c, which)
+	if not t then return end
+	if ids then
+		for _, itemID in ipairs(ids) do t[itemID] = nil end
+	else
+		wipe(t)
+	end
+	Shop.Redraw()
 end
 
 -- Whether DaylightUI's bags list every character's holdings under an item's tooltip: DaylightUI
@@ -159,7 +407,18 @@ local function RowTip(r, hint)
 			where = have.mail > 0 and L["%d in the mail"]:format(have.mail) or nil
 		end
 		if where then tip:AddLine(L["You have %s"]:format(where), Color("TEXT")) end
+		-- (Bought on the Auction House and not seen in the mailbox yet: counted as held.)
+		if (r.mailed or 0) > 0 then
+			tip:AddLine(L["Bought on the Auction House, in the mail: %d"]:format(r.mailed), Color("TEXT"))
+		end
 	end
+end
+
+-- A buy list row's Shift action (Doc's D:Row): Shift-click takes the item off the list shown.
+-- r.need is the whole list's need of it, also for a row showing one profession's share.
+local function RemoveAction(which, r)
+	return { text = L["Remove"], ink = "WARN", tip = L["Shift-click to remove this from the list."],
+		onClick = function() Shop.Remove(which, r.itemID, r.need) end }
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -185,6 +444,32 @@ local function Folds()
 	local db = DaylightRecipesDB
 	db.shopFolds = type(db.shopFolds) == "table" and db.shopFolds or {}
 	return db.shopFolds
+end
+
+-- Which of the two buy lists shows: "queue" or "guide". The player's pick is kept per account
+-- beside the folds (DaylightRecipesDB.shopList), one for the vendor's and the Auction House's
+-- panel; "guide" until there is one.
+local OTHER = { queue = "guide", guide = "queue" }
+local function Picked()
+	Folds()
+	return DaylightRecipesDB.shopList == "queue" and "queue" or "guide"
+end
+
+-- One visit to a vendor or the Auction House (from its window opening to its closing): the list
+-- shown (which) and whether what the source filter leaves out is shown after all (reveal).
+local visit = { vendor = {}, auction = {} }
+
+-- The list a panel shows this visit, settled the first time it's drawn: the kept pick, or the
+-- other list when the kept one has nothing to buy and the other has (the kept pick stays as it
+-- is). It then stays put until the player picks a tab, also when its last item is bought.
+local function Which(key, lists)
+	local v = visit[key]
+	if not v.which then
+		local w = Picked()
+		if #lists[w] == 0 and #lists[OTHER[w]] > 0 then w = OTHER[w] end
+		v.which = w
+	end
+	return v.which
 end
 
 -- The fold tab: DaylightUI's look for a fold (a small bordered tab with a grip), against the
@@ -297,7 +582,143 @@ local function Main(button)
 	if type(API.MainButton) == "function" then pcall(API.MainButton, button, true) end
 end
 
-local function NewPanel(name, title, key)
+-- The two list tabs under a buy list's title, in the look of our window's and pane's tabs (the
+-- picked one bright over an accent line). A click picks that list, here and in the other buy list,
+-- and keeps the pick. With a controller they're stops like the rows, and LB / RB step through them
+-- (the kit's padTabs).
+local function PaintListTabs(p)
+	for _, b in ipairs(p.tabs) do
+		if b.key == p.which then
+			b.text:SetTextColor(Color("VALUE"))
+			b.line:SetColorTexture(API.Accent())
+			b.line:Show()
+		else
+			b.text:SetTextColor(Color(b:IsMouseOver() and "VALUE" or "LABEL"))
+			b.line:Hide()
+		end
+	end
+end
+
+local TAB_H, TAB_TOP = 24, 32
+
+local function AddListTabs(p)
+	p.tabs = {}
+	for i, spec in ipairs({ { "queue", L["Queue List (%d)"] }, { "guide", L["Guide List (%d)"] } }) do
+		local b = CreateFrame("Button", nil, p)
+		b.key, b.words = spec[1], spec[2]
+		b:SetHeight(TAB_H)
+		b.text = Doc.Text(b, "body")
+		b.text:SetPoint("CENTER", 0, 1)
+		b.line = b:CreateTexture(nil, "ARTWORK")
+		b.line:SetHeight(2)
+		b.line:SetPoint("BOTTOMLEFT", 6, 0)
+		b.line:SetPoint("BOTTOMRIGHT", -6, 0)
+		b:SetScript("OnClick", function() Shop.Pick(b.key) end)
+		b:SetScript("OnEnter", function() PaintListTabs(p) end)
+		b:SetScript("OnLeave", function() PaintListTabs(p) end)
+		p.tabs[i] = b
+	end
+	p.padTabs = function()
+		for i, b in ipairs(p.tabs) do
+			if b.key == p.which then return p.tabs, i end
+		end
+		return p.tabs, nil
+	end
+end
+
+-- The tabs' words with each list's count, as wide as their words and side by side; in a language
+-- or a font where the two don't fit the panel's width, one under the other (never cut off).
+-- p.extra: the room they take under the title.
+local function FitListTabs(p, which, lists)
+	p.which = which
+	local a, b = p.tabs[1], p.tabs[2]
+	for _, t in ipairs(p.tabs) do
+		t.text:SetText(t.words:format(#lists[t.key]))
+		t:SetWidth(math.ceil(t.text:GetStringWidth()) + 16)
+		t:ClearAllPoints()
+	end
+	a:SetPoint("TOPLEFT", p, "TOPLEFT", 6, -TAB_TOP)
+	if a:GetWidth() + 2 + b:GetWidth() <= WIDTH - 12 then
+		b:SetPoint("LEFT", a, "RIGHT", 2, 0)
+		p.extra = TAB_H + 2
+	else
+		b:SetPoint("TOPLEFT", a, "BOTTOMLEFT", 0, -2)
+		p.extra = TAB_H * 2 + 4
+	end
+	PaintListTabs(p)
+end
+
+-- The profession tags under the list tabs, in the look of our window's filter words (small; the
+-- picked one in the accent over a thin line): "All", then one for each profession with something
+-- to buy on the list shown. Only with two professions or more. They run left to right and on to
+-- a new row at the panel's edge, never cut off. tags: { { line, name }, ... }; tag: the one picked
+-- (nil: All). Adds the room they take to p.extra (after FitListTabs).
+local TAG_H = 20
+
+local function PaintTags(p)
+	for _, b in ipairs(p.tags or {}) do
+		if b:IsShown() then
+			if b.key == (p.tag or false) then
+				b.text:SetTextColor(API.Accent())
+				b.line:SetColorTexture(API.Accent())
+				b.line:Show()
+			else
+				b.text:SetTextColor(Color(b:IsMouseOver() and "VALUE" or "LABEL"))
+				b.line:Hide()
+			end
+		end
+	end
+end
+
+local function TagButton(p, i)
+	local b = p.tags[i]
+	if b then return b end
+	b = CreateFrame("Button", nil, p)
+	b:SetHeight(TAG_H)
+	b.text = Doc.Text(b, "small")
+	b.text:SetPoint("CENTER", 0, 1)
+	b.line = b:CreateTexture(nil, "ARTWORK")
+	b.line:SetHeight(1)
+	b.line:SetPoint("BOTTOMLEFT", 4, 0)
+	b.line:SetPoint("BOTTOMRIGHT", -4, 0)
+	b:SetScript("OnClick", function() Shop.Tag(b.key, p.tag) end)
+	b:SetScript("OnEnter", function() PaintTags(p) end)
+	b:SetScript("OnLeave", function() PaintTags(p) end)
+	p.tags[i] = b
+	return b
+end
+
+local function FitTags(p, tags, tag)
+	p.tags = p.tags or {}
+	p.tag = tag
+	local used = 0
+	if #tags >= 2 then
+		local x, y = 8, TAB_TOP + p.extra
+		local function place(key, text)
+			used = used + 1
+			local b = TagButton(p, used)
+			b.key = key
+			b.text:SetText(text)
+			local w = math.ceil(b.text:GetStringWidth()) + 14
+			b:SetWidth(w)
+			if x > 8 and x + w > WIDTH - 8 then
+				x, y = 8, y + TAG_H + 2
+			end
+			b:ClearAllPoints()
+			b:SetPoint("TOPLEFT", p, "TOPLEFT", x, -y)
+			b:Show()
+			x = x + w + 2
+		end
+		place(false, L["All"])
+		for _, t in ipairs(tags) do place(t.line, t.name) end
+		p.extra = y + TAG_H + 4 - TAB_TOP
+	end
+	for i = used + 1, #p.tags do p.tags[i]:Hide() end
+	PaintTags(p)
+end
+
+-- lists: a buy list, with the two list tabs under its title.
+local function NewPanel(name, title, key, lists)
 	local p = CreateFrame("Frame", name, UIParent)
 	p.key, p.label = key, title
 	p:SetSize(WIDTH, 200)
@@ -314,7 +735,9 @@ local function NewPanel(name, title, key)
 	p.note = Doc.Text(p, "small", "RIGHT")
 	p.note:SetPoint("TOPRIGHT", p, "TOPRIGHT", -14, -15)
 	p.doc = Doc.New(p, { pad = 10, width = WIDTH })
+	-- (Under the title, or under the list tabs of a panel that has them: Paint.)
 	p.doc.scroll:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -HEAD + 6)
+	if lists then AddListTabs(p) end
 	p.doc.scroll:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, FOOT)
 	-- (The total sits beside the button, wrapping onto a second line rather than running under it:
 	-- FitFoot sizes both.)
@@ -341,7 +764,14 @@ local function NewPanel(name, title, key)
 	p.padSecond = true
 	p.padKeys = { { key = "X", label = L["Buy"],
 		when = function(at) return type(at) == "table" and type(at.onDouble) == "function" end,
-		run = function(at) if type(at) == "table" and at.onDouble then at.onDouble(at) end end } }
+		run = function(at) if type(at) == "table" and at.onDouble then at.onDouble(at) end end },
+		-- (Y on a buy list row: its Shift action, Remove. Y is the kit's "more actions" button,
+		-- which these rows have no other use for; X buys, A selects, B folds the panel.)
+		{ key = "Y", label = L["Remove"],
+		when = function(at) return type(at) == "table" and type(at.shift) == "table" end,
+		run = function(at)
+			if type(at) == "table" and type(at.shift) == "table" then at.shift.onClick() end
+		end } }
 	ns.Pad.Follow(p, function()
 		Folds()[p.key] = true
 		if p.redraw then p.redraw() else p:Hide() end
@@ -419,8 +849,11 @@ local function Paint(p, host, side, fill)
 	d:Finish()
 	-- (A panel with nothing in its footer ends under its rows.)
 	local foot = p.footless and 10 or FOOT
+	-- (And one with list tabs starts its rows under them.)
+	local head = HEAD + (p.extra or 0)
+	d.scroll:SetPoint("TOPLEFT", p, "TOPLEFT", 0, -head + 6)
 	d.scroll:SetPoint("BOTTOMRIGHT", p, "BOTTOMRIGHT", 0, foot)
-	p:SetHeight(math.min(MAX_H, HEAD + d.y + foot))
+	p:SetHeight(math.min(MAX_H, head + d.y + foot))
 	Dock(p, host, side)
 	-- (No room on any edge of the host: only the tab, until the player opens the list over the
 	-- window with it. Never over the host's own controls by itself.)
@@ -450,6 +883,143 @@ local function Soon(show)
 		if not show() and tries < 6 then C_Timer.After(0.2, try) end
 	end
 	C_Timer.After(0, try)
+end
+
+-- ---------------------------------------------------------------------------------------------
+-- The two buy lists and the source filter
+-- ---------------------------------------------------------------------------------------------
+
+-- Both lists, as the panels and their tabs' counts want them, and what was removed from each.
+local function Lists()
+	local lists, gone = {}, {}
+	lists.queue, gone.queue = Shop.List("queue")
+	lists.guide, gone.guide = Shop.List("guide")
+	return lists, gone
+end
+
+-- The professions with something to buy on a list: { { line, name }, ... } by name.
+local function TagsOf(list)
+	local seen, out = {}, {}
+	for _, r in ipairs(list) do
+		for line, n in pairs(r.byLine or {}) do
+			if n > 0 and not seen[line] then
+				seen[line] = true
+				out[#out + 1] = { line = line, name = ns.Tips and ns.Tips.LineName(line) or tostring(line) }
+			end
+		end
+	end
+	table.sort(out, function(a, b)
+		if a.name ~= b.name then return a.name < b.name end
+		return tostring(a.line) < tostring(b.line)
+	end)
+	return out
+end
+
+-- The profession tag in use: the one kept (per account, DaylightRecipesDB.shopTag, beside the
+-- list pick; one for both buy lists) when the list shown has a tag for it, else none ("All" for
+-- now, the kept one unchanged).
+local function TagFor(tags)
+	Folds()
+	local kept = DaylightRecipesDB.shopTag
+	if kept == nil or #tags < 2 then return nil end
+	for _, t in ipairs(tags) do
+		if t.line == kept then return kept end
+	end
+	return nil
+end
+
+-- A list as one profession's tag shows it: only the items that profession needs, each with its
+-- share, the lesser of what's still to buy in all and what the profession needs of it. (The rows
+-- are views of the list's own: everything else, the whole need too, reads through.)
+local function Tagged(list, tag)
+	if tag == nil then return list end
+	local out = {}
+	for _, r in ipairs(list) do
+		local n = r.byLine and r.byLine[tag]
+		if n and n > 0 then
+			out[#out + 1] = setmetatable({ buy = math.min(r.buy, n) }, { __index = r })
+		end
+	end
+	table.sort(out, function(a, b)
+		if a.buy ~= b.buy then return a.buy > b.buy end
+		return a.itemID < b.itemID
+	end)
+	return out
+end
+
+-- What a buy list panel shows now: the list picked (which), its rows as the tag in use shows
+-- them (list), and the removed items the put-back line counts (back: itemIDs, the tag's only
+-- under a tag). Sets the panel's tabs and tags. nil when there is nothing at all, bought or
+-- removed, on either list: the panel is put away.
+local function View(p, key)
+	local lists, gone = Lists()
+	if #lists.queue == 0 and #lists.guide == 0 and #gone.queue == 0 and #gone.guide == 0 then
+		Shop.HidePanel(p)
+		return nil
+	end
+	local which = Which(key, lists)
+	FitListTabs(p, which, lists)
+	local tags = TagsOf(lists[which])
+	local tag = TagFor(tags)
+	FitTags(p, tags, tag)
+	local back = {}
+	for _, g in ipairs(gone[which]) do
+		if tag == nil or (g.byLine[tag] or 0) > 0 then back[#back + 1] = g.itemID end
+	end
+	return { which = which, list = Tagged(lists[which], tag), back = back }
+end
+
+-- A list with nothing left to buy says so.
+local function NothingToBuy(which)
+	return which == "queue" and L["Your crafting queue needs nothing you don't have."]
+		or L["Your Leveling Guides need nothing you don't have."]
+end
+
+-- Whether an item is listed at the Auction House: not when a vendor is its cheapest source
+-- (Calc.Unit: a vendor-only item, a vendor cheaper than the auctions, or one nearly sold out there).
+-- One with no price anywhere stays: the Auction House is where to go look.
+function Shop.AtAuction(itemID)
+	local _, kind = Calc.Unit(itemID)
+	return kind ~= "vendor"
+end
+
+-- Whether an item is listed at a vendor; `unit` is this vendor's price for one, nil when it
+-- doesn't sell it. Listed: what a vendor is the cheapest source of (this one or another: another's
+-- shows as [Not Available] with where to go), and what has no known price when it's sold here.
+-- Not listed: what the Auction House is cheapest for, unless this vendor's own price, read off its
+-- shelf, is no higher. The second answer says why not: "ah" (cheaper there), or "unknown" (no
+-- price known and not sold here).
+function Shop.AtVendor(itemID, unit)
+	local best, kind = Calc.Unit(itemID)
+	if kind == "vendor" then return true end
+	if kind == "ah" then
+		if unit and unit <= best then return true end
+		return false, "ah"
+	end
+	if unit then return true end
+	return false, "unknown"
+end
+
+-- The quiet line under a list that leaves items out: how many and why (`text`), and a click shows
+-- them for this visit; then it offers to hide them again. Nothing is left out without it.
+local function LeftOut(d, key, count, text, redraw)
+	if count <= 0 then return end
+	local v = visit[key]
+	d:Gap(4)
+	d:Link(v.reveal and L["Hide what isn't cheapest here"] or text, function()
+		v.reveal = not v.reveal or nil
+		redraw()
+		-- (A controller: the game finds the rows that came or went.)
+		ns.Pad.Settle()
+	end)
+end
+
+-- The quiet line at the end of a list with removed items: how many, and a click puts them back.
+local function PutBack(d, which, back)
+	if #back == 0 then return end
+	d:Gap(4)
+	d:Link(Plural(#back, "%d removed from this list: put it back", "%d removed from this list: put them back"):format(#back),
+		function() Shop.Restore(which, back) end)
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -514,6 +1084,15 @@ local function BuyOne(s, want)
 		end
 	end
 	return count
+end
+
+-- What a list still has to buy right now, itemID -> count: asked again at the moment of a press
+-- and of its "Yes", so a row drawn before something arrived (bought by hand in the merchant's
+-- window, taken from the mail) never buys more than is still short.
+local function WantedNow(which)
+	local out = {}
+	for _, r in ipairs((Shop.List(which))) do out[r.itemID] = r.buy end
+	return out
 end
 
 -- Where a material not sold here comes from: the vendor that sells it, or only how many more.
@@ -621,50 +1200,87 @@ function Shop.Vendor()
 	if not merchantOpen then return true end
 	local host = VendorHost()
 	if not host then return false end
-	vendor = vendor or NewPanel("DaylightRecipesBuyList", L["Buy List"], "vendor")
+	vendor = vendor or NewPanel("DaylightRecipesBuyList", L["Buy List"], "vendor", true)
 	vendor.redraw = Shop.Vendor
-	local list = Shop.List()
-	-- Nothing to buy at all: the window stays out of the way.
-	if #list == 0 then
-		Shop.HidePanel(vendor)
-		return true
-	end
+	-- Nothing to buy at all, on either list: the window stays out of the way.
+	local view = View(vendor, "vendor")
+	if not view then return true end
+	local which, list, back = view.which, view.list, view.back
 	local shelf = Shelf()
-	local here, cost = {}, 0
+	-- What's listed here, and what the source filter leaves out (shown after the rest once the
+	-- player asks for it): cheaper on the Auction House, or (unknown) no price known and not here.
+	local rows, out, unknown = {}, {}, 0
+	for _, r in ipairs(list) do
+		local s = shelf[r.itemID]
+		local listed, why = Shop.AtVendor(r.itemID, s and s.unit)
+		if listed then
+			rows[#rows + 1] = r
+		else
+			out[#out + 1] = r
+			if why == "unknown" then unknown = unknown + 1 end
+		end
+	end
+	if visit.vendor.reveal then
+		for _, r in ipairs(out) do rows[#rows + 1] = r end
+	end
+	-- here: the listed rows this vendor sells (what "Buy All Here" buys); ready: how many of them
+	-- it can sell you now (not sold out, not past your gold), the "N to buy" at the top.
+	local here, cost, ready = {}, 0, 0
 	Paint(vendor, host, "below", function(d)
-		for _, r in ipairs(list) do
+		if #list == 0 then
+			-- (Everything on it removed: the put-back line says so.)
+			if #back == 0 then d:Line(NothingToBuy(which), "small", "OFF") end
+		elseif #rows == 0 then
+			d:Line(L["Nothing on this list is cheapest here."], "small", "OFF")
+		end
+		for _, r in ipairs(rows) do
 			local name, icon = Doc.ItemName(r.itemID, d)
 			local s = shelf[r.itemID]
-			local sub = L["Need %d · you have %d"]:format(r.need, r.have.mine)
+			-- (What's bought and on its way counts as held, as it does in the number to buy.)
+			local sub = L["Need %d · you have %d"]:format(r.need, r.have.mine + (r.bought or 0))
+			local shift = RemoveAction(which, r)
 			if r.alert then sub = sub .. " · " .. r.alert end
 			if s then
 				local count, price = CanBuy(s, r.buy)
 				local short = count < r.buy
 				here[#here + 1] = { s = s, want = r.buy, itemID = r.itemID, price = price }
 				cost = cost + price
+				if count > 0 then ready = ready + 1 end
 				local why = s.left == 0 and L["Sold out"] or L["Can't afford"]
 				d:Row({ icon = icon, left = name, right = count > 0 and L["Buy %d for %s"]:format(count, Calc.Money(price)) or why,
 					rightInk = count > 0 and "VALUE" or "BAD", sub = short and count > 0 and (sub .. " · " .. L["only %d here"]:format(count)) or sub,
-					subInk = "TEXT", tip = RowTip(r, count > 0 and L["Double-click to buy."] or nil),
+					subInk = "TEXT", tip = RowTip(r, count > 0 and L["Double-click to buy."] or nil), shift = shift,
 					onDouble = count > 0 and function()
+						-- (Less to buy than this row says: drawn again first, nothing bought.)
+						if (WantedNow(which)[r.itemID] or 0) < r.buy then
+							Shop.Vendor()
+							return
+						end
 						local itemName = Calc.ItemInfo(r.itemID) or ns.ItemNameOf(r.itemID) or L["it"]
 						Confirm(vendor, L["Buy %d %s?"]:format(count, itemName), price, function()
-							NoteBought(r.itemID, BuyOne(s, r.buy))
+							-- (And again at the Yes: never more than is still short, nor than asked about.)
+							local want = math.min(r.buy, WantedNow(which)[r.itemID] or 0)
+							if want > 0 then NoteBought(r.itemID, BuyOne(s, want)) end
 							Shop.Vendor()
 						end)
 					end or nil })
 			else
 				d:Row({ icon = icon, dim = true, left = name, leftInk = "OFF", right = L["[Not Available]"], rightInk = "OFF",
 					sub = Elsewhere(r) .. (r.alert and (" · " .. r.alert) or ""), subInk = "OFF",
-					tip = RowTip(r) })
+					tip = RowTip(r), shift = shift })
 			end
 		end
+		LeftOut(d, "vendor", #out, unknown > 0
+			and Plural(#out, "%d more to look for on the Auction House: show it", "%d more to look for on the Auction House: show them"):format(#out)
+			or Plural(#out, "%d more is cheaper on the Auction House: show it", "%d more are cheaper on the Auction House: show them"):format(#out),
+			Shop.Vendor)
+		PutBack(d, which, back)
 	end)
-	vendor.note:SetText(L["%d to buy"]:format(#list))
+	vendor.note:SetText(L["%d to buy"]:format(ready))
 	vendor.note:SetTextColor(Color("LABEL"))
 	vendor.total:SetText(#here > 0 and L["Here: %s"]:format(Calc.Money(cost)) or L["Nothing Available"])
-	-- (Nothing on the list sold here: the whole list grayed out, the title too.)
-	vendor.doc.scroll:SetAlpha(#here > 0 and 1 or 0.45)
+	-- (Rows listed and none of them sold here: the whole list grayed out, the title too.)
+	vendor.doc.scroll:SetAlpha((#here > 0 or #rows == 0) and 1 or 0.45)
 	vendor.title:SetTextColor(Color(#here > 0 and "VALUE" or "OFF"))
 	vendor.total:SetTextColor(Color(#here > 0 and "VALUE" or "OFF"))
 	vendor.button.text:SetText(L["Buy All Here"])
@@ -675,6 +1291,14 @@ function Shop.Vendor()
 	vendor.button.SetOff(#here == 0 or cost <= 0)
 	vendor.button:SetScript("OnClick", function()
 		-- (What fits in your gold, in list order: the total asked about is what will be spent.)
+		-- (Anything listed short by less than its row says now: drawn again first, nothing bought.)
+		local wanted = WantedNow(which)
+		for _, h in ipairs(here) do
+			if (wanted[h.itemID] or 0) < h.want then
+				Shop.Vendor()
+				return
+			end
+		end
 		local picks, total, left = {}, 0, money
 		for _, h in ipairs(here) do
 			if h.price > 0 and h.price <= left then
@@ -686,7 +1310,11 @@ function Shop.Vendor()
 		if #picks == 0 then return end
 		Confirm(vendor, Plural(#picks, "Buy all %d item on your list sold here?", "Buy all %d items on your list sold here?"):format(#picks), total, function()
 			-- (Your gold drops only when the server answers: the picks were sized to it above.)
-			for _, h in ipairs(picks) do NoteBought(h.itemID, BuyOne(h.s, h.want)) end
+			local still = WantedNow(which)
+			for _, h in ipairs(picks) do
+				local want = math.min(h.want, still[h.itemID] or 0)
+				if want > 0 then NoteBought(h.itemID, BuyOne(h.s, want)) end
+			end
 			Shop.Vendor()
 		end)
 	end)
@@ -791,21 +1419,35 @@ function Shop.Auction()
 	if not ahOpen then return true end
 	local host = AHHost()
 	if not host then return false end
-	auction = auction or NewPanel("DaylightRecipesAHList", L["Buy List"], "auction")
+	auction = auction or NewPanel("DaylightRecipesAHList", L["Buy List"], "auction", true)
 	auction.redraw = Shop.Auction
 	auction.lost = Shop.AuctionLost
 	-- (DaylightUI's window can be dragged and scaled, Window.lua:446-447: the list follows it. And
 	-- it is wide: with no room on any edge the list tucks away to its tab rather than cover it.)
 	local daylight = host == DaylightAH()
 	auction.follow, auction.tuck = daylight, daylight
-	local list = Shop.List()
-	if #list == 0 then
-		Shop.HidePanel(auction)
-		return true
+	local view = View(auction, "auction")
+	if not view then return true end
+	local which, list, back = view.which, view.list, view.back
+	-- What's listed here, and what the source filter leaves out (shown after the rest once the
+	-- player asks for it): everything a vendor is the cheapest source of.
+	local rows, out = {}, {}
+	for _, r in ipairs(list) do
+		if Shop.AtAuction(r.itemID) then rows[#rows + 1] = r else out[#out + 1] = r end
+	end
+	-- (The "N to buy" at the top: the Auction House's own, not what a vendor is cheapest for.)
+	local own = #rows
+	if visit.auction.reveal then
+		for _, r in ipairs(out) do rows[#rows + 1] = r end
 	end
 	local ahTotal, saved = 0, 0
 	Paint(auction, host, "below", function(d)
-		for _, r in ipairs(list) do
+		if #list == 0 then
+			if #back == 0 then d:Line(NothingToBuy(which), "small", "OFF") end
+		elseif #rows == 0 then
+			d:Line(L["Nothing on this list is cheapest here."], "small", "OFF")
+		end
+		for _, r in ipairs(rows) do
 			local name, icon = Doc.ItemName(r.itemID, d)
 			local ah = Calc.AH(r.itemID)
 			local vend, who = Calc.Vendor(r.itemID)
@@ -831,14 +1473,20 @@ function Shop.Auction()
 			if ah then parts[#parts + 1] = L["AH %s"]:format(Calc.Money(ah * r.buy)) end
 			if vend then parts[#parts + 1] = L["Vendor %s (%s)"]:format(Calc.Money(vend * r.buy), who or L["vendor"]) end
 			d:Row({ icon = icon, left = name, right = right, rightInk = ink,
-				sub = table.concat(parts, " · "), subInk = "TEXT", tip = RowTip(r),
+				sub = table.concat(parts, " · "), subInk = "TEXT", tip = RowTip(r), shift = RemoveAction(which, r),
+				-- (With the mouse on the row its right text says what the click does; Shift: Remove.)
+				hint = { text = L["Left Click to Search"], ink = "ACCENT" },
 				onClick = function() SearchFor(r.itemID) end })
 		end
 		if not Calc.HasAH() then
 			d:Line(L["No Auction House prices yet: scan from the Leveling Guide."], "tiny", "OFF")
 		end
+		LeftOut(d, "auction", #out,
+			Plural(#out, "%d more is cheaper at a vendor: show it", "%d more are cheaper at a vendor: show them"):format(#out),
+			Shop.Auction)
+		PutBack(d, which, back)
 	end)
-	auction.note:SetText(L["%d to buy"]:format(#list))
+	auction.note:SetText(L["%d to buy"]:format(own))
 	auction.note:SetTextColor(Color("LABEL"))
 	if ahTotal > 0 then
 		auction.total:SetText(saved > 0 and L["On the AH: %s (saves %s)"]:format(Calc.Money(ahTotal), Calc.Money(saved))
@@ -853,11 +1501,12 @@ function Shop.Auction()
 	local api = type(A) == "table" and type(A.API) == "table" and A.API.v1
 	if type(api) == "table" and type(api.CreateShoppingList) == "function" and type(api.ConvertToSearchString) == "function" then
 		auction.button.text:SetText(L["Auctionator List"])
-		auction.button.SetOff(false)
+		-- (The rows listed: nothing listed, nothing to make a list of.)
+		auction.button.SetOff(#rows == 0)
 		auction.button:Show()
 		auction.button:SetScript("OnClick", function()
 			local searches = {}
-			for _, r in ipairs(list) do
+			for _, r in ipairs(rows) do
 				local name = Calc.ItemInfo(r.itemID) or ns.ItemNameOf(r.itemID)
 				if name then
 					local ok, text = pcall(api.ConvertToSearchString, "Glowey's Recipes",
@@ -1088,6 +1737,92 @@ end
 
 local Hide = Shop.HidePanel
 
+-- A list tab clicked: that list in both buy lists from now on (kept per account), from its top.
+function Shop.Pick(which)
+	if not OTHER[which] then return end
+	Folds()
+	DaylightRecipesDB.shopList = which
+	local changed = false
+	for _, v in pairs(visit) do
+		if v.which ~= which then changed = true end
+		v.which = which
+	end
+	if not changed then return end
+	if vendor then vendor.doc:Top() end
+	if auction then auction.doc:Top() end
+	Shop.Redraw()
+end
+
+-- A profession tag clicked (key: its line, false for "All"; shown: the tag in use where it was
+-- clicked): only that profession's items, in both buy lists from now on (kept per account). The
+-- tag in use again, or "All": everything.
+function Shop.Tag(key, shown)
+	Folds()
+	if key == false or key == nil or key == shown then
+		DaylightRecipesDB.shopTag = nil
+	else
+		DaylightRecipesDB.shopTag = key
+	end
+	if vendor then vendor.doc:Top() end
+	if auction then auction.doc:Top() end
+	Shop.Redraw()
+end
+
+-- The buy lists that are up, drawn again now (a pick, a removal: the player is looking at it).
+function Shop.Redraw()
+	if merchantOpen then Shop.Vendor() end
+	if ahOpen then Shop.Auction() end
+	-- (A controller: the game finds the rows that came or went; the cursor stays where it is.)
+	ns.Pad.Settle()
+end
+
+-- ---------------------------------------------------------------------------------------------
+-- Bought on the Auction House: what the game says went through
+-- ---------------------------------------------------------------------------------------------
+
+-- A commodity (anything that stacks) is bought in two steps, a quote and its confirmation. The
+-- game then sends COMMODITY_PURCHASED with the item and how many, and COMMODITY_PURCHASE_SUCCEEDED
+-- with nothing (AuctionHouseDocumentation.lua:1380-1395). DaylightUI's own Auction House notes
+-- that the first "didn't always come in play" (DaylightUI_AuctionHouse\Buy.lua:194), so the
+-- confirmation asked for is remembered too (a hook after C_AuctionHouse.ConfirmCommoditiesPurchase,
+-- which the game's window and DaylightUI's both call) and counted when the second event comes.
+-- Whichever tells of a purchase first counts it; the other telling of the same one is let go.
+local asked, told
+
+local function Credit(itemID, count, by)
+	if type(itemID) ~= "number" or type(count) ~= "number" or count <= 0 then return end
+	if told and told.by ~= by and told.itemID == itemID and told.count == count and GetTime() - told.at < 10 then
+		told = nil
+		return
+	end
+	told = { itemID = itemID, count = count, by = by, at = GetTime() }
+	Shop.NoteAuction(itemID, count)
+end
+
+if type(C_AuctionHouse) == "table" and type(C_AuctionHouse.ConfirmCommoditiesPurchase) == "function"
+	and type(hooksecurefunc) == "function" then
+	pcall(hooksecurefunc, C_AuctionHouse, "ConfirmCommoditiesPurchase", function(itemID, count)
+		asked = { itemID = itemID, count = count, at = GetTime() }
+	end)
+end
+
+local function AuctionEvent(event, a, b)
+	if event == "COMMODITY_PURCHASED" then
+		Credit(a, b, "event")
+	elseif event == "COMMODITY_PURCHASE_SUCCEEDED" then
+		local q = asked
+		asked = nil
+		if q and GetTime() - q.at < 60 then Credit(q.itemID, q.count, "confirm") end
+	elseif event == "COMMODITY_PURCHASE_FAILED" then
+		asked = nil
+	elseif event == "ITEM_PURCHASED" then
+		-- An auction of one item bought out: the game names the item (ITEM_PURCHASED(itemID),
+		-- AuctionHouseDocumentation.lua:1443-1450). Counted from this event alone, so it is counted
+		-- once (AUCTION_HOUSE_PURCHASE_COMPLETED, which names only the auction, is not listened to).
+		Shop.NoteAuction(a, 1)
+	end
+end
+
 -- Bags, gold, prices or plans changed: the panels up are drawn again (once, a moment later, after
 -- the bag snapshot has been read).
 local queued = false
@@ -1106,17 +1841,33 @@ end
 local events = CreateFrame("Frame")
 for _, e in ipairs({ "MERCHANT_SHOW", "MERCHANT_CLOSED", "MERCHANT_UPDATE", "AUCTION_HOUSE_SHOW",
 	"AUCTION_HOUSE_CLOSED", "TRAINER_SHOW", "TRAINER_UPDATE", "TRAINER_CLOSED", "BAG_UPDATE_DELAYED",
-	"PLAYER_MONEY", "GET_ITEM_INFO_RECEIVED" }) do
+	"PLAYER_MONEY", "GET_ITEM_INFO_RECEIVED", "COMMODITY_PURCHASED", "COMMODITY_PURCHASE_SUCCEEDED",
+	"COMMODITY_PURCHASE_FAILED", "ITEM_PURCHASED", "MAIL_SHOW", "MAIL_CLOSED" }) do
 	pcall(events.RegisterEvent, events, e)
 end
-events:SetScript("OnEvent", function(_, event, itemID)
+events:SetScript("OnEvent", function(_, event, itemID, count)
+	if event == "MAIL_SHOW" or event == "MAIL_CLOSED" then
+		mailOpen = event == "MAIL_SHOW"
+		return
+	end
+	if event == "COMMODITY_PURCHASED" or event == "COMMODITY_PURCHASE_SUCCEEDED"
+		or event == "COMMODITY_PURCHASE_FAILED" or event == "ITEM_PURCHASED" then
+		AuctionEvent(event, itemID, count)
+		return
+	end
 	if event == "GET_ITEM_INFO_RECEIVED" then
-		for _, p in ipairs({ vendor, auction, trainer }) do
+		-- (Not ipairs: a panel not made yet this session would end the walk before the others.)
+		local panels = { vendor or false, auction or false, trainer or false }
+		for i = 1, 3 do
+			local p = panels[i]
 			if p and p:IsShown() and p.doc:Waiting(itemID) then Shop.Refresh() return end
 		end
 		return
 	end
 	if event == "MERCHANT_SHOW" then
+		-- (A new visit: the kept list again, the source filter on. The event again while the
+		-- window is up is the same visit.)
+		if not merchantOpen then visit.vendor = {} end
 		merchantOpen = true
 		Soon(Shop.Vendor)
 	elseif event == "MERCHANT_CLOSED" then
@@ -1124,6 +1875,7 @@ events:SetScript("OnEvent", function(_, event, itemID)
 		Hide(vendor)
 		if confirm then confirm:Hide() end
 	elseif event == "AUCTION_HOUSE_SHOW" then
+		if not ahOpen then visit.auction = {} end
 		ahOpen = true
 		Soon(Shop.Auction)
 	elseif event == "AUCTION_HOUSE_CLOSED" then

@@ -102,6 +102,33 @@ end
 local D = {}
 D.__index = D
 
+-- A row's right text: its Shift action's word (o.shift: the buy lists' Remove) while Shift is held
+-- with the mouse on it; else its hover hint (o.hint: what a click does) while the mouse, or a
+-- controller's cursor, is on it; else the row's own.
+local function PaintShift(r)
+	local s = r.shift
+	if s and r.hover and IsShiftKeyDown() then
+		r.right:SetText(s.text or "")
+		r.right:SetTextColor(Color(s.ink or "WARN"))
+	elseif r.hint and r.hover then
+		r.right:SetText(r.hint.text or "")
+		r.right:SetTextColor(Color(r.hint.ink or "ACCENT"))
+	else
+		r.right:SetText(r.rightText or "")
+		r.right:SetTextColor(Color(r.rightInk or "VALUE"))
+	end
+end
+
+-- A row's tooltip, with its Shift action's line under it while Shift is held.
+local function ShowRowTip(r)
+	if not r.tip then return end
+	GameTooltip:SetOwner(r, "ANCHOR_LEFT")
+	pcall(r.tip, GameTooltip)
+	local s = r.shift
+	if s and s.tip and IsShiftKeyDown() then GameTooltip:AddLine(s.tip, Color(s.ink or "WARN")) end
+	GameTooltip:Show()
+end
+
 -- A row: icon, a left and right text, a line under them; hover wash when it does something.
 local function MakeRow(child)
 	local r = CreateFrame("Button", nil, child)
@@ -125,23 +152,48 @@ local function MakeRow(child)
 	r.sub:SetWordWrap(true)
 	r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	r:SetScript("OnEnter", function(self)
-		if self.onClick or self.onDouble or self.tip then self.wash:Show() end
+		if self.onClick or self.onDouble or self.tip or self.shift then self.wash:Show() end
 		-- (A controller: the right stick scrolls the page this row is on. Guide.lua's Pad)
 		if ns.Pad then ns.Pad.Into(self, child:GetParent()) end
-		if self.tip then
-			GameTooltip:SetOwner(self, "ANCHOR_LEFT")
-			pcall(self.tip, GameTooltip)
-			GameTooltip:Show()
-		end
+		-- (A row with a Shift action follows the key while the mouse is on it, and only then.)
+		self.hover = true
+		if self.shift then self:RegisterEvent("MODIFIER_STATE_CHANGED") end
+		if self.shift or self.hint then PaintShift(self) end
+		ShowRowTip(self)
 	end)
 	r:SetScript("OnLeave", function(self)
 		self.wash:Hide()
+		self.hover = false
+		self:UnregisterEvent("MODIFIER_STATE_CHANGED")
+		PaintShift(self)
 		if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
 	end)
+	-- Shift pressed or let go with the mouse on the row: its right text and tooltip follow at once.
+	r:SetScript("OnEvent", function(self)
+		if not (self.hover and self.shift and self:IsVisible()) then
+			self.hover = false
+			self:UnregisterEvent("MODIFIER_STATE_CHANGED")
+			return
+		end
+		PaintShift(self)
+		if GameTooltip:IsOwned(self) then ShowRowTip(self) end
+	end)
 	r:SetScript("OnDoubleClick", function(self, button)
+		-- (The second of two quick Shift-clicks: the Shift action again, on the row that moved up
+		-- under the mouse, never the row's double-click, which buys.)
+		if button == "LeftButton" and self.shift and IsShiftKeyDown() then
+			self.shift.onClick()
+			return
+		end
 		if button == "LeftButton" and self.onDouble then self.onDouble(self) end
 	end)
 	r:SetScript("OnClick", function(self, button)
+		-- (Shift-click on a row with a Shift action is that action and nothing else. Such rows carry
+		-- no link, so no chat link is lost to it.)
+		if button == "LeftButton" and self.shift and IsShiftKeyDown() then
+			self.shift.onClick()
+			return
+		end
 		-- (Shift-click a row with an item or recipe link: into the open chat box.)
 		if IsModifiedClick("CHATLINK") and self.link then
 			ns.InsertLink(self.link)
@@ -326,6 +378,46 @@ function D:Line(text, size, ink, indent)
 	return fs
 end
 
+-- A quiet line that does something when clicked (small, wrapped like a line; lit under the mouse or
+-- a controller's cursor, which stops on it as on a row).
+function D:Link(text, onClick, indent)
+	indent = indent or 0
+	local child = self.child
+	local b = self:Take("link", function()
+		local f = CreateFrame("Button", nil, child)
+		f.text = Doc.Text(f, "small")
+		f.text:SetJustifyH("LEFT")
+		f.text:SetWordWrap(true)
+		f.text:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -3)
+		f.wash = f:CreateTexture(nil, "BACKGROUND")
+		f.wash:SetAllPoints()
+		f.wash:SetColorTexture(1, 1, 1, 0.05)
+		f.wash:Hide()
+		f:SetScript("OnEnter", function(me)
+			me.wash:Show()
+			me.text:SetTextColor(Color("VALUE"))
+			if ns.Pad then ns.Pad.Into(me, child:GetParent()) end
+		end)
+		f:SetScript("OnLeave", function(me)
+			me.wash:Hide()
+			me.text:SetTextColor(Color("LABEL"))
+		end)
+		f:SetScript("OnClick", function(me) if me.onClick then me.onClick() end end)
+		return f
+	end)
+	local w = self.width - self.pad * 2 + 8 - indent
+	b.onClick = onClick
+	b.wash:Hide()
+	b:SetPoint("TOPLEFT", child, "TOPLEFT", self.pad - 4 + indent, -self.y)
+	b.text:SetWidth(math.max(20, w - 8))
+	b.text:SetText(text)
+	b.text:SetTextColor(Color("LABEL"))
+	local h = math.max(20, math.ceil(b.text:GetStringHeight()) + 7)
+	b:SetSize(w, h)
+	self.y = self.y + h + 2
+	return b
+end
+
 function D:Heading(text)
 	self:Gap(10)
 	self:Line(text, "small", "LABEL")
@@ -334,7 +426,11 @@ end
 
 -- o: icon, left, right, sub, leftInk, rightInk, subInk, indent, onClick(button), tip(tooltip),
 -- link (shift-click into chat), marked (a faint accent ground: the one picked), dim (a gray icon),
--- rightClick (onClick hears right clicks too), onDouble(row) (a left double click).
+-- rightClick (onClick hears right clicks too), onDouble(row) (a left double click),
+-- shift = { text, ink, tip, onClick() } (while Shift is held with the mouse on the row its right
+-- text reads `text` and its tooltip ends with `tip`; a Shift-click runs onClick. A controller's
+-- button for it is the panel's own: Shop.lua's padKeys), hint = { text, ink } (the right text
+-- while the mouse or a controller's cursor is on the row: what a click does).
 function D:Row(o)
 	local child = self.child
 	local r = self:Take("row", function() return MakeRow(child) end)
@@ -342,6 +438,7 @@ function D:Row(o)
 	local w = self.width - self.pad * 2 + 8 - indent
 	r:SetPoint("TOPLEFT", child, "TOPLEFT", self.pad - 4 + indent, -self.y)
 	r.onClick, r.tip, r.link, r.rightClick, r.onDouble = o.onClick, o.tip, o.link, o.rightClick, o.onDouble
+	r.shift, r.hint, r.rightText, r.rightInk = o.shift, o.hint, o.right, o.rightInk
 	if o.marked then
 		local ar, ag, ab = API.Accent()
 		r.mark:SetColorTexture(ar, ag, ab, 0.14)
@@ -372,6 +469,19 @@ function D:Row(o)
 	r.right:SetText(o.right or "")
 	r.right:SetTextColor(Color(o.rightInk or "VALUE"))
 	local rw = (o.right and o.right ~= "") and math.ceil(r.right:GetStringWidth()) or 0
+	-- (Room for the Shift action's word and the hover hint too, so swapping one in never runs into
+	-- the left text: the widest of the three sets the column.)
+	local swaps
+	if o.shift and o.shift.text then swaps = { o.shift.text } end
+	if o.hint and o.hint.text then
+		swaps = swaps or {}
+		swaps[#swaps + 1] = o.hint.text
+	end
+	for _, text in ipairs(swaps or {}) do
+		r.right:SetText(text)
+		rw = math.max(rw, math.ceil(r.right:GetStringWidth()))
+	end
+	if swaps then r.right:SetText(o.right or "") end
 	local half = math.floor(inner / 2)
 	if rw > half then
 		r.right:SetWidth(half)
@@ -383,7 +493,15 @@ function D:Row(o)
 	r.left:SetWidth(math.max(20, inner - (rw > 0 and rw + 8 or 0)))
 	r.left:SetText(o.left or "")
 	r.left:SetTextColor(Color(o.leftInk or "VALUE"))
-	local top = 3 + math.max(math.ceil(r.left:GetStringHeight()), rw > 0 and math.ceil(r.right:GetStringHeight()) or 0)
+	-- (As tall as the tallest of the right texts it can show: a hint wrapped onto two lines in the
+	-- right half never runs into the line under it.)
+	local rh = rw > 0 and math.ceil(r.right:GetStringHeight()) or 0
+	for _, text in ipairs(swaps or {}) do
+		r.right:SetText(text)
+		rh = math.max(rh, math.ceil(r.right:GetStringHeight()))
+	end
+	if swaps then r.right:SetText(o.right or "") end
+	local top = 3 + math.max(math.ceil(r.left:GetStringHeight()), rh)
 	local h
 	if o.sub then
 		r.sub:SetPoint("TOPLEFT", r, "TOPLEFT", x, -(top + 3))
@@ -398,6 +516,14 @@ function D:Row(o)
 	end
 	r:SetSize(w, h)
 	self.y = self.y + h + 2
+	-- (Drawn again under the mouse, as when the row above was removed or bought: the Shift look
+	-- and the tooltip are this row's now.)
+	if r.hover and not r:IsMouseOver() then r.hover = false end
+	if not o.shift then r:UnregisterEvent("MODIFIER_STATE_CHANGED") end
+	PaintShift(r)
+	if GameTooltip:IsOwned(r) then
+		if r.tip then ShowRowTip(r) else GameTooltip:Hide() end
+	end
 	return r
 end
 

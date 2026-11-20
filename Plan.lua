@@ -484,7 +484,8 @@ local function Route(from, target, cap, goal, credit)
 				if not (last and last.kind == "craft" and last.spell == best.spell) then
 					local alts = {}
 					for i = 1, #top do
-						if top[i][1] ~= best and #alts < 2 then alts[#alts + 1] = { spell = top[i][1].spell, perPoint = top[i][2] } end
+						if top[i][1] ~= best and #alts < 2 then alts[#alts + 1] = { spell = top[i][1].spell, perPoint = top[i][2],
+							complete = top[i][1].complete } end
 					end
 					local have = best.known or learned[best.spell]
 					last = { kind = "craft", spell = best.spell, from = k, to = k, exp = {},

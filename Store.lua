@@ -166,6 +166,9 @@ local function ReadBags()
 	local last = (Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag) or NUM_BAG_SLOTS or 4
 	for bag = 0, math.max(NUM_BAG_SLOTS or 4, last) do ReadBag(bag, bags) end
 	c.bagsAt = time()
+	-- (The buy lists settle what was bought at a vendor a moment ago against every read, changed
+	-- or not: Shop.lua.)
+	if ns.Shop and ns.Shop.BagsRead then ns.Shop.BagsRead(bags) end
 	if Same(c.bags, bags) then return false end
 	c.bags = bags
 	return true
@@ -256,6 +259,9 @@ local function ReadMail()
 		end
 	end
 	c.mailAt = time()
+	-- (What was bought on the Auction House is in this read now, or out of the mailbox: the buy
+	-- lists stop counting it apart. Shop.lua)
+	if ns.Shop and ns.Shop.MailRead then ns.Shop.MailRead() end
 	if Same(c.mail, mail) then return false end
 	c.mail = mail
 	return true

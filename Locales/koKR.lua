@@ -553,3 +553,34 @@ L["Enchanting in the Docked Pane: the item slot, Auto-replace and enchant runs b
 
 -- 2.5.3: Daylight UI 2.0's Auction House window
 L["Couldn't start the search. Type %s in the Auction House's search box."] = "검색을 시작하지 못했습니다. 경매장 검색창에 다음을 입력하세요: %s"
+
+-- Daylight UI's own prices read
+L["Auction House prices from Daylight UI, read %s."] = "Daylight UI가 %s 읽은 경매장 가격."
+
+-- Buy lists: Queue List and Guide List tabs, the source filter (Shop.lua)
+L["Queue List (%d)"] = "대기열 목록 (%d)"
+L["Guide List (%d)"] = "안내 목록 (%d)"
+L["Your crafting queue needs nothing you don't have."] = "제작 대기열에 부족한 재료가 없습니다."
+L["Your Leveling Guides need nothing you don't have."] = "레벨업 안내에 부족한 재료가 없습니다."
+L["Nothing on this list is cheapest here."] = "이 목록에는 여기가 가장 싼 항목이 없습니다."
+L["Hide what isn't cheapest here"] = "여기가 가장 싸지 않은 항목 숨기기"
+L["%d more is cheaper at a vendor: show it"] = "%d개는 상인이 더 쌉니다: 표시"
+L["%d more are cheaper at a vendor: show them"] = "%d개는 상인이 더 쌉니다: 표시"
+L["%d more is cheaper on the Auction House: show it"] = "%d개는 경매장이 더 쌉니다: 표시"
+L["%d more are cheaper on the Auction House: show them"] = "%d개는 경매장이 더 쌉니다: 표시"
+L["%d more to look for on the Auction House: show it"] = "%d개는 경매장에서 찾아보세요: 표시"
+L["%d more to look for on the Auction House: show them"] = "%d개는 경매장에서 찾아보세요: 표시"
+
+-- Buy lists: Remove (Shift-click), profession tags, Auction House purchases in the mail (Shop.lua)
+L["All"] = "전체"
+L["Shift-click to remove this from the list."] = "Shift+클릭하면 목록에서 삭제합니다."
+L["%d removed from this list: put it back"] = "이 목록에서 %d개 삭제됨: 되돌리기"
+L["%d removed from this list: put them back"] = "이 목록에서 %d개 삭제됨: 되돌리기"
+L["Bought on the Auction House, in the mail: %d"] = "경매장에서 구매, 우편함에 있음: %d"
+L["Left Click to Search"] = "왼쪽 클릭으로 검색"
+
+-- 2.6.0: What's New
+L["Buy List: two lists, Queue List and Guide List, picked with the tabs under its title, and profession tags when it covers more than one profession."] = "구매 목록: 제목 아래 탭으로 고르는 두 목록(대기열 목록과 안내서 목록), 그리고 여러 전문 기술을 다룰 때의 전문 기술 태그."
+L["Buy List: each place shows only what is cheapest there. A line under the list brings the rest back."] = "구매 목록: 각 장소에서는 그곳이 가장 싼 것만 보여 줍니다. 목록 아래 줄로 나머지를 다시 볼 수 있습니다."
+L["Buy List: hold Shift over a row and Shift-click to remove it. What you buy on the Auction House comes off the list right away."] = "구매 목록: 줄 위에서 Shift를 누른 채 Shift-클릭하면 제거됩니다. 경매장에서 산 것은 바로 목록에서 빠집니다."
+L["Prices: with Daylight UI's Auction House, the prices it has already collected are used, so fewer materials say \"No price\"."] = "가격: Daylight UI의 경매장이 이미 모은 가격을 사용하므로 \"가격 없음\"인 재료가 줄어듭니다."
