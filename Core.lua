@@ -76,6 +76,11 @@ end
 -- background at DaylightUI's window opacity (opts.window), or at the player's own (opts.bgAlpha)
 -- with "Use DaylightUI's opacity" off. Each one is kept with the look it asked for, so a change
 -- of either dresses them all again.
+-- Only what stays on screen follows the opacity: the window, the docked pane, a strip's bar.
+-- What opens OVER something and goes away again (a strip's list, a box that asks a question) is
+-- dressed with extra.solid: the same shell and color, its background fully solid whatever either
+-- opacity setting says, so what it covers never shows through its rows. (The professions menu
+-- and the "Are you sure?" box dress themselves the same way: WindowMenu.lua, Shop.lua.)
 
 local skinned = setmetatable({}, { __mode = "k" })
 
@@ -84,8 +89,26 @@ function ns.SkinWindow(frame, extra)
 	skinned[frame] = extra or false
 	local opts = { window = true }
 	if extra then for k, v in pairs(extra) do opts[k] = v end end
-	if ns.Get("duiOpacity") == false and not opts.noBackground then opts.bgAlpha = ns.Get("opacity") end
+	local solid = opts.solid == true
+	opts.solid = nil
+	if solid then
+		opts.bgAlpha = 1
+	elseif ns.Get("duiOpacity") == false and not opts.noBackground then
+		opts.bgAlpha = ns.Get("opacity")
+	end
 	API.Skin(frame, opts)
+end
+
+-- DaylightUI's shell of a frame (the child frame that draws its background and border), or nil.
+-- Style.GetShell is not part of its API (DaylightUI/Style.lua:988): read guarded, as Shop.lua and
+-- Pane.lua read it.
+function ns.ShellOf(frame)
+	local D = _G.DaylightUI
+	local style = type(D) == "table" and D.Style
+	local get = type(style) == "table" and style.GetShell
+	if type(get) ~= "function" then return nil end
+	local ok, shell = pcall(get, frame)
+	return ok and type(shell) == "table" and shell or nil
 end
 
 function ns.ReskinWindows()

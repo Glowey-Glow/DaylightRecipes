@@ -368,7 +368,7 @@ function Bootstrap(ns)
 	ns.Changed = function() GAME.redraws = (GAME.redraws or 0) + 1 end
 	ns.Shown = function() return false end
 	ns.ShowingPlan = function() return false end
-	ns.SkinWindow = function() end
+	ns.SkinWindow = function(frame, extra) rawset(frame, "skinExtra", extra or false) end
 	ns.ItemNameOf = function(itemID) return "Item " .. itemID end
 	ns.SpellName = function(spell) return "Spell " .. spell end
 	ns.state = {}

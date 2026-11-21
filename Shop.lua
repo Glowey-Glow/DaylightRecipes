@@ -1408,7 +1408,9 @@ local function NewStrip(name, key)
 	-- (Kept on the screen whatever its host does after it is placed, as the strip is.)
 	list:SetClampedToScreen(true)
 	list:Hide()
-	ns.SkinWindow(list)
+	-- (Solid, whatever the window opacity: it opens over the game's window, the chat or the
+	-- world, and none of that shows through its rows. The strip's bar follows the opacity.)
+	ns.SkinWindow(list, { solid = true })
 	s.list = list
 	-- Its head (the pair of lists, the profession tags, Check Prices) stays at the top; the rows
 	-- scroll under it (DrawList gives the head its height and hangs the rows from its foot).

@@ -1,5 +1,10 @@
 # Glowey's Recipes (DaylightUI Plugin)
 
+## 3.0.2
+
+- Fixed: the professions menu is a solid box. The window's tabs and page no longer show through it, whatever Window Opacity is set to.
+- The list a shopping strip drops (at a vendor, a trainer and the Auction House) is solid too, so the game's window, the chat or the world behind it no longer shows through its rows. So is the Professionally Lost question. The window itself, the docked pane and a strip's bar still follow Window Opacity.
+
 ## 3.0.1
 
 - Fixed: Cooking and First Aid open from the professions menu. A press on one of your professions there now opens it the way the game's own profession tabs do, by its spell, so every profession with recipes opens from the menu. A Shift-click still links it to chat, and a right-click or its More button still opens Link to Chat and Unlearn. With a controller, A on a profession does the same. In combat the menu asks the game the way it did before.

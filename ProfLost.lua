@@ -520,7 +520,8 @@ local function Build()
 	f:SetScript("OnDragStart", f.StartMoving)
 	f:SetScript("OnDragStop", f.StopMovingOrSizing)
 	f:Hide()
-	ns.SkinWindow(f)
+	-- (A box that asks a question: solid, whatever the window opacity.)
+	ns.SkinWindow(f, { solid = true })
 	if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "DaylightRecipesProfLost") end
 
 	f.title = API.Text(f, "title", "LEFT")
@@ -637,7 +638,7 @@ function PL.ShowDialog()
 	f.foot:SetPoint("TOPLEFT", f, "TOPLEFT", EDGE + 4, -(y + 8))
 	y = y + 8 + math.ceil(f.foot:GetStringHeight() or 14)
 	f:SetHeight(y + 16 + 26 + EDGE)
-	ns.SkinWindow(f)
+	ns.SkinWindow(f, { solid = true })
 	Dim()
 	f:Show()
 	return true

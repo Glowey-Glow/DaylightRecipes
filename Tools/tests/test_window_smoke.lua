@@ -243,6 +243,7 @@ function IMPL.GetFrameStrata(self)
 	return "MEDIUM"
 end
 function IMPL.SetFrameStrata(self, s) rawset(self, "strata", s) end
+function IMPL.SetClipsChildren(self, on) rawset(self, "clips", on and true or false) end
 function IMPL.SetScript(self, name, fn)
 	self.scripts[name] = fn
 	if name == "OnUpdate" then updaters[self] = fn end
@@ -373,6 +374,7 @@ ns.LINES = { [197] = true, [171] = true }
 ns.Get = function(key) return SETTINGS[key] end
 ns.Print = function() end
 ns.SkinWindow = function() end
+ns.ShellOf = function(frame) return rawget(frame, "shell") end
 ns.ReskinWindows = function() end
 ns.Fold = function(text) return type(text) == "string" and text:lower() or "" end
 ns.NameLess = function(a, b) return a < b end
@@ -438,7 +440,14 @@ ns.API = {
 		DROPDOWN.catcher:Show()
 		MENU = { keys = keys, values = values, onPick = onPick, catcher = DROPDOWN.catcher, box = DROPDOWN.box }
 	end,
-	Skin = function() end,
+	Skin = function(frame, opts)
+		rawset(frame, "skin", opts or {})
+		if not rawget(frame, "shell") then
+			local s = NewObj("Frame", nil, frame)
+			s.level = math.max(0, frame.level - 1)
+			rawset(frame, "shell", s)
+		end
+	end,
 	Fade = function() end,
 	Speed = { FAST = 0.12, NORMAL = 0.2, SLOW = 0.4 },
 	GlowAround = function() return true end,
@@ -1771,10 +1780,15 @@ Case("3.0.1: the menu carries everything the old sidebar did", function()
 		local names, titles, tiles = {}, {}, 0
 		for _, o in ipairs(ALL) do
 			if rawget(o, "more") and rawget(o, "name") and o:IsVisible() then names[strip(o.name.textValue)] = o end
-			if rawget(o, "title") and o.kind == "Frame" and o:IsVisible() and o.parent == W.menu then
+			local inMenu, up = false, o.parent
+			while up do
+				if up == W.menu then inMenu = true end
+				up = up.parent
+			end
+			if rawget(o, "title") and o.kind == "Frame" and o:IsVisible() and inMenu then
 				titles[strip(o.title.textValue)] = o
 			end
-			if rawget(o, "ring") and o.kind == "Button" and o:IsVisible() and o.parent and o.parent.parent == W.menu then
+			if rawget(o, "ring") and o.kind == "Button" and o:IsVisible() and inMenu then
 				tiles = tiles + 1
 			end
 		end
@@ -1806,6 +1820,130 @@ Case("3.0.1: the menu carries everything the old sidebar did", function()
 end, function()
 	Menu.Close()
 	Window.SetRolled(false)
+	Window.OpenProfession(197, 197)
+	Flush()
+end)
+
+-- ---- 3.0.2: the professions menu is a solid box --------------------------------------------------------
+-- In the game 3.0.1's menu was see-through: the window's tabs and page could be read through it.
+-- Its background is Daylight UI's shell, a child frame one level under the menu. So: the menu asks
+-- for a background of 1 (never the window opacity), it does not clip its own children (the shell
+-- is one of them, and lies under it), a frame inside it does the clipping, and the shell is put
+-- under the menu in the menu's own layer every time it opens, wherever it was left.
+Case("3.0.2: the professions menu is a solid box", function()
+	local STRATA = { BACKGROUND = 1, LOW = 2, MEDIUM = 3, HIGH = 4, DIALOG = 5, FULLSCREEN = 6, FULLSCREEN_DIALOG = 7, TOOLTIP = 8 }
+	local function Over(top, under)
+		local st, su = STRATA[top:GetFrameStrata()], STRATA[under:GetFrameStrata()]
+		if st ~= su then return st > su end
+		return top:GetFrameLevel() > under:GetFrameLevel()
+	end
+	local function Within(o, root)
+		o = o.parent
+		while o do
+			if o == root then return true end
+			o = o.parent
+		end
+		return false
+	end
+	local function Look(what)
+		ok(Menu.Shown(), what .. ": the menu is open")
+		local m = W.menu
+		local shell = rawget(m, "shell")
+		ok(shell ~= nil, what .. ": the menu wears Daylight UI's shell")
+		eq(m.skin.bgAlpha, 1, what .. ": its background is asked fully solid")
+		ok(m.skin.window == nil and m.skin.look == nil, what .. ": not as a window, whose background follows the window opacity")
+		ok(not rawget(m, "clips"), what .. ": the menu does not clip its children: its background is one of them")
+		eq(shell:GetFrameStrata(), m:GetFrameStrata(), what .. ": the background is in the menu's layer")
+		eq(shell:GetFrameLevel(), m:GetFrameLevel() - 1, what .. ": one level under the menu")
+		ok(Over(shell, win), what .. ": and over the window, with everything on it")
+		local n, clipped = 0, 0
+		for _, o in ipairs(ALL) do
+			if o ~= shell and (o.kind == "Frame" or o.kind == "Button") and Within(o, m) and o:IsVisible() then
+				n = n + 1
+				ok(Over(o, shell), what .. ": every frame of the menu is over its background")
+				ok(Over(o, win), what .. ": and over the window")
+				-- (What the menu holds is clipped by the frame inside it, not by the menu.)
+				local up, inClip = o.parent, false
+				while up and up ~= m do
+					if rawget(up, "clips") then inClip = true end
+					up = up.parent
+				end
+				if inClip then clipped = clipped + 1 end
+			end
+		end
+		ok(n > 8, what .. ": the menu's frames were looked at: " .. n)
+		ok(clipped >= n - 1, what .. ": its rows and tiles are still kept inside it, by a frame of its own")
+	end
+	-- Whatever the opacity settings say.
+	SETTINGS.duiOpacity, SETTINGS.opacity = false, 0.1
+	W.nameButton:Click()
+	Look("window opacity at its lowest")
+	Menu.Restyle()
+	Look("dressed again (a theme or opacity change)")
+	Menu.Close()
+	-- The shell left somewhere else (the game did not carry the menu's layer or level on to it):
+	-- opening the menu puts it back.
+	local shell = rawget(W.menu, "shell")
+	shell:SetFrameStrata("MEDIUM")
+	shell:SetFrameLevel(0)
+	W.nameButton:Click()
+	Look("after its background was left in the window's layer")
+	-- The secure button over a row: over the row, in the menu's layer, never over its More button,
+	-- and under Daylight UI's dropdown (the More menu) in every case.
+	local realInfo = GetProfessionInfo
+	GetProfessions = function() return 1, 2, nil, 3, 5 end
+	GetProfessionInfo = function(i)
+		if i == 5 then return "Cooking", 10, 153, 225, 0, 40, 185 end
+		return realInfo(i)
+	end
+	ns.LINES[185] = true
+	Enum = { SpellBookSpellBank = { Player = 0 } }
+	C_SpellBook = { GetSpellBookItemInfo = function(slot) return { spellID = 5000 + slot } end }
+	C_TradeSkillUI.CanTradeSkillShowCraftingUI = function() return true end
+	Menu.Paint()
+	local row
+	for _, o in ipairs(ALL) do
+		if rawget(o, "more") and o:IsVisible() and strip(o.name.textValue) == "Cooking" then row = o end
+	end
+	ok(row and row.cast == 5041, "Cooking's row, with its spell")
+	row.left, row.bottom, row.w, row.h = 300, 500, 206, 34
+	row.more.left, row.more.bottom, row.more.w = 480, 507, 20
+	W.menuList.left, W.menuList.bottom, W.menuList.h = 300, 200, 400
+	row.scripts.OnEnter(row)
+	local cast = _G.DaylightRecipesMenuCast
+	ok(cast and cast:IsShown(), "the secure button is out")
+	ok(Over(cast, row), "over the row it covers")
+	ok(Over(cast, rawget(W.menu, "shell")) and Over(cast, win), "over the menu's background and the window")
+	ok(cast.px + cast.w <= row.more.left, "it ends left of the row's More button: that keeps its own clicks")
+	local drawn = 0
+	for _, o in ipairs(ALL) do
+		if o.parent == cast then drawn = drawn + 1 end
+	end
+	eq(drawn, 0, "it draws nothing: the row's name, bar and highlight show as they are")
+	ok(row.wash:IsShown(), "and the row is still lit under the mouse")
+	MENU = nil
+	row.more:Click()
+	ok(MENU and MENU.catcher and MENU.catcher:IsShown(), "More opens Daylight UI's dropdown")
+	ok(not cast:IsShown(), "the secure button is put away as it opens")
+	ok(STRATA[cast:GetFrameStrata()] < STRATA[MENU.catcher:GetFrameStrata()], "and its layer is under that dropdown's in any case")
+	ok(Over(MENU.catcher, W.menu) and Over(MENU.box, W.menu), "the More menu lies over the professions menu")
+	ok(Over(MENU.box, rawget(W.menu, "shell")), "and over its background")
+	MENU.catcher:Hide()
+	Menu.Close()
+	-- In a tour the window is one layer up, and the menu with its background over it.
+	Window.ShowForTour()
+	W.nameButton:Click()
+	Look("in a tour")
+end, function()
+	SETTINGS.duiOpacity, SETTINGS.opacity = nil, nil
+	if MENU and MENU.catcher then MENU.catcher:Hide() end
+	Menu.Close()
+	Window.TourDone()
+	GetProfessions, GetProfessionInfo = realProfessions, realProfessionInfo
+	C_TradeSkillUI.CanTradeSkillShowCraftingUI = nil
+	C_SpellBook, Enum = nil, nil
+	ns.LINES[185] = nil
+	W.menuList.left, W.menuList.bottom, W.menuList.h = nil, nil, 0
 	Window.OpenProfession(197, 197)
 	Flush()
 end)

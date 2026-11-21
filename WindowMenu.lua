@@ -34,7 +34,10 @@ local TILE, TILE_GAP = 32, 8
 local CAMP_ICON = 279981  -- the Basic Campfire Kit's icon, for the camping page
 Menu.CAMP_ICON = CAMP_ICON
 
-local catcher, menu, list, track, cool, thumb
+local catcher, menu, body, list, track, cool, thumb
+-- The menu's look: DaylightUI's shell, its background fully solid. It lies over the window's page,
+-- and none of that may show through it, whatever the window opacity is set to.
+local LOOK = { bgAlpha = 1, noBevel = true }
 local rows = {}
 local used, y = 0, 0
 local scroll, tall = 0, 0       -- how far the list is scrolled, how tall it is in all
@@ -973,7 +976,6 @@ local function Build()
 	menu:SetFrameLevel(catcher:GetFrameLevel() + 5)
 	menu:SetSize(210, 300)
 	menu:EnableMouse(true)
-	menu:SetClipsChildren(true)
 	menu:EnableMouseWheel(true)
 	menu:SetScript("OnMouseWheel", function(_, delta)
 		local most = math.max(0, tall - list:GetHeight() + 8)
@@ -983,20 +985,34 @@ local function Build()
 			Paint()
 		end
 	end)
-	-- (Solid, whatever the window's opacity: it lies over the page.)
-	API.Skin(menu, { bgAlpha = 0.97, noBevel = true })
-	list = CreateFrame("Frame", nil, menu)
+	-- A SOLID BOX. 3.0.1's menu was see-through in the game: the window's tabs and page could be
+	-- read through it, though it asked for a background of 0.97. Its background is DaylightUI's
+	-- shell, a child frame DaylightUI makes one level UNDER the frame it dresses (DaylightUI/
+	-- Style.lua:1019-1021), and this menu was the one frame of ours that both wore a shell and
+	-- clipped its own children (SetClipsChildren, to keep rows and tiles inside it): a child that
+	-- lies under its clipping parent. DaylightUI's own dropdown, which this one is modeled on, does
+	-- not clip the frame it dresses (Options/Widgets.lua:2663-2672). So now:
+	--   * the menu itself clips nothing and wears the shell, at a background of 1;
+	--   * everything in it lives on `body`, a plain frame filling it, and body does the clipping;
+	--   * the shell is put under the menu, in the menu's layer, by name each time the menu opens
+	--     (SettleShell), as Shop.lua's Stack does for the strips: nothing is left to how the game
+	--     carries a layer or a level on to a frame's children.
+	API.Skin(menu, LOOK)
+	body = CreateFrame("Frame", nil, menu)
+	body:SetAllPoints(menu)
+	body:SetClipsChildren(true)
+	list = CreateFrame("Frame", nil, body)
 	list:SetPoint("TOPLEFT", menu, "TOPLEFT", 0, 0)
 	list:SetPoint("RIGHT", menu, "RIGHT", 0, 0)
 	list:SetPoint("BOTTOM", menu, "BOTTOM", 0, 0)
 	list:SetClipsChildren(true)
-	track = CreateFrame("Frame", nil, menu)
+	track = CreateFrame("Frame", nil, body)
 	track:Hide()
-	cool = CreateFrame("Frame", nil, menu)
+	cool = CreateFrame("Frame", nil, body)
 	cool:Hide()
 	-- The list's thumb: a frame of its own above the rows (they are frames, and would cover a
 	-- texture of the list's), taking no clicks.
-	thumb = CreateFrame("Frame", nil, menu)
+	thumb = CreateFrame("Frame", nil, body)
 	thumb:SetFrameLevel(list:GetFrameLevel() + 10)
 	thumb:EnableMouse(false)
 	thumb.bar = thumb:CreateTexture(nil, "OVERLAY")
@@ -1023,6 +1039,14 @@ end
 
 function Menu.Shown() return menu ~= nil and catcher:IsShown() end
 
+-- The menu's background (DaylightUI's shell) one level under the menu, in the menu's own layer.
+local function SettleShell()
+	local shell = ns.ShellOf and ns.ShellOf(menu)
+	if not (shell and shell.SetFrameLevel and shell.SetFrameStrata) then return end
+	shell:SetFrameStrata(catcher:GetFrameStrata())
+	shell:SetFrameLevel(math.max(0, menu:GetFrameLevel() - 1))
+end
+
 function Menu.Open()
 	if not W.win or not W.win:IsShown() then return end
 	-- (Rolled up there is no room under the header for it: the window unrolls first.)
@@ -1034,6 +1058,7 @@ function Menu.Open()
 	catcher:SetFrameStrata(W.win:GetFrameStrata() == "FULLSCREEN" and "FULLSCREEN_DIALOG" or "DIALOG")
 	catcher:Show()
 	menu:Show()
+	SettleShell()
 	Paint()
 	-- (A controller starts on the open profession's row, else the first.)
 	if Pad.On() then
@@ -1063,7 +1088,10 @@ function Menu.Toggle()
 end
 
 function Menu.Restyle()
-	if menu then API.Skin(menu, { bgAlpha = 0.97, noBevel = true }) end
+	if menu then
+		API.Skin(menu, LOOK)
+		if Menu.Shown() then SettleShell() end
+	end
 	if Menu.Shown() then Paint() end
 end
 

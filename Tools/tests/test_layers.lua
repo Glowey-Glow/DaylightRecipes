@@ -43,7 +43,10 @@ local function Shell(frame)
 	s.over.isShell = true
 	rawset(frame, "shell", s)
 end
-ns.SkinWindow = function(frame) Shell(frame) end
+ns.SkinWindow = function(frame, extra)
+	rawset(frame, "skinExtra", extra or false)
+	Shell(frame)
+end
 local plainButton = ns.API.Button
 ns.API.Button = function(...)
 	local b = plainButton(...)
@@ -461,6 +464,19 @@ T.case("long tag names (German): the tags wrap whole, the rows keep their six", 
 	lines = headOf(s)
 	T.ok(lines <= 2, "one profession: the head is the pair (and Check Prices where it can run): " .. lines)
 	closeAH()
+end)
+
+-- 3.0.2: what opens over something is a solid box. The list is dressed solid (ns.SkinWindow's
+-- extra.solid: a background of 1 whatever the opacity settings, test_solid.lua); the strip's bar
+-- is not, and follows the window opacity.
+T.case("3.0.2: the strip's list is dressed solid, its bar follows the window opacity", function()
+	eleven()
+	local s = openAH(464, 2)
+	T.ok(s and s:IsShown() and s.list:IsShown(), "the strip and its list are up")
+	local extra = rawget(s.list, "skinExtra")
+	T.ok(type(extra) == "table" and extra.solid == true, "the list asks for a solid background")
+	T.eq(rawget(s, "skinExtra"), false, "the strip's bar asks for nothing of its own: the window opacity")
+	sound(s, "the solid list", DaylightUIAuctionHouse)
 end)
 
 T.case("a list without a head (the trainer's) has none", function()

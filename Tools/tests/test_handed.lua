@@ -159,6 +159,8 @@ GAME.pad = true
 T.ok(PL.ShowDialog(), "the window opens")
 local dialog = _G.DaylightRecipesProfLost
 T.ok(dialog:IsShown(), "and shows")
+-- (3.0.2: a box that asks a question is solid, whatever the window opacity.)
+T.ok(type(rawget(dialog, "skinExtra")) == "table" and dialog.skinExtra.solid == true, "as a solid box")
 T.eq(dialog.rows.guide.switch.on, false, "controller: row 1 starts off")
 T.eq(dialog.rows.tooltip.switch.on, true, "row 4 starts on")
 T.eq(dialog.rows.step.switch:IsEnabled(), false, "row 6 is dimmed while row 1 is off")
