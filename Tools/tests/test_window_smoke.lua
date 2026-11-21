@@ -1888,7 +1888,7 @@ Case("3.0.2: the professions menu is a solid box", function()
 	shell:SetFrameLevel(0)
 	W.nameButton:Click()
 	Look("after its background was left in the window's layer")
-	-- The secure button over a row: over the row, in the menu's layer, never over its More button,
+	-- The secure button over a cook: over the cook, in the menu's layer, never over its More button,
 	-- and under Daylight UI's dropdown (the More menu) in every case.
 	local realInfo = GetProfessionInfo
 	GetProfessions = function() return 1, 2, nil, 3, 5 end
@@ -1901,28 +1901,28 @@ Case("3.0.2: the professions menu is a solid box", function()
 	C_SpellBook = { GetSpellBookItemInfo = function(slot) return { spellID = 5000 + slot } end }
 	C_TradeSkillUI.CanTradeSkillShowCraftingUI = function() return true end
 	Menu.Paint()
-	local row
+	local cook
 	for _, o in ipairs(ALL) do
-		if rawget(o, "more") and o:IsVisible() and strip(o.name.textValue) == "Cooking" then row = o end
+		if rawget(o, "more") and o:IsVisible() and strip(o.name.textValue) == "Cooking" then cook = o end
 	end
-	ok(row and row.cast == 5041, "Cooking's row, with its spell")
-	row.left, row.bottom, row.w, row.h = 300, 500, 206, 34
-	row.more.left, row.more.bottom, row.more.w = 480, 507, 20
+	ok(cook and cook.cast == 5041, "Cooking's cook, with its spell")
+	cook.left, cook.bottom, cook.w, cook.h = 300, 500, 206, 34
+	cook.more.left, cook.more.bottom, cook.more.w = 480, 507, 20
 	W.menuList.left, W.menuList.bottom, W.menuList.h = 300, 200, 400
-	row.scripts.OnEnter(row)
+	cook.scripts.OnEnter(cook)
 	local cast = _G.DaylightRecipesMenuCast
 	ok(cast and cast:IsShown(), "the secure button is out")
-	ok(Over(cast, row), "over the row it covers")
+	ok(Over(cast, cook), "over the cook it covers")
 	ok(Over(cast, rawget(W.menu, "shell")) and Over(cast, win), "over the menu's background and the window")
-	ok(cast.px + cast.w <= row.more.left, "it ends left of the row's More button: that keeps its own clicks")
+	ok(cast.px + cast.w <= cook.more.left, "it ends left of the cook's More button: that keeps its own clicks")
 	local drawn = 0
 	for _, o in ipairs(ALL) do
 		if o.parent == cast then drawn = drawn + 1 end
 	end
-	eq(drawn, 0, "it draws nothing: the row's name, bar and highlight show as they are")
-	ok(row.wash:IsShown(), "and the row is still lit under the mouse")
+	eq(drawn, 0, "it draws nothing: the cook's name, bar and highlight show as they are")
+	ok(cook.wash:IsShown(), "and the cook is still lit under the mouse")
 	MENU = nil
-	row.more:Click()
+	cook.more:Click()
 	ok(MENU and MENU.catcher and MENU.catcher:IsShown(), "More opens Daylight UI's dropdown")
 	ok(not cast:IsShown(), "the secure button is put away as it opens")
 	ok(STRATA[cast:GetFrameStrata()] < STRATA[MENU.catcher:GetFrameStrata()], "and its layer is under that dropdown's in any case")
