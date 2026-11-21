@@ -129,6 +129,11 @@ local function Chip(i)
 		end
 		if self.onClick then self.onClick(self) end
 	end)
+	-- (With the secure button over it the mouse is on that: it keeps the chip's light and tooltip.)
+	c.hover = function(self, on)
+		Lit(self, self.lit, on)
+		if on then Tip(self) elseif GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+	end
 	-- A controller's Y: what a right-click does (Link to Chat, Unlearn).
 	c.padMore = function(self) return self.onRight end
 	chips[i] = c

@@ -2017,6 +2017,14 @@ Case("3.1.0: your professions are chips across the title bar", function()
 	ok(cast and cast:IsShown(), "the secure button is over the chip under the mouse")
 	eq(cast.attrs.spell, 5041, "set to Cooking's spell")
 	ok(cast.px == 140 and cast.py == 900 and cast.w == cook.w and cast.h == 22, "exactly over the chip")
+	-- (The mouse is on the secure button now: the chip keeps its tooltip and its light.)
+	local tipped = 0
+	local realOwner = GameTooltip.SetOwner
+	GameTooltip.SetOwner = function(_, owner) if owner == cook then tipped = tipped + 1 end end
+	cook.scripts.OnLeave(cook)
+	cast.scripts.OnEnter(cast)
+	GameTooltip.SetOwner = realOwner
+	eq(tipped, 1, "with the mouse on the secure button the chip's tooltip is up")
 	eq(cast:GetFrameStrata(), win:GetFrameStrata(), "in the window's layer")
 	ok(cast.level > cook.level, "over the chip")
 	ok(cast.px + cast.w <= win:GetLeft() + W.col - buttons + 140, "clear of the window's buttons")

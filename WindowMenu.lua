@@ -219,12 +219,19 @@ end)
 local caster
 local PlaceCaster
 
+-- The look of what it covers, with the mouse on the secure button (which has taken the mouse from
+-- it): a row's wash; a chip's own hover (r.hover: its light and its tooltip).
+local function Hover(r, on)
+	if not r then return end
+	if r.hover then r.hover(r, on) else r.wash:SetShown(on) end
+end
+
 local function HideCaster()
 	if not caster or InCombatLockdown() then return end
 	local r = caster.row
 	caster.row = nil
 	if caster:IsShown() then caster:Hide() end
-	if r then r.wash:Hide() end
+	Hover(r, false)
 end
 Menu.HideCaster = HideCaster
 
@@ -238,7 +245,7 @@ local function Caster()
 	caster:Hide()
 	caster:SetScript("OnEnter", function(self)
 		local r = self.row
-		if r and r:IsShown() then r.wash:Show() end
+		if r and r:IsShown() then Hover(r, true) end
 	end)
 	caster:SetScript("OnLeave", function() HideCaster() end)
 	-- (Before and after the game's own click handler, which casts the spell: the row is kept from
@@ -265,7 +272,7 @@ local function Caster()
 		local r = self.row
 		self.row = nil
 		self:Hide()
-		if r then r.wash:Hide() end
+		Hover(r, false)
 	end)
 	return caster
 end
@@ -308,7 +315,7 @@ PlaceCaster = function(r)
 		return
 	end
 	local scale = r:GetEffectiveScale() / UIParent:GetEffectiveScale()
-	if b.row and b.row ~= r then b.row.wash:Hide() end
+	if b.row and b.row ~= r then Hover(b.row, false) end
 	b:ClearAllPoints()
 	b:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left * scale, bottom * scale)
 	b:SetSize((right - left) * scale, (top - bottom) * scale)
