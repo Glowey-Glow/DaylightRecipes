@@ -342,6 +342,9 @@ end)
 
 me.On("Login", function()
 	if type(me.AddTooltipLines) == "function" then pcall(me.AddTooltipLines, "item", ItemLines) end
+	-- (With DaylightUI's tooltips off, or another addon drawing them: the same lines, written
+	-- into the game's own tooltip. TipFallback.lua)
+	if ns.TipFallback then ns.TipFallback(ItemLines) end
 	if type(me.Paint) == "function" then pcall(me.Paint, "craftrow", Mark) end
 	Tips.ApplyMastercraft()
 	C_Timer.After(4, AskMastercraft)

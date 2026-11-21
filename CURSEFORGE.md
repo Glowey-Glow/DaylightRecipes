@@ -6,8 +6,8 @@ A plugin for Daylight UI, by Glowey (not part of Daylight UI itself: report its 
 
 ---
 
-## New in 3.0.4
-- **Camping, tidier:** Other Professions starts folded away, so the Camping page opens on your own professions' camping items. Click the Other Professions row to show the rest.
+## New in 3.0.5
+- **Recipe lines on any tooltip:** Known By, Can Learn, Used In and your guide's needs now show on item tooltips even with Daylight UI's tooltips switched off, or with another addon drawing your tooltips. Before, they only showed in Daylight UI's own tooltips.
 ---
 
 ## The window

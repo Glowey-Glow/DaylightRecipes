@@ -37,6 +37,7 @@ Ranks.lua
 Where.lua
 Plan.lua
 Queue.lua
+TipFallback.lua
 Tips.lua
 NodeTips.lua
 Learn.lua

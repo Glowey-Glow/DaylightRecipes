@@ -1,5 +1,9 @@
 # Glowey's Recipes (DaylightUI Plugin)
 
+## 3.0.5
+
+- Item tooltips: Known By, Can Learn, Used In and your guide's needs show without DaylightUI's tooltips too. Until now they were handed to DaylightUI's Tooltip module, which only draws plugins' lines while it draws the tooltips itself: with that module switched off, or another addon styling the tooltips in its place, they were gone. They are now written into the game's own tooltip in those cases. With DaylightUI's tooltips on, nothing changes.
+
 ## 3.0.4
 
 - Camping: Other Professions starts folded away, so the page opens on your own professions' camping items. Click the Other Professions row to show the rest, and again to fold them. A character with no profession of its own on the page sees them open, as before.
