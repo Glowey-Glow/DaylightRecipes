@@ -1,4 +1,4 @@
--- The title bar's profession chips (3.1.0): the rule for which of them show (WindowState.ChipFit,
+-- The title bar's profession chips (3.0.2): the rule for which of them show (WindowState.ChipFit,
 -- pure arithmetic) and the abbreviations every language file carries for them.
 -- luacheck: globals ADDON_ROOT NS
 -- luacheck: read globals T

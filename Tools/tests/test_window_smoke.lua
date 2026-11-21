@@ -1950,8 +1950,8 @@ end, function()
 	Flush()
 end)
 
--- ---- 3.1.0: your professions are chips across the title bar ------------------------------------------
-Case("3.1.0: your professions are chips across the title bar", function()
+-- ---- 3.0.2: your professions are chips across the title bar ------------------------------------------
+Case("3.0.2: your professions are chips across the title bar", function()
 	local Chips = ns.WinChips
 	local asked = {}
 	C_TradeSkillUI.OpenTradeSkill = function(line) asked[#asked + 1] = line return true end

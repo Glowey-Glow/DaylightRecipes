@@ -40,7 +40,7 @@ local function Parts() return ns.Window and ns.Window.TourParts and ns.Window.To
 -- lines are in all six language files. A player updating sees every entry above the one they
 -- read last (Guide.News), so 3.0.0's is what says why the window is suddenly small.
 local NEWS = {
-	{ version = "3.1.0", lines = {
+	{ version = "3.0.2", lines = {
 		L["Your professions are chips across the title bar: one press opens another, with no menu to open first. A right-click on a chip links or unlearns it, and the three dots at the end have your alts, Cooldowns and Tracking. Menus and lists are solid boxes now, whatever Window Opacity is set to."],
 	} },
 	{ version = "3.0.0", lines = {

@@ -1,6 +1,6 @@
 # Glowey's Recipes (DaylightUI Plugin)
 
-## 3.1.0
+## 3.0.2
 
 - Your professions are across the window's title bar: a small chip for each, by its abbreviation (Cook, FA, LW, Fish, Skin), and one for Camping. One press opens another profession; there is no menu to open first. The open one is lit in your accent color and shows its skill ("Cook 153 / 225"); point at any chip for its full name and skill. Rolled up, the window has the same chips.
 - A right-click on a chip (Y on a controller) has Link to Chat and Unlearn, and nowhere else offers them. Unlearn asks first, in a box that names the profession and the skill you would lose. The three dots at the end of the row open Your Alts and the Cooldowns and Tracking tiles; with none of those there are no three dots. A green dot on them says a cooldown is ready.

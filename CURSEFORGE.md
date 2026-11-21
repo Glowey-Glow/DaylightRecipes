@@ -6,7 +6,7 @@ A plugin for Daylight UI, by Glowey (not part of Daylight UI itself: report its 
 
 ---
 
-## New in 3.1.0
+## New in 3.0.2
 - **Your professions across the title bar:** a chip for each, by its abbreviation (Cook, FA, LW, Fish), and one for Camping. One press opens another profession, with no menu to open first. The open one is lit and shows its skill.
 - **The rest behind three dots:** a right-click on a chip has Link to Chat and Unlearn; the three dots at the end of the row have your alts, Cooldowns and Tracking. More professions than fit go behind a "+2" chip, never cut off.
 - **Solid menus and lists:** the menu and a shopping strip's list no longer let what is behind them show through, whatever Window Opacity is set to.

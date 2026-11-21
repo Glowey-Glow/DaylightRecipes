@@ -1,4 +1,4 @@
--- The title bar's professions (3.1.0): a chip for each of your professions and one for Camping, in
+-- The title bar's professions (3.0.2): a chip for each of your professions and one for Camping, in
 -- the menu's order, each its abbreviation. The one on show is lit in the accent and carries its
 -- skill ("Cook 153 / 225"); the others are the abbreviation alone, with the name and skill in the
 -- tooltip. A press opens the profession, the way the menu's rows do: they are the same entries

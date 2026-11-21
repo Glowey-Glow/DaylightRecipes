@@ -1,5 +1,5 @@
 -- The professions menu: what was the window's sidebar (design\facelift.md 3.1, "Where every
--- feature goes"). Since 3.1.0 your professions are chips across the title bar (WindowChips.lua),
+-- feature goes"). Since 3.0.2 your professions are chips across the title bar (WindowChips.lua),
 -- and this menu is what the bar's "more" chip opens: your alts and the Cooldowns and Tracking
 -- tiles, nothing else. Link to Chat and Unlearn are behind a right-click on a profession's chip
 -- (or on its row here; a controller's Y), where the player asks for them on purpose: no row and
