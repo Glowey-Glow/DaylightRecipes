@@ -931,6 +931,15 @@ function Plan.Get()
 				break
 			end
 		end
+		-- The recipes the route has you buy (a vendor's, or the Auction House's): their items, one
+		-- each, with the materials, so the Buy List's Guide List offers them where they are sold.
+		-- (One you hold but haven't read yet is in your bags: the list counts it as had.)
+		for _, s in ipairs(route.steps) do
+			if (s.kind == "craft" or s.kind == "tool") and s.learn and (s.source == "vendor" or s.source == "auction") then
+				local item = ns.Where.Teach(s.spell)
+				if item then need[item] = math.max(need[item] or 0, 1) end
+			end
+		end
 		c.plans[S.line] = { target = target, need = need, learn = learn, rank = rank, at = time() }
 	end
 	return kept

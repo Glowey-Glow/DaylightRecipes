@@ -6,6 +6,7 @@
 - Leveling Guide: that step names the nearest trainer who teaches the recipe (or the nearest vendor who sells it), with the zone and coordinates. A click sets a waypoint. In the list of later steps, a click on a recipe you still have to learn sets the same waypoint.
 - Leveling Guide: the step for training your next rank (Journeyman, Expert, Artisan) names the nearest trainer for it. The data has no list of who trains which rank, so it goes by what each trainer teaches: one that teaches recipes past your cap is certain to train the rank; one of the tier that normally trains it is shown as likely, with the nearest certain one under it. For Cooking and First Aid past 150 it says the data doesn't know.
 - "Nearest" is your zone first (by distance), then your continent, then elsewhere.
+- Buy List: the Guide List now holds the recipes the Leveling Guide has you buy, from a vendor or the Auction House, one of each beside the materials. At that vendor a press buys it; at the Auction House a press searches for it. A recipe already in your bags is not listed.
 
 ## 3.0.2
 
