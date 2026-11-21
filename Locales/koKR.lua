@@ -646,7 +646,7 @@ L["Queue: %s x %d"] = "대기열: %s x %d"
 L["Short of Materials"] = "재료 부족"
 
 -- 3.0.0: the tours and What's New, for the window, the strips and their lists as they are now (RecipesGuide.lua)
-L["Your professions are chips across the title bar, Camping after them. The open one is lit and shows its skill; press another to open it. A right-click on a chip (Y on a controller) has %s and %s. The three dots at the end have those too, your alts' professions, your cooldowns and tracking. %s in the options hides your alts' professions."] = "내 전문 기술이 제목 표시줄에 칩으로 나란히 있고, 그 뒤에 캠핑이 있습니다. 열려 있는 것은 밝게 표시되고 숙련도를 보여 주며, 다른 것을 누르면 열립니다. 칩을 오른쪽 클릭(컨트롤러의 Y)하면 %s, %s 기능이 있습니다. 끝의 점 세 개에도 같은 기능과 부캐의 전문 기술, 재사용 대기시간, 추적이 있습니다. 설정의 %s 항목으로 부캐릭터의 전문 기술을 숨길 수 있습니다."
+L["Your professions are chips across the title bar, Camping after them. The open one is lit and shows its skill; press another to open it. A right-click on a chip (Y on a controller) has %s and %s. The three dots at the end have your alts' professions, your cooldowns and tracking. %s in the options hides your alts' professions."] = "내 전문 기술이 제목 표시줄에 칩으로 나란히 있고, 그 뒤에 캠핑이 있습니다. 열려 있는 것은 밝게 표시되고 숙련도를 보여 주며, 다른 것을 누르면 열립니다. 칩을 오른쪽 클릭(컨트롤러의 Y)하면 %s, %s 기능이 있습니다. 끝의 점 세 개에는 부캐의 전문 기술, 재사용 대기시간, 추적이 있습니다. 설정의 %s 항목으로 부캐릭터의 전문 기술을 숨길 수 있습니다."
 L["%s crafts it, %s adds it to your queue, and %s picks the recipe in the list. %s lists other recipes that give points right now."] = "%s 버튼은 제작하고, %s 버튼은 대기열에 추가하고, %s 버튼은 목록에서 제조법을 고릅니다. %s에는 지금 숙련도를 올려 주는 다른 제조법이 나옵니다."
 L["Every recipe you don't know yet, with where it comes from: trainers, vendors, drops and quests. Click a place to put a pin on your map (a TomTom waypoint when TomTom is installed). The search box above narrows the list."] = "아직 모르는 모든 제조법과 그 출처: 상급자, 상인, 전리품, 퀘스트. 장소를 클릭하면 지도에 핀을 꽂습니다(TomTom이 설치되어 있으면 TomTom 경로 지점). 위의 검색창으로 목록을 좁힐 수 있습니다."
 L["Folds the window to its header and one bar while you craft. Rolled up, the bar says what it will make: the next craft in your queue, with %s, or else the picked recipe. Press it again to unroll."] = "제작하는 동안 창을 머리글과 막대 하나로 접습니다. 접힌 상태에서는 막대가 무엇을 만들지 알려 줍니다: 대기열의 다음 항목(%s), 없으면 선택한 제조법입니다. 다시 누르면 펼쳐집니다."
@@ -672,7 +672,7 @@ L["The strips carry everything the Buy List gained in 2.6 to 2.8: Queue List and
 L["Your professions are chips across the title bar: one press opens another, with no menu to open first. A right-click on a chip links or unlearns it, and the three dots at the end have your alts, Cooldowns and Tracking. Menus and lists are solid boxes now, whatever Window Opacity is set to."] = "내 전문 기술이 제목 표시줄에 칩으로 있습니다. 메뉴를 먼저 열지 않고 한 번 눌러 다른 것을 엽니다. 칩을 오른쪽 클릭하면 링크하거나 지울 수 있고, 끝의 점 세 개에는 부캐릭터, 재사용 대기시간, 추적이 있습니다. 메뉴와 목록은 이제 창 투명도 설정과 관계없이 불투명한 상자입니다."
 L["Click: open"] = "클릭: 열기"
 L["Click: show its page"] = "클릭: 페이지 보기"
-L["Right-click: %s"] = "오른쪽 클릭: %s"
+L["Right-click: more"] = "오른쪽 클릭: 더 보기"
 -- Title bar abbreviations. In common use among Korean players (not checked against written sources here):
 -- 연금, 대장, 마부, 기공, 약초, 가세, 무두, 재봉, 응급; 채광, 요리, 낚시, 독 are the whole names. Made for this bar: 야영.
 L["Alch"] = "연금"

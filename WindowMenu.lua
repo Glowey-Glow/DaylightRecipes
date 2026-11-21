@@ -1,7 +1,9 @@
 -- The professions menu: what was the window's sidebar (design\facelift.md 3.1, "Where every
 -- feature goes"). Since 3.1.0 your professions are chips across the title bar (WindowChips.lua),
--- and this menu is what the bar's "more" chip opens: your professions' Link to Chat and Unlearn,
--- your alts, the Cooldowns and Tracking tiles. It lists your professions themselves only when
+-- and this menu is what the bar's "more" chip opens: your alts and the Cooldowns and Tracking
+-- tiles, nothing else. Link to Chat and Unlearn are behind a right-click on a profession's chip
+-- (or on its row here; a controller's Y), where the player asks for them on purpose: no row and
+-- no line of this menu is ever one of them. It lists your professions themselves only when
 -- asked to (Menu.Open's `which`): the ones the bar had no room for (its "+N" chip), or all of them
 -- (from the name, on a page whose title bar spells a name out: an alt's or someone's recipes).
 -- The chips and the rows are the same entries (Menu.Entries) and open a profession the same way
@@ -145,8 +147,12 @@ function Menu.Unlearn(p)
 	end
 	local text = L["Unlearn %s? Your skill in it and every %s recipe you know are lost. Learning it again starts over at skill 1."]:format(p.name, p.name)
 	local owner = W.win and W.win:IsShown() and W.win or nil
+	-- (The box's title names the profession and the skill that would be lost: "Unlearn Skinning
+	-- (225 / 225)". Nothing is unlearned until its Unlearn button is pressed; No, Escape and a
+	-- press elsewhere leave everything as it is.)
+	local named = (p.max or 0) > 0 and ("%s (%d / %d)"):format(p.name, p.skill or 0, p.max) or p.name
 	if ns.Shop and type(ns.Shop.Confirm) == "function" then
-		ns.Shop.Confirm(owner, text, nil, Go, { title = L["Unlearn %s"]:format(p.name), yes = L["Unlearn"], warn = true })
+		ns.Shop.Confirm(owner, text, nil, Go, { title = L["Unlearn %s"]:format(named), yes = L["Unlearn"], warn = true })
 		return
 	end
 	-- (No confirm box of ours: the game's own, as Swap.lua asks its questions.)
@@ -852,8 +858,7 @@ end
 -- Your professions and Camping as the title bar's chips and the menu's rows show them, in one
 -- order (those with recipes first, by name, then Camping): { key (the game's skill line, W.CAMP
 -- for Camping), prof (nil for Camping), icon, name, sub, value, picked (it is the page on show),
--- cast (the spell that opens it: PlaceCaster), onClick, onRight (its More menu), more (its More
--- menu's words) }.
+-- cast (the spell that opens it: PlaceCaster), onClick, onRight (its More menu) }.
 function Menu.Entries()
 	local out = {}
 	local alt, gather = W.alt, W.gather
@@ -868,9 +873,7 @@ function Menu.Entries()
 		-- Its spell opens it (PlaceCaster), unless it is the one open now: casting that again would
 		-- close it, and its own click shows its recipes (OpenProfession).
 		local openNow = S.mode == "win" and S.line == p.line and not W.Linked()
-		local words = {}
-		if p.crafts then words[#words + 1] = L["Link to Chat"] end
-		if p.primary then words[#words + 1] = L["Unlearn"] end
+		local more = p.crafts or p.primary
 		out[#out + 1] = { key = p.game, prof = p, icon = p.icon, name = p.name,
 			sub = p.max > 0 and ("%d / %d"):format(p.skill, p.max) or "",
 			value = p.max > 0 and p.skill / p.max or nil, picked = picked,
@@ -887,8 +890,7 @@ function Menu.Entries()
 			end,
 			-- (Link to Chat for one with recipes, Unlearn for a primary one, as in the game's
 			-- professions book: a right-click, a controller's Y, a row's "more" button.)
-			onRight = #words > 0 and function(owner) MoreMenu(owner, p) end or nil,
-			more = #words > 0 and table.concat(words, ", ") or nil }
+			onRight = more and function(owner) MoreMenu(owner, p) end or nil }
 	end
 	-- Every profession's camping items (Camp.lua).
 	if ns.Camp and ns.Camping and #ns.Camping > 0 then
@@ -921,9 +923,6 @@ end
 -- Whether the menu has anything to show with none of your professions listed (the title bar's
 -- "more" chip shows only then).
 function Menu.HasMore()
-	for _, e in ipairs(Menu.Entries()) do
-		if e.onRight then return true end
-	end
 	if #AltRows() > 0 then return true end
 	if #TrackingList() > 0 then return true end
 	return #(ns.Cooldowns and ns.Cooldowns.List() or {}) > 0
@@ -947,20 +946,8 @@ local function PaintRows()
 		end
 		if n == 0 then Heading(L["You have no profession yet."]) end
 	end
-	-- The others' Link to Chat and Unlearn (theirs are chips in the title bar: a right-click on
-	-- one opens the same): a row each, a press opens its More menu.
-	if listed ~= true then
-		local first = true
-		for _, e in ipairs(entries) do
-			if e.onRight and not (listed and listed[e.key]) then
-				if first then
-					Heading(L["Your Professions"])
-					first = false
-				end
-				Entry({ icon = e.icon, name = e.name, sub = e.more, onClick = e.onRight })
-			end
-		end
-	end
+	-- (Nothing here for the professions that are chips in the title bar: their Link to Chat and
+	-- Unlearn are behind a right-click on the chip, never a row or a line of this menu.)
 	-- Your alts' professions on this server, from the last time each opened them (the "Show Your
 	-- Alts' Professions" option; off: none are listed).
 	local alts = AltRows()

@@ -174,7 +174,7 @@ Guide.AddTour("window", {
 		-- the picked recipe's line above the craft bar; `details` and `roll` the header's two buttons.
 		-- The window is always unrolled for a tour: Window.ShowForTour.)
 		{ title = L["Your Professions"],
-		  text = string.format(L["Your professions are chips across the title bar, Camping after them. The open one is lit and shows its skill; press another to open it. A right-click on a chip (Y on a controller) has %s and %s. The three dots at the end have those too, your alts' professions, your cooldowns and tracking. %s in the options hides your alts' professions."], Pop(L["Link to Chat"]), Pop(L["Unlearn"]), Pop(L["Show Your Alts' Professions"])),
+		  text = string.format(L["Your professions are chips across the title bar, Camping after them. The open one is lit and shows its skill; press another to open it. A right-click on a chip (Y on a controller) has %s and %s. The three dots at the end have your alts' professions, your cooldowns and tracking. %s in the options hides your alts' professions."], Pop(L["Link to Chat"]), Pop(L["Unlearn"]), Pop(L["Show Your Alts' Professions"])),
 		  part = function()
 			local p = Parts()
 			return p.menu or p.side

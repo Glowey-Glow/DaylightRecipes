@@ -9,8 +9,9 @@
 -- When they do not all fit between the bar's left edge and the window's buttons, the last ones go
 -- behind a "+N" chip that opens the menu with those listed (WindowState.ChipFit: whole chips only,
 -- nothing is cut, and the one on show is never among those left out). At the end a "more" chip
--- (three dots) opens the rest of what the menu held: your professions' Link to Chat and Unlearn,
--- your alts, the Cooldowns and Tracking tiles. It carries the dot that says a cooldown is ready.
+-- (three dots) opens the rest of what the menu held: your alts and the Cooldowns and Tracking
+-- tiles. It shows only when there is one of those, and carries the dot that says a cooldown is
+-- ready (a cooldown recipe is itself a reason for it to show).
 -- A profession with no abbreviation here (one this client adds) shows its icon alone.
 local _, ns = ...
 if not ns.ok then return end
@@ -68,20 +69,36 @@ local function Lit(c, on, over)
 	end
 end
 
+-- A chip's tooltip lines: the name, the skill, then two hints at most, each thing said once and
+-- Unlearn never named.
+--   * what a click does, on a chip where it does something (not on the one on show);
+--   * one line for the extras. A primary profession's More holds Unlearn: "Right-click: more" is
+--     the whole hint (Link to Chat is in that menu too). Another profession with recipes has only
+--     Link to Chat there, which a Shift-click does: that is said, and no right-click line.
+function Chips.TipLines(e)
+	local out = { e.name or "" }
+	if (e.sub or "") ~= "" then out[#out + 1] = e.sub end
+	local p = e.prof
+	if not e.picked then
+		out[#out + 1] = (p and p.crafts) and L["Click: open"] or L["Click: show its page"]
+	end
+	if p and p.primary then
+		out[#out + 1] = L["Right-click: more"]
+	elseif p and p.crafts then
+		out[#out + 1] = L["Shift-click: link to chat"]
+	end
+	return out
+end
+
 local function Tip(c)
 	local e = c.entry
 	if not e then return end
 	GameTooltip:SetOwner(c, "ANCHOR_BOTTOMRIGHT")
-	GameTooltip:SetText(e.name or "")
-	if (e.sub or "") ~= "" then GameTooltip:AddLine(e.sub, Color("TEXT")) end
-	if e.picked then
-		if e.prof and e.prof.crafts and W.Own() then GameTooltip:AddLine(L["Shift-click: link to chat"], Color("LABEL")) end
-	elseif e.prof and e.prof.crafts then
-		GameTooltip:AddLine(L["Click: open"], Color("LABEL"))
-	else
-		GameTooltip:AddLine(L["Click: show its page"], Color("LABEL"))
+	local lines = Chips.TipLines(e)
+	GameTooltip:SetText(lines[1])
+	for i = 2, #lines do
+		GameTooltip:AddLine(lines[i], Color((i == 2 and (e.sub or "") ~= "") and "TEXT" or "LABEL"))
 	end
-	if e.more then GameTooltip:AddLine(L["Right-click: %s"]:format(e.more), Color("LABEL")) end
 	GameTooltip:Show()
 end
 
@@ -242,8 +259,7 @@ function Chips.Build(header)
 	more:SetScript("OnEnter", function(self)
 		self.Paint(true)
 		GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-		GameTooltip:SetText(("%s, %s"):format(L["Link to Chat"], L["Unlearn"]))
-		GameTooltip:AddLine(L["Your Alts"], Color("TEXT"))
+		GameTooltip:SetText(L["Your Alts"])
 		GameTooltip:AddLine(L["Cooldowns"], Color("TEXT"))
 		GameTooltip:AddLine(L["Tracking"], Color("TEXT"))
 		if self.ready:IsShown() then GameTooltip:AddLine(L["Ready to craft"], Color("GOOD")) end

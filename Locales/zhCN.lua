@@ -646,7 +646,7 @@ L["Queue: %s x %d"] = "队列：%s x %d"
 L["Short of Materials"] = "材料不足"
 
 -- 3.0.0: the tours and What's New, for the window, the strips and their lists as they are now (RecipesGuide.lua)
-L["Your professions are chips across the title bar, Camping after them. The open one is lit and shows its skill; press another to open it. A right-click on a chip (Y on a controller) has %s and %s. The three dots at the end have those too, your alts' professions, your cooldowns and tracking. %s in the options hides your alts' professions."] = "你的专业以小标签排在标题栏上，后面是露营。已打开的那个会亮起并显示技能值；按下另一个即可打开。右键点击标签（手柄的Y键）提供%s和%s。 末尾的三个点也提供这两项，以及小号的专业、你的冷却和追踪。 选项中的%s可隐藏小号的专业。"
+L["Your professions are chips across the title bar, Camping after them. The open one is lit and shows its skill; press another to open it. A right-click on a chip (Y on a controller) has %s and %s. The three dots at the end have your alts' professions, your cooldowns and tracking. %s in the options hides your alts' professions."] = "你的专业以小标签排在标题栏上，后面是露营。已打开的那个会亮起并显示技能值；按下另一个即可打开。右键点击标签（手柄的Y键）提供%s和%s。 末尾的三个点提供小号的专业、你的冷却和追踪。 选项中的%s可隐藏小号的专业。"
 L["%s crafts it, %s adds it to your queue, and %s picks the recipe in the list. %s lists other recipes that give points right now."] = "%s会制作它，%s会把它加入队列，%s会在列表中选中该配方。 %s列出此刻能提升技能的其他配方。"
 L["Every recipe you don't know yet, with where it comes from: trainers, vendors, drops and quests. Click a place to put a pin on your map (a TomTom waypoint when TomTom is installed). The search box above narrows the list."] = "你还不会的每个配方及其来源：训练师、商人、掉落和任务。点击一个地点即可在地图上放置标记（安装了TomTom时为TomTom路径点）。上方的搜索框可缩小列表。"
 L["Folds the window to its header and one bar while you craft. Rolled up, the bar says what it will make: the next craft in your queue, with %s, or else the picked recipe. Press it again to unroll."] = "制作时把窗口折叠成标题栏和一条工具栏。折叠后，工具栏会说明它将制作什么：队列中的下一项（%s），否则是所选配方。再按一次即可展开。"
@@ -672,7 +672,7 @@ L["The strips carry everything the Buy List gained in 2.6 to 2.8: Queue List and
 L["Your professions are chips across the title bar: one press opens another, with no menu to open first. A right-click on a chip links or unlearns it, and the three dots at the end have your alts, Cooldowns and Tracking. Menus and lists are solid boxes now, whatever Window Opacity is set to."] = "你的专业以小标签排在标题栏上：按一下即可切换，无需先打开菜单。右键点击标签可链接或遗忘该专业，末尾的三个点提供小号、冷却和追踪。菜单和列表现在是不透明的方框，不受窗口透明度设置影响。"
 L["Click: open"] = "点击：打开"
 L["Click: show its page"] = "点击：显示其页面"
-L["Right-click: %s"] = "右键点击：%s"
+L["Right-click: more"] = "右键点击：更多"
 -- Title bar abbreviations. In common use among Chinese players (not checked against written sources here):
 -- 炼金, 工程, 草药; 锻造, 附魔, 制皮, 采矿, 剥皮, 裁缝, 烹饪, 急救, 钓鱼, 毒药 are the whole names. Made for this bar: 露营.
 L["Alch"] = "炼金"

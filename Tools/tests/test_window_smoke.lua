@@ -2088,24 +2088,25 @@ Case("3.1.0: your professions are chips across the title bar", function()
 	-- The "more" chip: the rest of the menu, none of your professions as rows.
 	W.chipMore:Click()
 	ok(Menu.Shown(), "the more chip opens the menu")
-	local rows, heads = {}, {}
-	for _, o in ipairs(ALL) do
-		if rawget(o, "more") and rawget(o, "name") and o:IsVisible() then
-			local name = strip(o.name.textValue)
-			rows[#rows + 1] = name
-			heads[name] = o
+	-- No row and no line anywhere in a menu reads Unlearn or Link to Chat.
+	local function Rows(what)
+		local rows, heads = {}, {}
+		for _, o in ipairs(ALL) do
+			if rawget(o, "more") and rawget(o, "name") and o:IsVisible() then
+				local name = strip(o.name.textValue)
+				rows[#rows + 1] = name
+				heads[name] = o
+				local sub = o.sub:IsShown() and strip(o.sub.textValue) or ""
+				for _, word in ipairs({ "Unlearn", "Link to Chat" }) do
+					ok(not name:find(word, 1, true) and not sub:find(word, 1, true), what .. ": no row or line reads " .. word .. ": " .. name .. " / " .. sub)
+				end
+			end
 		end
+		return table.concat(rows, " | "), heads
 	end
-	local all = table.concat(rows, " | ")
-	ok(not all:find("Professions |", 1, true) or all:find("Your Professions", 1, true), "no list of professions to open")
-	ok(heads["Your Professions"] and heads["Your Alts"] and heads["Mira"], "your professions' More, and your alts: " .. all)
-	ok(heads["Tailoring"] and heads["Tailoring"].cast == nil and strip(heads["Tailoring"].sub.textValue) == "Link to Chat, Unlearn",
-		"Tailoring's row there says what it holds")
-	ok(not heads["Fishing"] and not heads["Camping"], "nothing for a profession with neither")
+	local all, heads = Rows("the more chip's menu")
+	eq(all, "Your Alts | Mira", "it holds your alts, and none of your professions")
 	MENU = nil
-	heads["Tailoring"]:Click()
-	ok(MENU and table.concat(MENU.keys, " ") == "link unlearn", "a press on it opens its More menu")
-	MENU.catcher:Hide()
 	local tiles = 0
 	for _, o in ipairs(ALL) do
 		if rawget(o, "ring") and o.kind == "Button" and o:IsVisible() then tiles = tiles + 1 end
@@ -2113,6 +2114,55 @@ Case("3.1.0: your professions are chips across the title bar", function()
 	eq(tiles, 3, "the Cooldowns and Tracking tiles are there")
 	ok(W.chipMore.ready:IsShown(), "and the more chip carries the dot of a ready cooldown")
 	Menu.Close()
+	local _ = heads
+	-- The more chip shows only when its menu has something: alts, a cooldown recipe, a tracking spell.
+	local realAlts, realList, realTypes = ns.Store.Alts, ns.Cooldowns.List, C_Minimap.GetNumTrackingTypes
+	ns.Store.Alts = function() return {} end
+	Window.Render()
+	ok(W.chipMore:IsShown(), "no alts, but cooldowns and tracking: it shows")
+	C_Minimap.GetNumTrackingTypes = function() return 0 end
+	Window.Render()
+	ok(W.chipMore:IsShown() and W.chipMore.ready:IsShown(), "a cooldown recipe alone: it shows, with the ready dot")
+	ns.Cooldowns.List = function() return {} end
+	Window.Render()
+	ok(not W.chipMore:IsShown(), "nothing for its menu (Link to Chat and Unlearn do not count): no more chip")
+	ok(Labels():sub(-4) == "Camp", "the row ends with Camping: " .. Labels())
+	ns.Store.Alts, ns.Cooldowns.List, C_Minimap.GetNumTrackingTypes = realAlts, realList, realTypes
+	Window.Render()
+	-- The tooltip: name, skill, two hints at most, each thing once, Unlearn never named.
+	local function Tip(name)
+		local lines = Chips.TipLines(ChipOf(name).entry)
+		local text = table.concat(lines, " | ")
+		ok(not text:find("Unlearn", 1, true), name .. "'s tooltip does not name Unlearn: " .. text)
+		local _, links = text:gsub("[Ll]ink to [Cc]hat", "")
+		ok(links <= 1, name .. "'s tooltip says link to chat once at most: " .. text)
+		ok(#lines <= 4, name .. "'s tooltip: name, skill and two hints at most")
+		return text
+	end
+	eq(Tip("Tailoring"), "Tailoring | 187 / 225 | Right-click: more", "the open primary profession: nothing for a click, More for the rest")
+	eq(Tip("Cooking"), "Cooking | 153 / 225 | Click: open | Shift-click: link to chat", "a secondary one with recipes: its More would hold only the link")
+	eq(Tip("Herbalism"), "Herbalism | 96 / 150 | Click: show its page | Right-click: more", "a primary gathering profession")
+	eq(Tip("Fishing"), "Fishing | 120 / 150 | Click: show its page", "Fishing: nothing more")
+	eq(Tip("Camping"), "Camping | All professions | Click: show its page", "Camping")
+	-- Unlearn, chosen in a chip's More, asks first in a box that names the profession and the skill.
+	local abandoned = 0
+	local realAbandon = C_SkillInfo.AbandonSkill
+	C_SkillInfo.AbandonSkill = function() abandoned = abandoned + 1 end
+	local realConfirm = ns.Shop.Confirm
+	local box
+	ns.Shop.Confirm = function(_, text, _, yes, opts) box = { text = text, yes = yes, opts = opts } end
+	MENU = nil
+	local tailChip = ChipOf("Tailoring")
+	tailChip.scripts.OnClick(tailChip, "RightButton")
+	eq(abandoned, 0, "opening More unlearns nothing")
+	MENU.onPick("unlearn")
+	MENU.catcher:Hide()
+	eq(abandoned, 0, "choosing Unlearn unlearns nothing yet")
+	ok(box and box.opts.title == "Unlearn Tailoring (187 / 225)", "it asks, naming the profession and the skill that would be lost: " .. tostring(box and box.opts.title))
+	ok(box.text:find("Tailoring", 1, true) and box.opts.warn == true and box.opts.yes == "Unlearn", "in a warning box whose button says what it does")
+	box.yes()
+	eq(abandoned, 1, "only its Unlearn button unlearns")
+	C_SkillInfo.AbandonSkill, ns.Shop.Confirm = realAbandon, realConfirm
 	-- Overflow: long words (German), ten professions. Whole chips, the rest behind "+N", the
 	-- open one always on show.
 	local long = { [197] = "Schneiderei", [185] = "Kochkunst", [129] = "Erste Hilfe" }
@@ -2138,10 +2188,7 @@ Case("3.1.0: your professions are chips across the title bar", function()
 	ok(lit and lit.entry.name == "Tailoring", "the open profession is on show")
 	W.chipPlus:Click()
 	ok(Menu.Shown(), "+N opens the menu")
-	rows = {}
-	for _, o in ipairs(ALL) do
-		if rawget(o, "more") and rawget(o, "name") and o:IsVisible() then rows[strip(o.name.textValue)] = o end
-	end
+	local _, rows = Rows("the +N menu")
 	local n = 0
 	for key in pairs(W.chipPlus.set) do
 		n = n + 1
@@ -2150,6 +2197,14 @@ Case("3.1.0: your professions are chips across the title bar", function()
 			if e.key == key then found = rows[e.name] ~= nil end
 		end
 		ok(found, "a profession behind +N is a row of the menu")
+	end
+	for _, e in ipairs(Menu.Entries()) do
+		local r = W.chipPlus.set[e.key] and rows[e.name]
+		if r then
+			eq(strip(r.sub.textValue), e.sub, e.name .. "'s row shows its skill")
+			ok(type(r.onClick) == "function" and r.cast == e.cast, "a press opens it, as its chip would")
+			eq(r.onRight ~= nil, e.onRight ~= nil, "and a right-click is its More, where it has one")
+		end
 	end
 	eq(n, Chips.left, "all of them")
 	ok(rows["Professions"] ~= nil, "under Professions")
@@ -2185,10 +2240,7 @@ Case("3.1.0: your professions are chips across the title bar", function()
 	ok(W.nameButton:IsShown() and not W.chipBar:IsShown(), "an alt's page: the name, not the chips")
 	eq(Window.TourParts().menu, W.nameButton, "and the tour would light the name there")
 	W.nameButton:Click()
-	rows = {}
-	for _, o in ipairs(ALL) do
-		if rawget(o, "more") and rawget(o, "name") and o:IsVisible() then rows[strip(o.name.textValue)] = o end
-	end
+	_, rows = Rows("the name's menu")
 	ok(rows["Tailoring"] and rows["Cooking"] and rows["Herbalism"] and rows["Camping"], "its menu lists all your professions")
 	Menu.Close()
 end, function()
