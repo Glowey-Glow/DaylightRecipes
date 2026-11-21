@@ -149,6 +149,7 @@ function IMPL.Hide(self)
 	if was and self.scripts.OnHide then self.scripts.OnHide(self) end
 end
 function IMPL.SetShown(self, on) if on then self:Show() else self:Hide() end end
+function IMPL.SetTexture(self, texture) rawset(self, "texture", texture) end
 function IMPL.IsShown(self) return self.shown end
 function IMPL.IsVisible(self)
 	local o = self
@@ -578,6 +579,7 @@ Load("Pane.lua")
 Load("WindowState.lua")
 Load("WindowList.lua")
 Load("WindowMenu.lua")
+Load("WindowChips.lua")
 Load("Window.lua")
 
 local Window, Craft, State, W, Menu = ns.Window, ns.Craft, ns.WinState, ns.Win, ns.WinMenu
@@ -1944,6 +1946,254 @@ end, function()
 	C_SpellBook, Enum = nil, nil
 	ns.LINES[185] = nil
 	W.menuList.left, W.menuList.bottom, W.menuList.h = nil, nil, 0
+	Window.OpenProfession(197, 197)
+	Flush()
+end)
+
+-- ---- 3.1.0: your professions are chips across the title bar ------------------------------------------
+Case("3.1.0: your professions are chips across the title bar", function()
+	local Chips = ns.WinChips
+	local asked = {}
+	C_TradeSkillUI.OpenTradeSkill = function(line) asked[#asked + 1] = line return true end
+	Enum = { SpellBookSpellBank = { Player = 0 } }
+	C_SpellBook = { GetSpellBookItemInfo = function(slot) return { spellID = 5000 + slot } end }
+	C_TradeSkillUI.CanTradeSkillShowCraftingUI = function(spell) return spell ~= 5021 and spell ~= 5031 end
+	GetProfessions = function() return 1, 2, 4, 3, 5 end
+	GetProfessionInfo = function(i)
+		if i == 4 then return "First Aid", 9, 79, 150, 0, 60, 129 end
+		if i == 5 then return "Cooking", 10, 153, 225, 0, 40, 185 end
+		local name, icon, skill, max, n, _, line = realProfessionInfo(i)
+		return name, icon, skill, max, n, i * 10, line
+	end
+	ns.LINES[185], ns.LINES[129] = true, true
+	local function Labels()
+		local out = {}
+		for _, c in ipairs(Chips.Shown()) do
+			if c == W.chipMore then out[#out + 1] = "..."
+			elseif c == W.chipPlus then out[#out + 1] = c.text.textValue
+			elseif c.text:IsShown() then
+				out[#out + 1] = strip(c.text.textValue) .. (c.skill:IsShown() and (" " .. strip(c.skill.textValue)) or "")
+					.. (c.lit and "*" or "")
+			else out[#out + 1] = "icon:" .. tostring(c.icon.texture) end
+		end
+		return table.concat(out, " | ")
+	end
+	local function ChipOf(name)
+		for _, c in ipairs(Chips.Shown()) do
+			if c.entry and c.entry.name == name and c ~= W.chipMore and c ~= W.chipPlus then return c end
+		end
+	end
+	Window.SetTab("recipes")
+	Window.Render()
+	Flush()
+	-- The model: the menu's order (those with recipes first, by name), then Camping, then "more".
+	eq(Labels(), "Cook | FA | Tail 187 / 225* | Fish | Herb | Camp | ...", "a chip each, the open one lit with its skill")
+	ok(W.chipBar:IsShown() and not W.nameButton:IsShown(), "the chips stand where the name was")
+	ok(not W.iconHit:IsShown(), "and nothing unseen is left under them to take a press")
+	eq(Window.TourParts().menu, W.chipBar, "the tour's first step lights the row of chips")
+	local buttons = 26 * 4 + 18
+	local last = Chips.Shown()[#Chips.Shown()]
+	ok(Chips.LEFT + last.points[1][4] + last.w <= W.col - buttons, "the row ends before the window's buttons")
+	for _, c in ipairs(Chips.Shown()) do eq(c.h, 22, "a chip is 22 tall, in the 36 bar") end
+	-- A profession this client adds, with no abbreviation: its icon alone.
+	GetProfessions = function() return 1, 2, 4, 3, 5, 6 end
+	local with = GetProfessionInfo
+	GetProfessionInfo = function(i)
+		if i == 6 then return "Gardening", 77, 10, 75, 0, 70, 9001 end
+		return with(i)
+	end
+	Window.Render()
+	ok(Labels():find("icon:77", 1, true), "no abbreviation: the profession's icon alone: " .. Labels())
+	GetProfessions = function() return 1, 2, 4, 3, 5 end
+	GetProfessionInfo = with
+	Window.Render()
+	-- A press on another: its spell through the secure button, the same one the menu's rows use.
+	local cook = ChipOf("Cooking")
+	eq(cook.cast, 5041, "Cooking's chip carries its spell")
+	eq(ChipOf("Tailoring").cast, nil, "the open one has none")
+	cook.left, cook.bottom = 140, 900
+	cook.scripts.OnEnter(cook)
+	local cast = _G.DaylightRecipesMenuCast
+	ok(cast and cast:IsShown(), "the secure button is over the chip under the mouse")
+	eq(cast.attrs.spell, 5041, "set to Cooking's spell")
+	ok(cast.px == 140 and cast.py == 900 and cast.w == cook.w and cast.h == 22, "exactly over the chip")
+	eq(cast:GetFrameStrata(), win:GetFrameStrata(), "in the window's layer")
+	ok(cast.level > cook.level, "over the chip")
+	ok(cast.px + cast.w <= win:GetLeft() + W.col - buttons + 140, "clear of the window's buttons")
+	local fa = ChipOf("First Aid")
+	fa.left, fa.bottom = 190, 900
+	fa.scripts.OnEnter(fa)
+	ok(cast.attrs.spell == 5061 and cast.px == 190, "it follows the mouse to the next chip")
+	cast.scripts.PreClick(cast, "LeftButton")
+	cast.scripts.PostClick(cast, "LeftButton")
+	eq(#asked, 0, "the click asks nothing by skill line")
+	fa.scripts.OnEnter(fa)
+	cast.scripts.OnLeave(cast)
+	ok(not cast:IsShown(), "the mouse leaves: away")
+	local herb = ChipOf("Herbalism")
+	herb.scripts.OnEnter(herb)
+	ok(not cast:IsShown(), "a gathering profession's chip has none")
+	herb:Click()
+	Flush()
+	eq(W.gather, 182, "its press shows its page")
+	ok(ChipOf("Herbalism").lit and not ChipOf("Tailoring").lit, "and its chip is the lit one")
+	ChipOf("Camping"):Click()
+	Flush()
+	eq(W.gather, W.CAMP, "Camping's chip shows the camping page")
+	ok(ChipOf("Camping").lit, "lit")
+	-- Tailoring is still the game's open profession: its chip goes back to it, with no spell
+	-- (casting it would close it).
+	eq(ChipOf("Tailoring").cast, nil, "the open profession behind a page: no spell")
+	ChipOf("Tailoring"):Click()
+	Flush()
+	ok(W.gather == nil and ChipOf("Tailoring").lit, "its press goes back to its recipes")
+	-- In a fight: nothing secure is touched, and the chip's own click asks by skill line.
+	cook = ChipOf("Cooking")
+	cook.scripts.OnEnter(cook)
+	ok(cast:IsShown(), "out again")
+	Fire("PLAYER_REGEN_DISABLED")
+	ok(not cast:IsShown(), "a fight starts: put away")
+	FIGHT = true
+	cook.scripts.OnEnter(cook)
+	Window.Render()                      -- (the strict stand-in raises on any protected call now)
+	ok(not cast:IsShown(), "in a fight it stays away")
+	ChipOf("Cooking"):Click()
+	eq(asked[#asked], 185, "and the chip's own click asks the game by skill line")
+	FIGHT = false
+	-- A right-click (Y on a controller): the profession's More menu.
+	MENU = nil
+	local tail = ChipOf("Tailoring")
+	tail.scripts.OnClick(tail, "RightButton")
+	ok(MENU and table.concat(MENU.keys, " ") == "link unlearn", "a right-click on a chip: Link to Chat and Unlearn")
+	MENU.catcher:Hide()
+	ok(type(tail.padMore(tail)) == "function", "a controller's Y opens the same")
+	eq(herb.padMore(ChipOf("Herbalism")) ~= nil, true, "a primary gathering profession has Unlearn there")
+	eq(ChipOf("Fishing").padMore(ChipOf("Fishing")), nil, "Fishing has no More")
+	-- A controller's A on a chip: the same spell through Daylight UI's secure key.
+	local keyA = win.padKeys[1]
+	cook = ChipOf("Cooking")
+	local attrs = keyA.secure(cook)
+	ok(attrs and attrs.type == "spell" and attrs.spell == 5041, "A on Cooking's chip casts its spell")
+	eq(keyA.label(cook), nil, "its hint is Daylight UI's Select")
+	eq(keyA.secure(ChipOf("Herbalism")), nil, "A on a gathering chip is the chip's own press")
+	eq(#(win.padTabs()), 5, "LB / RB still step the window's five tabs")
+	-- The "more" chip: the rest of the menu, none of your professions as rows.
+	W.chipMore:Click()
+	ok(Menu.Shown(), "the more chip opens the menu")
+	local rows, heads = {}, {}
+	for _, o in ipairs(ALL) do
+		if rawget(o, "more") and rawget(o, "name") and o:IsVisible() then
+			local name = strip(o.name.textValue)
+			rows[#rows + 1] = name
+			heads[name] = o
+		end
+	end
+	local all = table.concat(rows, " | ")
+	ok(not all:find("Professions |", 1, true) or all:find("Your Professions", 1, true), "no list of professions to open")
+	ok(heads["Your Professions"] and heads["Your Alts"] and heads["Mira"], "your professions' More, and your alts: " .. all)
+	ok(heads["Tailoring"] and heads["Tailoring"].cast == nil and strip(heads["Tailoring"].sub.textValue) == "Link to Chat, Unlearn",
+		"Tailoring's row there says what it holds")
+	ok(not heads["Fishing"] and not heads["Camping"], "nothing for a profession with neither")
+	MENU = nil
+	heads["Tailoring"]:Click()
+	ok(MENU and table.concat(MENU.keys, " ") == "link unlearn", "a press on it opens its More menu")
+	MENU.catcher:Hide()
+	local tiles = 0
+	for _, o in ipairs(ALL) do
+		if rawget(o, "ring") and o.kind == "Button" and o:IsVisible() then tiles = tiles + 1 end
+	end
+	eq(tiles, 3, "the Cooldowns and Tracking tiles are there")
+	ok(W.chipMore.ready:IsShown(), "and the more chip carries the dot of a ready cooldown")
+	Menu.Close()
+	-- Overflow: long words (German), ten professions. Whole chips, the rest behind "+N", the
+	-- open one always on show.
+	local long = { [197] = "Schneiderei", [185] = "Kochkunst", [129] = "Erste Hilfe" }
+	local words = ns.L
+	ns.WinChips.ABBR[197], ns.WinChips.ABBR[185], ns.WinChips.ABBR[129] = "Lederverarb", "Kochkunst", "Erste Hilfe"
+	GetProfessions = function() return 1, 2, 4, 3, 5, 6, 7 end
+	GetProfessionInfo = function(i)
+		if i == 6 then return "Gardening", 77, 10, 75, 0, 70, 9001 end
+		if i == 7 then return "Zymurgy", 78, 10, 75, 0, 80, 9002 end
+		return with(i)
+	end
+	Window.Render()
+	local shown = Chips.Shown()
+	ok(W.chipPlus:IsShown() and Chips.left > 0, "too many for the bar: a +N chip: " .. Labels())
+	eq(W.chipPlus.text.textValue, "+" .. Chips.left, "which counts them")
+	last = shown[#shown]
+	ok(Chips.LEFT + last.points[1][4] + last.w <= W.col - buttons, "the row still ends before the window's buttons")
+	local lit
+	for _, c in ipairs(shown) do
+		if c.lit then lit = c end
+		ok(c == W.chipMore or c == W.chipPlus or not c.text:IsShown() or c.w >= 10 + 6 * #strip(c.text.textValue), "no chip is narrower than its words")
+	end
+	ok(lit and lit.entry.name == "Tailoring", "the open profession is on show")
+	W.chipPlus:Click()
+	ok(Menu.Shown(), "+N opens the menu")
+	rows = {}
+	for _, o in ipairs(ALL) do
+		if rawget(o, "more") and rawget(o, "name") and o:IsVisible() then rows[strip(o.name.textValue)] = o end
+	end
+	local n = 0
+	for key in pairs(W.chipPlus.set) do
+		n = n + 1
+		local found = false
+		for _, e in ipairs(Menu.Entries()) do
+			if e.key == key then found = rows[e.name] ~= nil end
+		end
+		ok(found, "a profession behind +N is a row of the menu")
+	end
+	eq(n, Chips.left, "all of them")
+	ok(rows["Professions"] ~= nil, "under Professions")
+	Menu.Close()
+	-- Every profession in turn open: never behind +N.
+	for _, line in ipairs({ 197, 185, 129 }) do
+		S.line = line
+		Window.Render()
+		local found
+		for _, c in ipairs(Chips.Shown()) do
+			if c.lit and c.prof and c.prof.line == line then found = c end
+		end
+		ok(found, "line " .. line .. " open: its chip is on show, lit")
+	end
+	S.line = 197
+	ns.WinChips.ABBR[197], ns.WinChips.ABBR[185], ns.WinChips.ABBR[129] = words["Tail"], words["Cook"], words["FA"]
+	GetProfessions = function() return 1, 2, 4, 3, 5 end
+	GetProfessionInfo = with
+	local _ = long
+	-- Rolled up: the same chips, and the bar under them still says what it acts on.
+	Window.Render()
+	local before = Labels()
+	Window.SetRolled(true)
+	Flush()
+	eq(Window.Mode(), "rolled", "rolled up")
+	eq(Labels(), before, "the same chips")
+	ok(W.craftBar:IsVisible(), "over the craft bar")
+	Window.SetRolled(false)
+	-- An alt's recipes: the name is spelled out (it is the only mark of whose they are), with the
+	-- menu of all your professions on it.
+	Window.ShowAlt("Player-1", 171)
+	Flush()
+	ok(W.nameButton:IsShown() and not W.chipBar:IsShown(), "an alt's page: the name, not the chips")
+	eq(Window.TourParts().menu, W.nameButton, "and the tour would light the name there")
+	W.nameButton:Click()
+	rows = {}
+	for _, o in ipairs(ALL) do
+		if rawget(o, "more") and rawget(o, "name") and o:IsVisible() then rows[strip(o.name.textValue)] = o end
+	end
+	ok(rows["Tailoring"] and rows["Cooking"] and rows["Herbalism"] and rows["Camping"], "its menu lists all your professions")
+	Menu.Close()
+end, function()
+	FIGHT = false
+	if MENU and MENU.catcher then MENU.catcher:Hide() end
+	Menu.Close()
+	Window.SetRolled(false)
+	GetProfessions, GetProfessionInfo = realProfessions, realProfessionInfo
+	C_TradeSkillUI.OpenTradeSkill = realOpen
+	C_TradeSkillUI.CanTradeSkillShowCraftingUI = nil
+	C_SpellBook, Enum = nil, nil
+	ns.LINES[185], ns.LINES[129] = nil, nil
+	S.line = 197
 	Window.OpenProfession(197, 197)
 	Flush()
 end)

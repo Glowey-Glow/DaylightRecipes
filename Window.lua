@@ -292,11 +292,41 @@ local function SkillLine(value)
 	skillLine:Show()
 end
 
+-- The title bar's left side. Your professions are chips across it (WindowChips.lua), the one on
+-- show lit and carrying its skill. Two pages spell a name out there instead, since it is the only
+-- mark of whose recipes they are: an alt's ("Mira's Alchemy") and someone's linked or guild
+-- recipes (the profession, then "<name>'s recipes"). There the name is a button again, and its
+-- menu lists all your professions.
 local function PaintHead()
 	local vr, vg, vb = Color("VALUE")
+	local alt, gather = W.alt, W.gather
+	local named = alt ~= nil or (not gather and S.mode == "win" and Linked())
+	W.named = named
+	nameButton:SetShown(named)
+	-- (The icon's own button goes with the icon: left there it would take presses between chips.)
+	W.iconHit:SetShown(named)
+	if not named then
+		headIcon:Hide()
+		headDot:Hide()
+		headSkill:Hide()
+		local buttons = 2 + (win.swapButton and 1 or 0) + 1
+		-- (HeaderRoom is the room for a name that starts after the icon, at 38, and ends before a
+		-- chevron: the chips start at the bar's own left margin and use all of it.)
+		W.Chips.Paint(State.HeaderRoom(W.col, buttons) + 38 + 14 - W.Chips.LEFT)
+		if gather == W.CAMP then
+			SkillLine(nil)
+		elseif gather then
+			local p = Menu.GatherEntry()
+			SkillLine(p and p.max > 0 and p.skill / p.max or nil)
+		else
+			local open = S.mode == "win"
+			SkillLine(open and (S.max or 0) > 0 and (S.skill or 0) / S.max or nil)
+		end
+		return
+	end
+	W.Chips.Hide()
 	headDot:SetShown(Menu.CooldownReady())
 	headDot:SetColorTexture(Color("GOOD"))
-	local alt, gather = W.alt, W.gather
 	if alt then
 		local c = ns.Store and ns.Store.Alts()[alt.guid]
 		local p = c and type(c.prof) == "table" and c.prof[alt.line] or {}
@@ -376,7 +406,7 @@ local function BuildHeader()
 	local iconHit = CreateFrame("Button", nil, header)
 	iconHit:SetAllPoints(headIcon)
 	iconHit:SetScript("OnClick", function()
-		if IsModifiedClick("CHATLINK") then Window.LinkOpen() else Menu.Toggle() end
+		if IsModifiedClick("CHATLINK") then Window.LinkOpen() else Menu.Toggle(true, nameButton) end
 	end)
 	iconHit:SetScript("OnEnter", function(self)
 		if not headIcon:IsShown() or not W.Own() then return end
@@ -389,8 +419,10 @@ local function BuildHeader()
 		if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
 	end)
 	Pad.Skip(iconHit)   -- (the name beside it is the stop)
+	W.iconHit = iconHit
 
-	-- The name: the professions menu's button.
+	-- The name (on an alt's page and on someone's recipes: PaintHead): the professions menu's
+	-- button, the menu listing all of yours.
 	nameButton = CreateFrame("Button", nil, header)
 	nameButton:SetHeight(24)
 	nameButton:SetPoint("LEFT", header, "LEFT", 38, 0)
@@ -415,8 +447,10 @@ local function BuildHeader()
 		self.wash:Hide()
 		self.chevron.Paint("LABEL")
 	end)
-	nameButton:SetScript("OnClick", function() Menu.Toggle() end)
+	nameButton:SetScript("OnClick", function() Menu.Toggle(true, nameButton) end)
 	W.nameButton = nameButton
+	-- Your professions as chips (every other page).
+	W.Chips.Build(header)
 	headSkill = Text(header, "small")
 	headSkill:SetPoint("LEFT", nameButton, "RIGHT", 6, 0)
 	headSkill:SetWordWrap(false)
@@ -620,9 +654,11 @@ local function BuildPad()
 		-- A on Stop: the secure Stop's own action, through DaylightUI's secure key (the Stop drawn
 		-- here only shows it). A on a profession's row in the menu: that profession's spell, the
 		-- same way (Menu.PadCast; the hint stays "Select", Daylight UI's own word for A).
-		{ key = "A", label = function() if Menu.Shown() then return nil end return L["Stop"] end,
+		{ key = "A", label = function(at) if Menu.Shown() or Menu.PadCast(at) then return nil end return L["Stop"] end,
 			secure = function(at)
-				if Menu.Shown() then return Menu.PadCast(at) end
+				-- (A profession's chip in the title bar, or its row in the menu.)
+				local cast = Menu.PadCast(at)
+				if cast or Menu.Shown() then return cast end
 				local cb = W.craftBar
 				if cb and at == cb.stop and cb.stop:IsVisible() and not cb.stop.off then
 					return { type = "macro", macrotext = "/stopcasting" }
@@ -861,7 +897,7 @@ local function Draw(d, fn, ...)
 end
 
 local function NoSession(d)
-	d:Line(L["Open a profession from the menu on the name above (or cast it from your spellbook)."], "body", "OFF")
+	d:Line(L["Open a profession from the title bar above (or cast it from your spellbook)."], "body", "OFF")
 end
 
 -- The detail column's page for the tab: the picked missing recipe's sources on Missing, the picked
@@ -1166,7 +1202,8 @@ function Window.TourParts()
 	for _, b in ipairs(tabButtons) do
 		if b:IsVisible() then tabs[#tabs + 1] = b end
 	end
-	return { win = win, side = nameButton, menu = nameButton, tabs = tabs, tabOf = tabOf, list = W.list,
+	local bar = (not W.named and W.chipBar and W.chipBar:IsShown()) and W.chipBar or nameButton
+	return { win = win, side = bar, menu = bar, tabs = tabs, tabOf = tabOf, list = W.list,
 		craft = W.craftBar, body = body, swap = win and win.swapButton, tab = W.tab,
 		details = detailsButton, roll = rollButton, summary = W.summary }
 end
@@ -1252,7 +1289,8 @@ end
 -- The cooldowns were read again (Cooldowns.lua): the header's dot, and the menu while it's open.
 function Window.PaintCooldowns()
 	if not Window.Shown() then return end
-	headDot:SetShown(Menu.CooldownReady())
+	headDot:SetShown(W.named == true and Menu.CooldownReady())
+	W.Chips.PaintReady()
 	if Menu.Shown() then Menu.Paint() end
 end
 

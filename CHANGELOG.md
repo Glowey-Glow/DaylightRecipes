@@ -1,7 +1,14 @@
 # Glowey's Recipes (DaylightUI Plugin)
 
-## 3.0.2
+## 3.1.0
 
+- Your professions are across the window's title bar: a small chip for each, by its abbreviation (Cook, FA, LW, Fish, Skin), and one for Camping. One press opens another profession; there is no menu to open first. The open one is lit in your accent color and shows its skill ("Cook 153 / 225"); point at any chip for its full name and skill. Rolled up, the window has the same chips.
+- A right-click on a chip (Y on a controller) has Link to Chat and Unlearn. The three dots at the end of the row open the rest of what the menu held: the same two for each profession, Your Alts, and the Cooldowns and Tracking tiles. A green dot on the three dots says a cooldown is ready.
+- With more professions than fit, the last ones go behind a "+2" chip that opens them as a list. No chip is ever cut off, and the open profession always stays in the row.
+- A profession the game adds that has no abbreviation yet shows as its icon.
+- On an alt's recipes and on someone's linked recipes the title bar still spells the name out ("Mira's Alchemy"), and a press on it lists your professions.
+- The abbreviations are in every language the plugin speaks, each with its own.
+- Controller: every chip is a stop; A opens it, Y has Link to Chat and Unlearn. LB and RB step the tabs, as before.
 - Fixed: the professions menu is a solid box. The window's tabs and page no longer show through it, whatever Window Opacity is set to.
 - The list a shopping strip drops (at a vendor, a trainer and the Auction House) is solid too, so the game's window, the chat or the world behind it no longer shows through its rows. So is the Professionally Lost question. The window itself, the docked pane and a strip's bar still follow Window Opacity.
 

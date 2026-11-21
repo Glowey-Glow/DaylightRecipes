@@ -6,12 +6,10 @@ A plugin for Daylight UI, by Glowey (not part of Daylight UI itself: report its 
 
 ---
 
-## New in 3.0.0
-- **A compact window:** one column at the left of the screen in place of the wide window. Details slide out on demand, and Roll Up folds it to one bar that says what it will make: the next craft in your queue, with Craft Next, or the picked recipe.
-- **Strips in place of the shopping panels:** a thin strip at vendors, trainers and the Auction House, only where there is something for you. At the Auction House it sits at the window's bottom right corner, clear of your chat.
-- **The Buy List, in less room:** Queue List and Guide List, profession tags, Remove with a Shift-click and Check Prices are all on the strip and its list.
-- **Tours only when you ask:** nothing starts by itself. **Retake Tour**, **Shop Strip Tour** and **Enchanting Runs Tour** are in the settings under Help, and both tours are new.
-- **Professionally Lost:** with it installed, choose once which addon does each job; Put Everything Back undoes it.
+## New in 3.1.0
+- **Your professions across the title bar:** a chip for each, by its abbreviation (Cook, FA, LW, Fish), and one for Camping. One press opens another profession, with no menu to open first. The open one is lit and shows its skill.
+- **The rest behind three dots:** a right-click on a chip has Link to Chat and Unlearn; the three dots at the end of the row have your alts, Cooldowns and Tracking. More professions than fit go behind a "+2" chip, never cut off.
+- **Solid menus and lists:** the menu and a shopping strip's list no longer let what is behind them show through, whatever Window Opacity is set to.
 
 ---
 
@@ -19,7 +17,7 @@ A plugin for Daylight UI, by Glowey (not part of Daylight UI itself: report its 
 Open any profession and Glowey's Recipes' window takes the place of the game's (and Daylight UI's or Mogul's): one compact column at the left of the screen, out of the way of your character. It opens the way you left it.
 - **Compact, with details on demand:** the picked recipe's chance, cost and sale value are one line above the craft bar. The **Details** button (or a press on that line) slides its full page out beside the list. Drag the bottom edge to make the window taller.
 - **Roll Up** folds the window to its header and one bar while you craft. The bar says what it acts on: what is being made (with Stop), else the next craft in your queue (with **Craft Next**), else the picked recipe.
-- **Your professions in a menu** on the profession's name (press one to open it), with your alts' below: see what each alt knows. Herbalism, Skinning and Fishing open their own page (skill, rank, where to train next), a **Camping** entry lists every profession's camping items, and your craft cooldowns and tracking spells are at its foot. Each profession's More button has **Link to Chat** and **Unlearn**.
+- **Your professions across the title bar:** a chip for each, by its abbreviation, the open one lit with its skill; press another to open it. Herbalism, Skinning and Fishing open their own page (skill, rank, where to train next), and a **Camping** chip lists every profession's camping items. A right-click on a chip has **Link to Chat** and **Unlearn**; the three dots at the end have your alts' professions (see what each alt knows), your craft cooldowns and your tracking spells.
 - **Swap button** beside the X: switch to the game's profession window and back any time.
 - **Recipes:** search, "Can Make" and "Skill-ups" filters, folding categories and how many you can make. The picked recipe shows its skill-up chance, what its materials cost and what you hold of them (bags, bank, mail, alts), what it's worth, and Create, Max and Queue (Max fills in all you can make).
 - **Leveling Guide:** pick your goal (150, 225, 300) and what the route aims for (cheapest materials, or after vendoring, disenchanting or selling what you make). Every step uses a recipe that is orange or yellow at that skill, whatever the goal; for recipes you know, the game's own color decides. The step you're on comes as a card: what to make and how many, its materials, and Make / Queue / Show Recipe, with other recipes that give points under Or Instead. Then every next step, numbered, with when to train each rank, and the rods and tools you'll need made along the way. The step you're on glows, and so does its recipe in the list.

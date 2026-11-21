@@ -40,8 +40,11 @@ local function Parts() return ns.Window and ns.Window.TourParts and ns.Window.To
 -- lines are in all six language files. A player updating sees every entry above the one they
 -- read last (Guide.News), so 3.0.0's is what says why the window is suddenly small.
 local NEWS = {
+	{ version = "3.1.0", lines = {
+		L["Your professions are chips across the title bar: one press opens another, with no menu to open first. A right-click on a chip links or unlearns it, and the three dots at the end have your alts, Cooldowns and Tracking. Menus and lists are solid boxes now, whatever Window Opacity is set to."],
+	} },
 	{ version = "3.0.0", lines = {
-		L["A compact window: one column at the left of the screen. Details slide out from the Details button (Y on a controller), Roll Up folds it to one bar that says what it will make, and your professions, alts, Cooldowns and Tracking are in the menu on the profession's name."],
+		L["A compact window: one column at the left of the screen. Details slide out from the Details button (Y on a controller), Roll Up folds it to one bar that says what it will make, and your professions are across the title bar, with your alts, Cooldowns and Tracking behind the three dots at its end."],
 		L["Vendors, trainers and the auction house: the panels are now a thin strip under the window, only where there is something for you. List shows the items, a press on one buys or learns it, and Buy All Needed asks first."],
 		L["The strips carry everything the Buy List gained in 2.6 to 2.8: Queue List and Guide List, profession tags, Remove with a Shift-click, and Check Prices at the auction house."],
 		L["Tours no longer start by themselves. Retake Tour, Shop Strip Tour and Enchanting Runs Tour are in Plugins > Recipes > Help."],
@@ -166,11 +169,12 @@ Guide.AddTour("window", {
 	end,
 	steps = {
 		-- (The window's parts are Window.TourParts(), as its own comment in Window.lua lists them: `menu`
-		-- is the profession's name in the header, whose menu took the old sidebar's place; `summary`
+		-- is the title bar's row of profession chips, which with its "more" chip took the old
+		-- sidebar's place (on an alt's page or someone's recipes: the name there); `summary`
 		-- the picked recipe's line above the craft bar; `details` and `roll` the header's two buttons.
 		-- The window is always unrolled for a tour: Window.ShowForTour.)
 		{ title = L["Your Professions"],
-		  text = string.format(L["Press the profession's name for its menu: your professions, Camping, your alts' professions as of their last visit, your cooldowns and tracking. The three dots beside each of your professions (a right-click, or Y on a controller) have %s and %s. %s in the options hides your alts' professions."], Pop(L["Link to Chat"]), Pop(L["Unlearn"]), Pop(L["Show Your Alts' Professions"])),
+		  text = string.format(L["Your professions are chips across the title bar, Camping after them. The open one is lit and shows its skill; press another to open it. A right-click on a chip (Y on a controller) has %s and %s. The three dots at the end have those too, your alts' professions, your cooldowns and tracking. %s in the options hides your alts' professions."], Pop(L["Link to Chat"]), Pop(L["Unlearn"]), Pop(L["Show Your Alts' Professions"])),
 		  part = function()
 			local p = Parts()
 			return p.menu or p.side

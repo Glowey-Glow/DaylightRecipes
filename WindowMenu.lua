@@ -1,6 +1,11 @@
--- The professions menu: what was the window's sidebar, now a menu on the profession's name in
--- the header (design\facelift.md 3.1, "Where every feature goes"). It opens over the window, under
--- the header and inside the window's bounds, so it adds no area:
+-- The professions menu: what was the window's sidebar (design\facelift.md 3.1, "Where every
+-- feature goes"). Since 3.1.0 your professions are chips across the title bar (WindowChips.lua),
+-- and this menu is what the bar's "more" chip opens: your professions' Link to Chat and Unlearn,
+-- your alts, the Cooldowns and Tracking tiles. It lists your professions themselves only when
+-- asked to (Menu.Open's `which`): the ones the bar had no room for (its "+N" chip), or all of them
+-- (from the name, on a page whose title bar spells a name out: an alt's or someone's recipes).
+-- The chips and the rows are the same entries (Menu.Entries) and open a profession the same way
+-- (PlaceCaster). It opens over the window, under the header and inside the window's bounds:
 --   your professions (a press opens one; a gathering one shows its own page), Camping, your alts'
 --   professions on this realm, and at its foot your craft cooldowns and the tracking spells.
 --   A profession opens by its own spell, cast through a secure button laid over its row, as the
@@ -35,6 +40,8 @@ local CAMP_ICON = 279981  -- the Basic Campfire Kit's icon, for the camping page
 Menu.CAMP_ICON = CAMP_ICON
 
 local catcher, menu, body, list, track, cool, thumb
+local listed                    -- which of your professions the open menu lists: true (all), a set
+                                -- by the game's skill line (and W.CAMP), or nil (none)
 -- The menu's look: DaylightUI's shell, its background fully solid. It lies over the window's page,
 -- and none of that may show through it, whatever the window opacity is set to.
 local LOOK = { bgAlpha = 1, noBevel = true }
@@ -265,26 +272,37 @@ end
 
 -- The secure button over row `r` (the part of it the list shows, left of its More button), set to
 -- the row's spell; put away for a row with none.
+-- r is a row of the menu or a chip of the title bar: anything with r.cast (the spell), r.prof,
+-- r.wash, r.onRight, and optionally r.more (a button of its own to leave free) and r.castClip (a
+-- frame it may be scrolled half out of: the menu's list).
+Menu.PlaceCaster = function(r) PlaceCaster(r) end
 PlaceCaster = function(r)
 	if InCombatLockdown() then return end
-	if not (r and r.cast and r:IsVisible() and catcher and catcher:IsShown()) then
+	if not (r and r.cast and r:IsVisible()) then
 		HideCaster()
 		return
 	end
 	local b = Caster()
 	if not b then return end
 	local left, bottom, top = r:GetLeft(), r:GetBottom(), r:GetTop()
-	local listTop, listBottom = list:GetTop(), list:GetBottom()
-	if not (left and bottom and top and listTop and listBottom) then
+	if not (left and bottom and top) then
 		HideCaster()
 		return
 	end
 	local right = left + r:GetWidth()
-	if r.more:IsShown() then
+	if r.more and r.more:IsShown() then
 		local moreLeft = r.more:GetLeft()
 		if moreLeft then right = math.min(right, moreLeft - 2) end
 	end
-	top, bottom = math.min(top, listTop), math.max(bottom, listBottom)
+	local clip = r.castClip
+	if clip then
+		local clipTop, clipBottom = clip:GetTop(), clip:GetBottom()
+		if not (clipTop and clipBottom) then
+			HideCaster()
+			return
+		end
+		top, bottom = math.min(top, clipTop), math.max(bottom, clipBottom)
+	end
 	if top - bottom < 4 or right - left < 4 then
 		HideCaster()
 		return
@@ -294,8 +312,9 @@ PlaceCaster = function(r)
 	b:ClearAllPoints()
 	b:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left * scale, bottom * scale)
 	b:SetSize((right - left) * scale, (top - bottom) * scale)
-	-- (Over the row, in the menu's own layer: under Daylight UI's dropdown, as the rows are.)
-	b:SetFrameStrata(catcher:GetFrameStrata())
+	-- (Over the row or chip, in its own layer: a row's is the menu's, under Daylight UI's
+	-- dropdown as the rows are; a chip's is the window's.)
+	b:SetFrameStrata(r:GetFrameStrata())
 	b:SetFrameLevel(r:GetFrameLevel() + 1)
 	b:SetAttribute("type1", "spell")
 	b:SetAttribute("spell", r.cast)
@@ -306,8 +325,9 @@ end
 -- A controller's A on a profession's row: the same spell, through Daylight UI's secure key (the
 -- window's padKeys, Window.lua). Nil for any other stop, and in a fight.
 function Menu.PadCast(at)
-	if InCombatLockdown() or not Menu.Shown() then return nil end
+	if InCombatLockdown() then return nil end
 	if type(at) ~= "table" or type(at.cast) ~= "number" or not at.prof then return nil end
+	if not (at.chip or Menu.Shown()) then return nil end
 	return { type = "spell", spell = at.cast }
 end
 
@@ -409,8 +429,9 @@ local function Row()
 				if self.onRight then self.onRight(self) end
 				return
 			end
-			if self.onClick then self.onClick() end
+			if self.onClick then self.onClick(self) end
 		end)
+		r.castClip = list
 		-- A controller's Y: what a right-click does (Link to Chat, Unlearn).
 		r.padMore = function(self) return self.onRight end
 		rows[used] = r
@@ -821,16 +842,15 @@ end
 -- The menu
 -- ---------------------------------------------------------------------------------------------
 
-local function PaintRows()
-	for i = 1, #rows do rows[i]:Hide() end
-	used, y = 0, 6 - scroll
-	Heading(L["Professions"])
-	local mine = MyProfessions()
-	if #mine == 0 then
-		Heading(L["You have no profession yet."])
-	end
+-- Your professions and Camping as the title bar's chips and the menu's rows show them, in one
+-- order (those with recipes first, by name, then Camping): { key (the game's skill line, W.CAMP
+-- for Camping), prof (nil for Camping), icon, name, sub, value, picked (it is the page on show),
+-- cast (the spell that opens it: PlaceCaster), onClick, onRight (its More menu), more (its More
+-- menu's words) }.
+function Menu.Entries()
+	local out = {}
 	local alt, gather = W.alt, W.gather
-	for _, p in ipairs(mine) do
+	for _, p in ipairs(MyProfessions()) do
 		local picked
 		if gather then
 			picked = not alt and gather == p.game
@@ -839,12 +859,15 @@ local function PaintRows()
 		end
 		-- (One with recipes opens its trade skill; a gathering one shows its own page.)
 		-- Its spell opens it (PlaceCaster), unless it is the one open now: casting that again would
-		-- close it, and the row's own click shows its recipes (OpenProfession).
+		-- close it, and its own click shows its recipes (OpenProfession).
 		local openNow = S.mode == "win" and S.line == p.line and not W.Linked()
-		Entry({ icon = p.icon, name = p.name,
+		local words = {}
+		if p.crafts then words[#words + 1] = L["Link to Chat"] end
+		if p.primary then words[#words + 1] = L["Unlearn"] end
+		out[#out + 1] = { key = p.game, prof = p, icon = p.icon, name = p.name,
 			sub = p.max > 0 and ("%d / %d"):format(p.skill, p.max) or "",
 			value = p.max > 0 and p.skill / p.max or nil, picked = picked,
-			cast = p.crafts and not openNow and p.spell or nil, prof = p,
+			cast = p.crafts and not openNow and p.spell or nil,
 			onClick = function()
 				Menu.Close()
 				if p.crafts and IsModifiedClick("CHATLINK") then
@@ -856,20 +879,25 @@ local function PaintRows()
 				end
 			end,
 			-- (Link to Chat for one with recipes, Unlearn for a primary one, as in the game's
-			-- professions book: the row's "more" button, a right-click, a controller's Y.)
-			onRight = (p.crafts or p.primary) and function(owner) MoreMenu(owner, p) end or nil })
+			-- professions book: a right-click, a controller's Y, a row's "more" button.)
+			onRight = #words > 0 and function(owner) MoreMenu(owner, p) end or nil,
+			more = #words > 0 and table.concat(words, ", ") or nil }
 	end
 	-- Every profession's camping items (Camp.lua).
 	if ns.Camp and ns.Camping and #ns.Camping > 0 then
-		Entry({ icon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(CAMP_ICON) or nil,
+		out[#out + 1] = { key = W.CAMP, camp = true,
+			icon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(CAMP_ICON) or nil,
 			name = L["Camping"], sub = L["All professions"],
 			picked = not alt and gather == W.CAMP, onClick = function()
 				Menu.Close()
 				ns.Window.ShowGather(W.CAMP)
-			end })
+			end }
 	end
-	-- Your alts' professions on this server, from the last time each opened them (the "Show Your
-	-- Alts' Professions" option; off: none are listed).
+	return out
+end
+
+-- Your alts' professions on this server (the "Show Your Alts' Professions" option; off: none).
+local function AltRows()
 	local alts = {}
 	for guid, c in pairs(ns.Get("altProfs") ~= false and ns.Store and ns.Store.Alts() or {}) do
 		if type(c.prof) == "table" then
@@ -880,6 +908,55 @@ local function PaintRows()
 			end
 		end
 	end
+	return alts
+end
+
+-- Whether the menu has anything to show with none of your professions listed (the title bar's
+-- "more" chip shows only then).
+function Menu.HasMore()
+	for _, e in ipairs(Menu.Entries()) do
+		if e.onRight then return true end
+	end
+	if #AltRows() > 0 then return true end
+	if #TrackingList() > 0 then return true end
+	return #(ns.Cooldowns and ns.Cooldowns.List() or {}) > 0
+end
+
+local function PaintRows()
+	for i = 1, #rows do rows[i]:Hide() end
+	used, y = 0, 6 - scroll
+	local alt = W.alt
+	local entries = Menu.Entries()
+	-- Your professions as rows: all of them, or the ones the title bar had no room for.
+	if listed then
+		Heading(L["Professions"])
+		local n = 0
+		for _, e in ipairs(entries) do
+			if listed == true or listed[e.key] then
+				n = n + 1
+				Entry({ icon = e.icon, name = e.name, sub = e.sub, value = e.value, picked = e.picked,
+					cast = e.cast, prof = e.prof, onClick = e.onClick, onRight = e.onRight })
+			end
+		end
+		if n == 0 then Heading(L["You have no profession yet."]) end
+	end
+	-- The others' Link to Chat and Unlearn (theirs are chips in the title bar: a right-click on
+	-- one opens the same): a row each, a press opens its More menu.
+	if listed ~= true then
+		local first = true
+		for _, e in ipairs(entries) do
+			if e.onRight and not (listed and listed[e.key]) then
+				if first then
+					Heading(L["Your Professions"])
+					first = false
+				end
+				Entry({ icon = e.icon, name = e.name, sub = e.more, onClick = e.onRight })
+			end
+		end
+	end
+	-- Your alts' professions on this server, from the last time each opened them (the "Show Your
+	-- Alts' Professions" option; off: none are listed).
+	local alts = AltRows()
 	if #alts > 0 then
 		table.sort(alts, function(a, b)
 			if (a.c.name or "") ~= (b.c.name or "") then return (a.c.name or "") < (b.c.name or "") end
@@ -1047,8 +1124,12 @@ local function SettleShell()
 	shell:SetFrameLevel(math.max(0, menu:GetFrameLevel() - 1))
 end
 
-function Menu.Open()
+-- which: the professions of yours it lists as rows (see `listed`, above); from: what opened it,
+-- where a controller's cursor goes back to when it closes.
+function Menu.Open(which, from)
 	if not W.win or not W.win:IsShown() then return end
+	listed = which or nil
+	W.menuFrom = from
 	-- (Rolled up there is no room under the header for it: the window unrolls first.)
 	if W.Rolled() then ns.Window.SetRolled(false) end
 	if not menu then Build() end
@@ -1080,11 +1161,13 @@ function Menu.Close()
 	GameTooltip:Hide()
 	HideCaster()
 	catcher:Hide()
-	if W.win and W.win:IsShown() and Pad.On() then Pad.Settle(W.nameButton) end
+	local from = W.menuFrom
+	if not (from and from:IsVisible()) then from = W.nameButton end
+	if W.win and W.win:IsShown() and Pad.On() then Pad.Settle(from) end
 end
 
-function Menu.Toggle()
-	if Menu.Shown() then Menu.Close() else Menu.Open() end
+function Menu.Toggle(which, from)
+	if Menu.Shown() then Menu.Close() else Menu.Open(which, from) end
 end
 
 function Menu.Restyle()

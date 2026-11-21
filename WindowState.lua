@@ -303,6 +303,30 @@ function State.HeaderRoom(col, buttons)
 	return col - (10 + 20 + 8) - (6 + 8) - (10 + buttons * 26 + 8)
 end
 
+-- The title bar's profession chips: which of them show, and how many go behind the "+N" chip.
+-- widths: each chip's width in the bar's order; open: the index of the open profession's chip (or
+-- nil); room: the width there is; gap: between two chips; plus(n): the width of a "+n" chip.
+-- As many as fit from the front, whole (a chip is never cut or shrunk). The open one always
+-- shows: when it would be among those left out it takes the last place on show. Returns the
+-- indexes on show, in the order they are drawn, and how many are left out.
+function State.ChipFit(widths, open, room, gap, plus)
+	local n = #widths
+	if open and (open < 1 or open > n) then open = nil end
+	for k = n, 0, -1 do
+		local list = {}
+		local forward = open ~= nil and open > k and k >= 1
+		for i = 1, forward and k - 1 or k do list[#list + 1] = i end
+		if forward then list[#list + 1] = open end
+		local w = 0
+		for i, index in ipairs(list) do w = w + widths[index] + (i > 1 and gap or 0) end
+		local left = n - #list
+		if left > 0 then w = w + (#list > 0 and gap or 0) + plus(left) end
+		-- (The open one alone is the least there can be: shown even when the bar is narrower.)
+		if w <= room or k <= (open and 1 or 0) then return list, left end
+	end
+	return {}, n
+end
+
 -- The professions menu's width: its longest line plus its icon and margins, at least the design's
 -- 210 and at most the column less a 2 px margin each side (it opens inside the window).
 function State.MenuWidth(textWidth, col)

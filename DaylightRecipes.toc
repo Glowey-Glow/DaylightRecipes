@@ -48,6 +48,7 @@ Pane.lua
 WindowState.lua
 WindowList.lua
 WindowMenu.lua
+WindowChips.lua
 Window.lua
 Cooldowns.lua
 Take.lua
