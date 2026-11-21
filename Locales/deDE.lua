@@ -602,3 +602,26 @@ L["Average: %s each"] = "Durchschnitt: %s pro Stück"
 -- 2.7.0: What's New
 L["Buy List: Check Prices at the Auction House reads how many are for sale at each price, so a row shows what the amount you need really costs."] = "Einkaufsliste: Preise prüfen im Auktionshaus liest, wie viele zu jedem Preis angeboten werden, sodass eine Zeile zeigt, was die benötigte Menge wirklich kostet."
 L["Buy List: when a vendor also sells an item, the Auction House row asks only for the cheaper units and the vendor's list for the rest."] = "Einkaufsliste: verkauft auch ein Händler einen Gegenstand, fragt die Auktionshaus-Zeile nur nach den günstigeren Einheiten und die Händlerliste nach dem Rest."
+
+-- The Leveling Guide: a step on a green recipe says so
+L["This recipe is green at this skill (a point only now and then): nothing you know or can learn does better here."] = "Dieses Rezept ist bei dieser Fertigkeit grün (nur ab und zu ein Punkt): nichts, was Ihr kennt oder erlernen könnt, ist hier besser."
+L["green: a point only now and then"] = "grün: nur ab und zu ein Punkt"
+L["None of your recipes is orange or yellow now: these come nearest."] = "Keines Eurer Rezepte ist jetzt orange oder gelb: diese kommen dem am nächsten."
+L["From %d to %d the recipes in the data give a point less than one craft in five: you'll need one it doesn't know of."] = "Von %d bis %d geben die Rezepte der Daten seltener als bei jeder fünften Herstellung einen Punkt: Ihr braucht eines, das sie nicht kennen."
+L["Past %d the recipes in the data give a point less than one craft in five."] = "Über %d geben die Rezepte der Daten seltener als bei jeder fünften Herstellung einen Punkt."
+
+-- Docked Pane beside Daylight UI's profession window: cost and profit left to it (Pane.lua, Core.lua)
+L["Daylight UI's profession window now shows a recipe's materials cost and profit. Leave those to it in the Docked Pane?\n\nThe pane keeps what Daylight UI doesn't show: each material's price, the cost per skill point, and the vendor and disenchant value. You can change this later in Glowey's Recipes' options."] = "Das Berufsfenster von Daylight UI zeigt jetzt die Materialkosten und den Gewinn eines Rezepts. Soll die angedockte Leiste das ihm überlassen?\n\nDie Leiste behält, was Daylight UI nicht zeigt: den Preis jedes Materials, die Kosten pro Fertigkeitspunkt sowie den Händler- und Entzauberungswert. Ihr könnt das später in den Optionen von Glowey's Recipes ändern."
+L["Use Daylight UI's"] = "Daylight UI nutzen"
+L["Leave Cost and Profit to Daylight UI"] = "Kosten und Gewinn Daylight UI überlassen"
+L["Beside Daylight UI's window the pane leaves the materials total and Auction House profit to it."] = "Neben dem Fenster von Daylight UI überlässt die Leiste ihm Materialsumme und Auktionshausgewinn."
+
+-- The Leveling Guide: a recipe taught by a trainer the data does not place
+L["First learn it from a %s trainer: the data doesn't say which one teaches it yet."] = "Erlernt es zuerst bei einem Lehrer für %s: die Daten sagen noch nicht, welcher es lehrt."
+L["First learn it from a profession trainer: the data doesn't say which one teaches it yet."] = "Erlernt es zuerst bei einem Berufslehrer: die Daten sagen noch nicht, welcher es lehrt."
+
+-- 2.8.0: What's New
+L["Leveling Guide: steps only use recipes that are orange or yellow at that skill, whatever the goal. No more crafts that give no points."] = "Leitfaden: Schritte nutzen nur Rezepte, die bei dieser Fertigkeit orange oder gelb sind, egal bei welchem Ziel. Keine Herstellungen mehr, die keine Punkte geben."
+L["424 recipes added, Runecloth Bandage among them: the guide reaches 300 on recipes that give points in every crafting profession."] = "424 Rezepte hinzugefügt, darunter Runenstoffverband: Der Leitfaden erreicht 300 in jedem Handwerksberuf mit Rezepten, die Punkte geben."
+L["Prices and your other characters are found again after the game stopped giving realm names. Nothing was lost."] = "Preise und Eure anderen Charaktere werden wieder gefunden, nachdem das Spiel keine Realmnamen mehr liefert. Nichts ging verloren."
+L["With Daylight UI 2.1.2: the Docked Pane can leave materials cost and profit to its profession window (asked once)."] = "Mit Daylight UI 2.1.2: Der angedockte Bereich kann Materialkosten und Gewinn dessen Berufsfenster überlassen (einmalige Frage)."

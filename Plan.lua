@@ -5,9 +5,13 @@
 --   The route:  for every skill point from yours to the target, the recipe with the cheapest
 --               expected cost per point at that skill, among the ones you know and the ones a
 --               trainer will teach by then (its training cost spread over the points it's useful
---               for). The chance at each skill comes from its thresholds, so a yellow or green one
---               counts its misses: the crafts are what you can expect to make, not one per point.
---               At a rank cap it stops for the next rank. Points in a row on one recipe make a step.
+--               for) that give a point at least every other craft there (orange or yellow). The
+--               chance at each skill comes from its thresholds, so a yellow one counts its misses:
+--               the crafts are what you can expect to make, not one per point. Only where nothing
+--               gives a point that often does it take a recipe that gives one less often, and the
+--               step says so. For a recipe you know, the game's own color at your skill overrules
+--               the data. At a rank cap it stops for the next rank. Points in a row on one recipe
+--               make a step.
 --   Shopping:   what the route's crafts use, less what the route itself makes on the way (bars,
 --               bolts), split into what's in your bags, bank and mail, what your alts on this realm
 --               hold, and what's left to buy, with its price.
@@ -89,7 +93,16 @@ function Plan.SetGoal(g)
 	ns.Changed()
 end
 
-local LOW_CHANCE = 0.10       -- a goal of selling skips recipes below this chance of a point
+-- A recipe "gives skill-ups" at a skill while the game shows it orange or yellow there: a sure point,
+-- then a chance that runs down to one craft in two. Green runs from there down to none ("sometimes a
+-- skill point"), gray gives none. Whatever the goal, the route and Craft Next only take a green
+-- recipe where nothing you know or can learn is orange or yellow, and then say so. So no step asks
+-- for more than two crafts a point unless it is marked as a low chance.
+local YELLOW, GREEN = 2, 3    -- Calc.Step's colors: 1 orange, 2 yellow, 3 green, 4 gray
+-- A green recipe is only planned while it still gives a point one craft in five: under that the
+-- guide says that nothing gives points often enough there, rather than ask for dozens of crafts
+-- (and their materials) for one point.
+local RARE = 0.2
 local WILD_MARGIN = 6         -- a value over 6x the materials (a 500% margin) is taken for a bad price
 local SWITCH = 0.05           -- a step's recipe gives way only to one this much cheaper a point
 
@@ -102,6 +115,9 @@ local function Excluded(spell)
 	local v = excluded[spell]
 	if v ~= nil then return v end
 	v = false
+	-- (Data/Client.lua's recipes say so themselves.)
+	local meta = ns.RecipeMeta and ns.RecipeMeta[spell]
+	if meta and meta.cooldown then v = true end
 	local name = ns.RecipeNames and ns.RecipeNames[spell]
 	if type(name) == "string" then
 		for _, pattern in ipairs(EXCLUDE) do
@@ -264,14 +280,23 @@ local function Value(spell, goal)
 	return 0
 end
 
+-- At your rank's cap nothing can give a point until the next rank is trained, and the game may show
+-- every recipe as giving none: its word on a recipe is not taken there.
+local function Capped()
+	return (S.max or 0) > 0 and (S.skill or 0) >= S.max
+end
+
 -- { spell, t (thresholds), cost (per craft, after its value), mats (its materials' cost), complete,
--- known, learnAt, learnCost, source ("trainer", "vendor", "auction"), ups, tool } for every recipe of
--- the open profession the plan can use. credit: itemID -> price, for what the route itself needs (a
--- recipe making one is worth what it saves buying).
+-- known, learnAt, learnCost, source ("trainer", "vendor", "auction", "unknown"), ups, tool, live } for every
+-- recipe of the open profession the plan can use. credit: itemID -> price, for what the route itself
+-- needs (a recipe making one is worth what it saves buying). For a recipe you know, the game's own
+-- word at your skill now, nil when the game doesn't say: liveStep (its color, Calc.Step) and live
+-- (its chance of a point by that color, Calc.Chance).
 local function Candidates(goal, credit)
 	local out = {}
 	local known = ns.Where.KnownSet()
 	local mine = ns.Faction()
+	local capped = Capped()
 	for spell, data in pairs(ns.Recipes or {}) do
 		if data[1] == S.line and not Excluded(spell) then
 			local meta = ns.RecipeMeta and ns.RecipeMeta[spell]
@@ -285,6 +310,9 @@ local function Candidates(goal, credit)
 					learnCost = TrainerCost(spell)
 					if learnCost then
 						source = "trainer"
+					elseif meta and meta.trainerUnknown then
+						-- (Taught by a trainer nobody has reported yet: planned, with no place or price.)
+						learnCost, source = 0, "unknown"
 					elseif data[5] then
 						-- (A recipe item: from a vendor, or the Auction House.)
 						local v = Calc.Vendor(data[5])
@@ -302,15 +330,16 @@ local function Candidates(goal, credit)
 					local value = Value(spell, goal)
 					local made, each = Calc.Output(spell)
 					if credit and made and credit[made] then value = value + credit[made] * (each or 1) end
-					-- (A value far beyond what goes in is a bad price, not a bargain.)
-					local wild = goal ~= "cost" and value > 0 and (mats <= 0 or value > mats * WILD_MARGIN)
-					if not wild then
-						local learnAt = ns.Where.Required(spell) or t[1] or 0
-						out[#out + 1] = { spell = spell, t = t, cost = mats - value, mats = mats, complete = complete,
-							known = isKnown or auto and true or false, learnAt = learnAt,
-							learnCost = learnCost, source = source, ups = isKnown and Calc.SkillUps(spell) or 1,
-							tool = ToolFor(spell, data, learnAt) }
-					end
+					-- (A value far beyond what goes in is a bad price, not a bargain: the recipe counts
+					-- for its materials alone. It still gives its points.)
+					if goal ~= "cost" and value > 0 and (mats <= 0 or value > mats * WILD_MARGIN) then value = 0 end
+					local learnAt = ns.Where.Required(spell) or t[1] or 0
+					local liveStep = isKnown and not capped and Calc.Step(spell) or nil
+					local live = liveStep and Calc.Chance(spell, S.skill or 0) or nil
+					out[#out + 1] = { spell = spell, t = t, cost = mats - value, mats = mats, complete = complete,
+						known = isKnown or auto and true or false, learnAt = learnAt,
+						learnCost = learnCost, source = source, ups = isKnown and Calc.SkillUps(spell) or 1,
+						tool = ToolFor(spell, data, learnAt), live = live, liveStep = liveStep }
 				end
 			end
 		end
@@ -335,6 +364,13 @@ local function ChanceAt(r, k, overtime)
 	return min(1, base * (1 + overtime))
 end
 
+-- The skill a recipe turns green at by its thresholds (gray, for one that goes straight to gray):
+-- up to there it is orange or yellow.
+local function GoodTo(r)
+	local t = r.t
+	return min(t[3] or t[4], t[4])
+end
+
 -- ---------------------------------------------------------------------------------------------
 -- Craft next
 -- ---------------------------------------------------------------------------------------------
@@ -347,7 +383,8 @@ local function Craftable(spell)
 end
 
 -- { { spell, chance, perPoint (copper, nil when unpriced), cost, can (how many you can make now) } },
--- best first, at most `count`.
+-- best first, at most `count`. Only recipes that are orange or yellow now; when none of yours is,
+-- the green ones that come nearest the best chance there is (each with low = true).
 function Plan.CraftNext(count)
 	local out = {}
 	if not S.line or S.linked then return out end
@@ -359,9 +396,30 @@ function Plan.CraftNext(count)
 			if chance and chance > 0 then
 				local cost = Calc.Cost(spell)
 				local points = chance * Calc.SkillUps(spell)
-				out[#out + 1] = { spell = spell, chance = chance, cost = cost.total, complete = cost.complete,
+				-- (Its color: the game's own, else the data's.)
+				local step = Calc.Step(spell)
+				if not step then
+					local t = Calc.Thresholds(spell)
+					step = t and (S.skill or 0) >= min(t[3] or t[4], t[4]) and GREEN or YELLOW
+				end
+				out[#out + 1] = { spell = spell, chance = chance, step = step, cost = cost.total, complete = cost.complete,
 					perPoint = cost.complete and cost.total / points or nil }
 			end
+		end
+	end
+	-- (A cheap recipe that hardly ever gives a point is no way to skill up: a green one is left out
+	-- while another is orange or yellow. With none that is, those within half of the best chance.)
+	local good, top = false, 0
+	for _, e in ipairs(out) do
+		if e.step <= YELLOW then good = true end
+		top = max(top, e.chance)
+	end
+	for i = #out, 1, -1 do
+		local e = out[i]
+		if good and e.step > YELLOW or not good and e.chance < top / 2 then
+			table.remove(out, i)
+		elseif not good then
+			e.low = true
 		end
 	end
 	table.sort(out, function(a, b)
@@ -381,39 +439,84 @@ end
 -- ---------------------------------------------------------------------------------------------
 
 -- steps: { kind = "craft", spell, from, to, crafts, cost, complete, learn = copper or nil, source,
---          alts = { { spell, perPoint }, ... } (the next best when the step began) }
+--          low = true (no recipe gives a point every other craft there: this one comes nearest),
+--          alts = { { spell, perPoint }, ... } (the next best at the skill the step is cut to) }
 --        { kind = "tool", spell, at, cost, complete, learn, source, item } (a rod or tool to make first)
 --        { kind = "rank", at, cap, name, level }
---        { kind = "gap", at, to } (no recipe in the data gives points from `at`; planning goes on at `to`)
+--        { kind = "gap", at, to, rare } (no recipe in the data gives points from `at`, or with rare
+--          only under one craft in five; planning goes on at `to`)
 -- plus total (copper), complete, crafts.
+--
+-- At each point the recipes that are orange or yellow there are ranked by what a point costs, and
+-- the cheapest is taken:
+--   a cost:   the craft's cost over its chance (the misses are paid for too);
+--   a profit: the craft's profit times its chance. A profit over the chance would grow as the chance
+--             falls (a nearly gray recipe with a copper of profit would beat everything, and the step
+--             would ask for hundreds of crafts), and the profit of crafts that give no point is no
+--             reason to pick a recipe for skilling up. Times the chance, a profit counts for the
+--             crafts that give the point: the same figure at a sure point, less the lower the chance.
+-- Either way a better chance never ranks a recipe lower, and a cheaper craft never does.
+-- Where no recipe is orange or yellow, the green one with the best chance there is taken (the cheapest
+-- of them, when several share it), and the step is marked low; where even the best is under one craft in five (RARE),
+-- no step is made at all (a gap). The costs shown (a step's, an alternative's a point) are the real
+-- expected ones, not the ranking's.
 local function Route(from, target, cap, goal, credit)
 	local cands = Candidates(goal, credit)
 	local bySpell = {}
-	for _, r in ipairs(cands) do bySpell[r.spell] = r end
 	local overtime = (ns.Get("talents") and Calc.Talents()) or 0
+	for _, r in ipairs(cands) do
+		bySpell[r.spell] = r
+		r.goodTo = GoodTo(r)
+	end
 	local steps = {}
 	local learned = {}
 	local owned = {}
 	local k = from
 	local guard = 0
 
-	-- A recipe's cost a point at k (nil: it can't be used there).
-	local function Score(r, p)
-		local have = r.known or learned[r.spell]
-		local perPoint = (r.complete and r.cost or (r.cost + UNPRICED)) / (p * r.ups)
-		-- Learning it now is spread over the points it can still give.
-		if not have and r.learnCost and r.learnCost > 0 then
-			perPoint = perPoint + r.learnCost / max(1, min(r.t[4], target) - k)
+	-- A recipe's chance of a point at a skill. For one you know, the game's own color at your skill
+	-- now stands in for the data there, and the chance never rises with skill: one the game shows
+	-- green or gray today is not planned as yellow tomorrow on the data's word.
+	local function Chance(r, at)
+		local p = ChanceAt(r, at, overtime)
+		local live = r.live
+		if live then
+			if at <= from then return live end
+			if live < p then return live end
 		end
+		return p
+	end
+
+	-- Whether a recipe is orange or yellow at a skill: by the game's color at your skill now for one
+	-- you know (green today is never yellow later), by its thresholds from there on.
+	local function Good(r, at)
+		local step = r.liveStep
+		if step then
+			if step >= GREEN then return false end
+			if at <= from then return true end
+		end
+		return at < r.goodTo
+	end
+
+	-- A recipe's cost a point at k (nil: it can't be used there): for ranking, and as shown.
+	local function Score(r, p, low)
+		local have = r.known or learned[r.spell]
+		local each = r.complete and r.cost or (r.cost + UNPRICED)
+		local points = p * r.ups
+		local shown = each / points
+		local rank = each >= 0 and shown or each * points
+		-- Learning it now is spread over the points it can still give (while orange or yellow).
+		local useful = max(1, min(low and r.t[4] or r.goodTo, target) - k)
+		local extra = 0
+		if not have and r.learnCost and r.learnCost > 0 then extra = r.learnCost / useful end
 		-- So is the tool it needs, when you haven't got it.
 		local tool = r.tool
 		if tool and not owned[tool] and not Owns(tool) then
 			local made = bySpell[tool.spell]
 			if not made or not (made.known or learned[made.spell] or made.learnAt <= k) then return nil end
-			local extra = made.mats + ((made.known or learned[made.spell]) and 0 or (made.learnCost or 0))
-			perPoint = perPoint + extra / max(1, min(r.t[4], target) - k)
+			extra = extra + (made.mats + ((made.known or learned[made.spell]) and 0 or (made.learnCost or 0))) / useful
 		end
-		return perPoint
+		return rank + extra, shown + extra
 	end
 
 	while k < target and guard < 600 do
@@ -425,43 +528,62 @@ local function Route(from, target, cap, goal, credit)
 			steps[#steps + 1] = { kind = "rank", at = k, cap = nextCap, name = RANK_SHOWN[nextCap], level = RANK_LEVEL[nextCap] }
 			cap = nextCap
 		else
-			-- The cheapest three a point here (the best and the next two, for the alternatives).
+			-- The cheapest three a point here (the best and the next two, for the alternatives), among
+			-- the orange and yellow ones; with none, among the green ones with the best chance there is.
 			local top = {}
 			local scoreOf = {}
-			for _, r in ipairs(cands) do
-				local have = r.known or learned[r.spell]
-				if (have or r.learnAt <= k) and not isTool[r.spell] then
-					local p = ChanceAt(r, k, overtime)
-					if p > 0 and not (goal ~= "cost" and p < LOW_CHANCE) then
-						local s = Score(r, p)
-						if s then
-							scoreOf[r] = { s, p }
-							local i = #top + 1
-							while i > 1 and top[i - 1][2] > s do i = i - 1 end
-							if i <= 3 then
-								table.insert(top, i, { r, s, p })
-								top[4] = nil
+			local low = false
+			local function Rank(least)
+				for _, r in ipairs(cands) do
+					local have = r.known or learned[r.spell]
+					if (have or r.learnAt <= k) and not isTool[r.spell] and (low or Good(r, k)) then
+						local p = Chance(r, k)
+						if p > 0 and p >= least then
+							local s, shown = Score(r, p, low)
+							if s then
+								scoreOf[r] = { s, p }
+								local i = #top + 1
+								while i > 1 and top[i - 1][2] > s do i = i - 1 end
+								if i <= 3 then
+									table.insert(top, i, { r, s, p, shown })
+									top[4] = nil
+								end
 							end
 						end
 					end
 				end
 			end
+			Rank(0)
+			local most = 0
+			if #top == 0 then
+				-- (The best chance there is among the ones usable here: a tool that can't be made yet
+				-- rules a recipe out, so it's found by ranking them all once.)
+				low = true
+				Rank(0)
+				for _, v in pairs(scoreOf) do most = max(most, v[2]) end
+				top, scoreOf = {}, {}
+				-- (Only the ones with that best chance: the step says nothing does better, so nothing may.)
+				if most >= RARE then Rank(most - 1e-9) end
+			end
 			if #top == 0 then
 				-- Nothing gives points here: said, and planning goes on where something does.
 				local nextAt
 				for _, r in ipairs(cands) do
-					if not isTool[r.spell] and r.learnAt > k and r.learnAt < target and (not nextAt or r.learnAt < nextAt) then
+					if not isTool[r.spell] and r.learnAt > k and r.learnAt < target and (not nextAt or r.learnAt < nextAt)
+						and ChanceAt(r, r.learnAt, overtime) > 0 then
 						nextAt = r.learnAt
 					end
 				end
-				steps[#steps + 1] = { kind = "gap", at = k, to = nextAt or target }
+				-- (rare: recipes do give points here, but under one craft in five.)
+				steps[#steps + 1] = { kind = "gap", at = k, to = nextAt or target, rare = most > 0 or nil }
 				if not nextAt then break end
 				k = nextAt
 			else
 				local best, bestScore, bestChance = top[1][1], top[1][2], top[1][3]
-				-- The step's recipe stays unless another is clearly cheaper (no flip-flopping).
+				-- The step's recipe stays unless another is clearly cheaper (no flip-flopping). Only
+				-- while it is still among the ones ranked here: never held into a low chance.
 				local last = steps[#steps]
-				if last and last.kind == "craft" and last.spell ~= best.spell then
+				if last and last.kind == "craft" and last.spell ~= best.spell and (last.low or false) == low then
 					local cur = bySpell[last.spell]
 					local held = cur and scoreOf[cur]
 					if held and held[1] <= bestScore + math.abs(bestScore) * SWITCH then
@@ -481,20 +603,23 @@ local function Route(from, target, cap, goal, credit)
 					last = nil
 				end
 				local expect = 1 / (bestChance * best.ups)
-				if not (last and last.kind == "craft" and last.spell == best.spell) then
-					local alts = {}
-					for i = 1, #top do
-						if top[i][1] ~= best and #alts < 2 then alts[#alts + 1] = { spell = top[i][1].spell, perPoint = top[i][2],
-							complete = top[i][1].complete } end
-					end
+				if not (last and last.kind == "craft" and last.spell == best.spell and (last.low or false) == low) then
 					local have = best.known or learned[best.spell]
-					last = { kind = "craft", spell = best.spell, from = k, to = k, exp = {},
-						unit = best.cost, complete = best.complete, alts = alts,
+					last = { kind = "craft", spell = best.spell, from = k, to = k, exp = {}, alts = {}, low = low or nil,
+						unit = best.cost, complete = best.complete,
 						learn = (not have) and (best.learnCost or 0) or nil, source = (not have) and best.source or nil }
 					steps[#steps + 1] = last
 					if not have then learned[best.spell] = true end
 				end
-				-- (Each point's expected crafts kept: a skill-up trims the route rather than redo it.)
+				-- (Each point's expected crafts kept: a skill-up trims the route rather than redo it.
+				-- So are the next best at each point: the ones offered instead are the ones that are
+				-- good at the skill you're at, not at the skill the step began.)
+				local alts = {}
+				for i = 1, #top do
+					if top[i][1] ~= best and #alts < 2 then alts[#alts + 1] = { spell = top[i][1].spell, perPoint = top[i][4],
+						complete = top[i][1].complete } end
+				end
+				last.alts[k] = alts
 				last.exp[k] = expect
 				last.to = k + 1
 				k = k + 1
@@ -518,7 +643,7 @@ local function Trim(full, skill)
 				local count = ceil(expect - 0.05)
 				local step = { kind = "craft", spell = s.spell, from = from, to = s.to, crafts = expect, count = count,
 					unit = s.unit, cost = count * s.unit, complete = s.complete, learn = s.learn, source = s.source,
-					alts = s.alts }
+					low = s.low, alts = s.alts[from] or {} }
 				steps[#steps + 1] = step
 				total = total + step.cost + (step.learn or 0)
 				crafts = crafts + count
@@ -536,6 +661,9 @@ local function Trim(full, skill)
 			end
 		elseif s.at >= skill then
 			steps[#steps + 1] = s
+		elseif s.kind == "gap" and s.to > skill then
+			-- (A gap you're inside of is still one: said from your skill on.)
+			steps[#steps + 1] = { kind = "gap", at = skill, to = s.to, rare = s.rare }
 		end
 	end
 	return { steps = steps, total = total, complete = complete, crafts = crafts }
@@ -667,6 +795,70 @@ local function Repriced(route)
 	end
 end
 
+-- The whole route from `skill`. Twice: the first route says what it uses of things a recipe makes
+-- (bolts, bars, vials); the second counts a recipe making one of those as worth what it saves buying it.
+local function Build(skill, target, goal)
+	local first = Route(skill, target, S.max or 0, goal, nil)
+	local credit
+	for _, st in ipairs(first.steps) do
+		if st.kind == "craft" or st.kind == "tool" then
+			for _, m in ipairs(Calc.Materials(st.spell)) do
+				if Makers(m[1]) then
+					local unit = Calc.Unit(m[1])
+					if unit then
+						credit = credit or {}
+						credit[m[1]] = unit
+					end
+				end
+			end
+		end
+	end
+	return credit and Route(skill, target, S.max or 0, goal, credit) or first
+end
+
+-- Whether the game shows the recipe of the step `skill` is in gray, or green in a step not marked
+-- low; or, in a step marked low, shows one of your recipes orange or yellow after all.
+local function GameDisagrees(route, skill)
+	if Capped() then return false end
+	for _, s in ipairs(route.steps) do
+		if s.kind == "craft" and s.from <= skill and skill < s.to then
+			local step = Calc.Step(s.spell)
+			if step ~= nil and (step > GREEN or (step == GREEN and not s.low)) then return true end
+			if s.low then
+				for spell in pairs(ns.Where.KnownSet()) do
+					local data = ns.Recipes[spell]
+					if data and data[1] == S.line and not isTool[spell] and not Excluded(spell) then
+						local color = Calc.Step(spell)
+						if color and color <= YELLOW then return true end
+					end
+				end
+			end
+			return false
+		end
+	end
+	return false
+end
+
+-- The recipes offered instead of the step you're in: without the ones the game now shows gray (or,
+-- in a step not marked low, green).
+local function Offered(route, skill)
+	if Capped() then return end
+	for _, s in ipairs(route.steps) do
+		if s.kind == "craft" then
+			if s.from == skill and #s.alts > 0 then
+				local list = {}
+				for _, a in ipairs(s.alts) do
+					local step = Calc.Step(a.spell)
+					if step == nil or step < GREEN or (step == GREEN and s.low) then list[#list + 1] = a end
+				end
+				s.alts = list
+			end
+			return
+		end
+		if s.kind == "rank" then return end
+	end
+end
+
 -- { target, route, shopping } for the open profession, or nil (none open, someone else's).
 function Plan.Get()
 	if not S.line or S.linked or not ns.Recipes then return nil end
@@ -684,28 +876,18 @@ function Plan.Get()
 	local routeKey = table.concat({ S.line, S.max or 0, target, count, Calc.version, tostring(ns.Get("talents")),
 		goal, table.concat(tools) }, ":")
 	if not full or fullKey ~= routeKey or skill < full.from then
-		-- Twice: the first route says what it uses of things a recipe makes (bolts, bars, vials);
-		-- the second counts a recipe making one of those as worth what it saves buying it.
-		local first = Route(skill, target, S.max or 0, goal, nil)
-		local credit
-		for _, st in ipairs(first.steps) do
-			if st.kind == "craft" or st.kind == "tool" then
-				for _, m in ipairs(Calc.Materials(st.spell)) do
-					if Makers(m[1]) then
-						local unit = Calc.Unit(m[1])
-						if unit then
-							credit = credit or {}
-							credit[m[1]] = unit
-						end
-					end
-				end
-			end
-		end
-		full, fullKey = credit and Route(skill, target, S.max or 0, goal, credit) or first, routeKey
+		full, fullKey = Build(skill, target, goal), routeKey
 	end
 	local key = routeKey .. ":" .. skill .. ":" .. ns.Store.version
 	if kept and keptKey == key then return kept end
+	-- A route worked out some points ago rests on the data from there on. Where the game now shows
+	-- the recipe of the step you're in gray, or green in a step not marked low, the data is off for
+	-- it: the route is worked out again from here, with the game's word for every recipe you know.
+	if skill > full.from and GameDisagrees(full, skill) then
+		full = Build(skill, target, goal)
+	end
 	local route = Trim(full, skill)
+	Offered(route, skill)
 	Repriced(route)
 	local shopping = Shopping(route)
 	kept, keptKey = { target = target, route = route, shopping = shopping }, key

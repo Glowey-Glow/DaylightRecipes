@@ -28,20 +28,25 @@ function Prices.Mogul()
 	return type(M) == "table" and type(M.API) == "table" and type(M.API.Price) == "function"
 end
 
+-- This character's price book: its rules key's (Store.PriceBook: one Auction House for a set of
+-- rules, both factions). What's read goes there.
 local function Book()
-	local db = ns.Store.DB()
-	local key = ns.Store.RealmKey()
-	local book = db.prices[key]
-	if not book then
-		book = { items = {} }
-		db.prices[key] = book
-	end
-	return book
+	return ns.Store.PriceBook()
+end
+
+-- An item's row for reading: the book's, or the one in an old "Realm-Faction" book of this
+-- character's that couldn't be placed (Store.OldPriceBook), when that is the later sighting.
+local function Row(itemID)
+	local row = Book().items[itemID]
+	local old = ns.Store.OldPriceBook and ns.Store.OldPriceBook()
+	local was = old and old.items[itemID]
+	if type(was) == "table" and (type(row) ~= "table" or (row.t or 0) < (was.t or 0)) then return was end
+	return row
 end
 
 -- The lowest buyout you've seen for one item, or nil (none, or too old).
 function Prices.Get(itemID)
-	local row = Book().items[itemID]
+	local row = Row(itemID)
 	if not row or not row.p then return nil end
 	if time() - (row.t or 0) > STALE then return nil end
 	return row.p
@@ -49,7 +54,9 @@ end
 
 -- Whether any price of ours is known (for the "no Auction House prices" note).
 function Prices.Has()
-	return next(Book().items) ~= nil
+	if next(Book().items) ~= nil then return true end
+	local old = ns.Store.OldPriceBook and ns.Store.OldPriceBook()
+	return old ~= nil and next(old.items) ~= nil
 end
 
 -- When the last full scan finished, or nil.
@@ -90,7 +97,7 @@ end
 
 -- How many of an item were up when its price was read, or nil (not known).
 function Prices.Quantity(itemID)
-	local row = Book().items[itemID]
+	local row = Row(itemID)
 	if not row or time() - (row.t or 0) > STALE then return nil end
 	return row.q
 end

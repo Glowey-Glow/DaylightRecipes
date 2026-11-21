@@ -7,8 +7,12 @@
 -- bottom edge: the item it goes on (EnchantRow.lua, as in our own window's craft bar), Auto-replace,
 -- and our own Enchant (the window's own Create can't use the kept item; Craft.Make can), with Next /
 -- Done during a run. It stays while a run of ours is under way, on any tab.
-local _, ns = ...
+-- Beside Daylight UI's own profession window, which from 2.1.2 shows a recipe's materials cost,
+-- what it sells for and the profit itself, the Recipe tab leaves those to it (Pane.ProfitHanded;
+-- asked once, the setting "duiProfit") and keeps what Daylight UI doesn't show.
+local ADDON, ns = ...
 if not ns.ok then return end
+local DUI = _G.DaylightUI
 
 local API, me = ns.API, ns.me
 local L = ns.L
@@ -321,6 +325,124 @@ end
 -- Whether the pane is the one in use (not Glowey's Recipes' own window).
 local function InUse() return S.mode == "dui" or S.mode == "mogul" end
 
+-- ---------------------------------------------------------------------------------------------
+-- Cost and profit: Daylight UI's window shows them too
+-- ---------------------------------------------------------------------------------------------
+-- Daylight UI 2.1.2's profession window has a Profit section on its recipe side (Materials, Sells
+-- for, Auction House cut, Profit: DaylightUI\Craft\Recipe.lua:411-437) and a Profit chip over its
+-- list (Craft\List.lua:92-124). Both show while its Profit.On() holds (Craft\Profit.lua:27-30):
+-- its Auction House's prices are published (DaylightUI.AuctionPrices, set at login by
+-- DaylightUI_AuctionHouse\Bridge.lua:36-40 unless DaylightMogul owns the house) and its setting
+-- "profit" isn't off (the Professions module's, on by default: Craft\Defaults.lua:13,
+-- Craft\Options.lua:25-27, Craft\Module.lua:25). With our pane docked to that window the Recipe
+-- tab then said the same twice, with slightly different numbers (its prices are the usual ones,
+-- its materials the cheapest of buying and making; ours the lowest seen).
+-- So by default the pane leaves the materials total and the Auction House's "sells for" and
+-- profit to Daylight UI's window, and keeps what that doesn't show: each material's price and
+-- where from, the cost per skill point, the vendor's and disenchanting's value. Asked once, the
+-- first time both would show (the answer kept per account: DaylightRecipesDB.duiProfitAsked, the
+-- setting "duiProfit"), and changed any time in the options.
+-- Only beside Daylight UI's own window (S.mode "dui"): never in our own window, nor beside
+-- DaylightMogul's (Daylight UI shows no profit there: Craft\Options.lua:27).
+
+local function DaylightAtLeast(a, b, c)
+	local meta = (C_AddOns and C_AddOns.GetAddOnMetadata) or _G.GetAddOnMetadata
+	if type(meta) ~= "function" then return false end
+	local ok, version = pcall(meta, "DaylightUI", "Version")
+	if not ok or type(version) ~= "string" then return false end
+	local x, y, z = version:match("^(%d+)%.(%d+)%.?(%d*)")
+	if not x then return false end
+	x, y, z = tonumber(x), tonumber(y), tonumber(z) or 0
+	if x ~= a then return x > a end
+	if y ~= b then return y > b end
+	return z >= c
+end
+
+-- Whether Daylight UI's profession window can show a recipe's cost and profit at all: 2.1.2 or
+-- later, its Professions module on, not handed to DaylightMogul, and its Auction House's prices
+-- published. (For the option: there's nothing to choose without it.)
+function Pane.ProfitCould()
+	if type(DUI) ~= "table" or DUI.craftMogul == true then return false end
+	if not DaylightAtLeast(2, 1, 2) then return false end
+	local prices = DUI.AuctionPrices
+	if type(prices) ~= "table" or type(prices.Item) ~= "function" then return false end
+	local ok, on = pcall(API.IsModuleEnabled, "Professions")
+	return ok and on == true
+end
+
+-- Whether it is showing them right now beside our pane: all of the above, the pane docked to
+-- its window, and its own "Profit" setting not switched off.
+function Pane.ProfitApplies()
+	if S.mode ~= "dui" or not Pane.ProfitCould() then return false end
+	local ok, profit = pcall(API.GetSetting, "Professions", "profit")
+	return ok and profit ~= false
+end
+
+-- Whether the pane's Recipe tab leaves cost and profit to Daylight UI's window: it shows them,
+-- and the player hasn't asked to keep both.
+function Pane.ProfitHanded()
+	return Pane.ProfitApplies() and ns.Get("duiProfit") ~= false
+end
+
+-- Something else of Daylight UI's or of a Daylight plugin is up (its setup guide, tour or a
+-- question; a plugin's welcome, What's New or tour, ours included: _G.DaylightGuides, Guide.lua),
+-- or a fight is on: our question waits.
+local DAYLIGHT_DIALOGS = { "DaylightUIInstaller", "DaylightUITour", "DaylightUITourAsk", "DaylightUIAsk",
+	"DaylightUIQuestieChoice" }
+local function Busy()
+	if InCombatLockdown() then return true end
+	if ns.Guide and ns.Guide.Welcoming and ns.Guide.Welcoming() then return true end
+	for _, name in ipairs(DAYLIGHT_DIALOGS) do
+		local f = _G[name]
+		if type(f) == "table" and f.IsShown and f:IsShown() and (not f.GetAlpha or (f:GetAlpha() or 0) > 0.05) then return true end
+	end
+	local guides = _G.DaylightGuides
+	if type(guides) == "table" then
+		for _, on in pairs(guides) do
+			if on then return true end
+		end
+	end
+	return false
+end
+
+-- Asked once, the first time the pane's Recipe tab and Daylight UI's Profit section would show
+-- side by side. (The game's own question box, as our other one-time questions: Swap.lua's,
+-- Tips.lua's; a controller answers it as it does the game's.)
+local asking = false
+local function AskProfit()
+	local db = DB()
+	if db.duiProfitAsked or asking or not Pane.ProfitApplies() then return end
+	asking = true
+	local tries = 0
+	local function try()
+		tries = tries + 1
+		if db.duiProfitAsked or not Pane.ProfitApplies() then
+			asking = false
+			return
+		end
+		if Busy() then
+			-- (A while longer; given up for now after a few minutes, asked again another time.)
+			if tries < 60 then C_Timer.After(3, try) else asking = false end
+			return
+		end
+		asking = false
+		db.duiProfitAsked = true
+		StaticPopupDialogs.DAYLIGHTRECIPES_DUI_PROFIT = {
+			text = L["Daylight UI's profession window now shows a recipe's materials cost and profit. Leave those to it in the Docked Pane?\n\nThe pane keeps what Daylight UI doesn't show: each material's price, the cost per skill point, and the vendor and disenchant value. You can change this later in Glowey's Recipes' options."],
+			button1 = L["Use Daylight UI's"],
+			button2 = L["Keep Both"],
+			OnAccept = function() DUI:Set(ADDON, "duiProfit", true) end,
+			OnCancel = function(_, _, reason)
+				if reason == "clicked" then DUI:Set(ADDON, "duiProfit", false) end
+			end,
+			timeout = 0, whileDead = true, hideOnEscape = false, preferredIndex = 3,
+		}
+		StaticPopup_Show("DAYLIGHTRECIPES_DUI_PROFIT")
+	end
+	C_Timer.After(1, try)
+end
+Pane.AskProfit = AskProfit
+
 -- Whether the page now drawn is waiting on this item's data.
 function Pane.Waiting(itemID)
 	return doc ~= nil and doc:Waiting(itemID)
@@ -386,7 +508,10 @@ function Pane.Render()
 	elseif tab == "plan" then
 		ok, err = pcall(Pages.Guide, doc, ctx)
 	else
-		ok, err = pcall(Pages.Recipe, doc)
+		-- (Beside Daylight UI's window, which shows cost and profit itself: without ours, by
+		-- default; the first time, asked.)
+		ok, err = pcall(Pages.Recipe, doc, Pane.ProfitHanded())
+		AskProfit()
 	end
 	if not ok then
 		geterrorhandler()(err)

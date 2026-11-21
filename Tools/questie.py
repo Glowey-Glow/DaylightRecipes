@@ -185,6 +185,7 @@ def main():
 			('Sources.lua', ('Trainers', 'AutomaticRecipes', 'AutomaticQuests', 'Sellers', 'Drops', 'OtherDrops', 'QuestRewards')),
 			('Polestar.lua', ('PolestarTeach', 'PolestarSources', 'PolestarNpcs', 'Camping'))):
 		data.update(P.lua_tables(os.path.join(ROOT, 'Data', f), names))
+	P.with_client(data)
 	recipes, npcs, psnpcs = data['Recipes'], data['Npcs'], data['PolestarNpcs']
 
 	def table(t, k):

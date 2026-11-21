@@ -37,6 +37,12 @@ local function Get(key) return ns.Get and ns.Get(key) end
 local function Parts() return ns.Window and ns.Window.TourParts and ns.Window.TourParts() or {} end
 
 local NEWS = {
+	{ version = "2.8.0", lines = {
+		L["Leveling Guide: steps only use recipes that are orange or yellow at that skill, whatever the goal. No more crafts that give no points."],
+		L["424 recipes added, Runecloth Bandage among them: the guide reaches 300 on recipes that give points in every crafting profession."],
+		L["Prices and your other characters are found again after the game stopped giving realm names. Nothing was lost."],
+		L["With Daylight UI 2.1.2: the Docked Pane can leave materials cost and profit to its profession window (asked once)."],
+	} },
 	{ version = "2.7.0", lines = {
 		L["Buy List: Check Prices at the Auction House reads how many are for sale at each price, so a row shows what the amount you need really costs."],
 		L["Buy List: when a vendor also sells an item, the Auction House row asks only for the cheaper units and the vendor's list for the rest."],

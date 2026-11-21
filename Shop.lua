@@ -1536,7 +1536,11 @@ local function SearchDaylight(name)
 		pcall(win.ShowTab, "buy")
 	end
 	-- (Submit answers false when it couldn't start, and has then said why on its own page.)
-	return (pcall(page.Submit, name))
+	-- (Daylight UI 2.1.2 gave Submit a second argument, `anywhere` (BuyPage.lua:558-566): without it the
+	-- search stays inside the category picked on the Buy page, as the game's own does, and a
+	-- material outside that category is not found. Its own link search passes true (Window.lua:371);
+	-- 2.0 and 2.1 take one argument and ignore the second.)
+	return (pcall(page.Submit, name, true))
 end
 
 -- The item searched for in the Auction House window that's up: DaylightUI 2.0's own (searched

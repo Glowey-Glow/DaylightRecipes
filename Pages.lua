@@ -89,6 +89,9 @@ function Pages.AltAlert(have)
 end
 
 -- opts.have: each material says what you hold of it (the big window's recipe page).
+-- opts.handed: the total is Daylight UI's window's to show (the pane docked to it, Pane.lua's
+-- ProfitHanded): the materials with their prices and the cost per skill point stay, the Total row
+-- and the note on a short total go.
 function Pages.Cost(d, spell, chance, opts)
 	d:Heading(L["Materials"])
 	local cost = Calc.Cost(spell)
@@ -120,9 +123,10 @@ function Pages.Cost(d, spell, chance, opts)
 			right = m.total and Calc.Money(m.total) or "?", rightInk = m.total and "VALUE" or "OFF",
 			sub = sub, subInk = subInk, tip = ItemTip(m.itemID) })
 	end
-	d:Row({ left = L["Total"], leftInk = "LABEL", right = Calc.Money(cost.total) })
+	local handed = opts and opts.handed
+	if not handed then d:Row({ left = L["Total"], leftInk = "LABEL", right = Calc.Money(cost.total) }) end
 	if not cost.complete then
-		d:Line(L["Some materials have no price, so the total is short."], "small", "WARN")
+		if not handed then d:Line(L["Some materials have no price, so the total is short."], "small", "WARN") end
 	elseif chance and chance > 0 then
 		-- (Expected points per craft: the chance times the points one gives.)
 		local points = chance * Calc.SkillUps(spell)
@@ -134,8 +138,19 @@ function Pages.Cost(d, spell, chance, opts)
 	return cost
 end
 
-function Pages.Worth(d, spell)
+-- handed: what it sells for on the Auction House and that profit are Daylight UI's window's to
+-- show (Pane.lua's ProfitHanded). The vendor's and disenchanting's value stay, and what it
+-- disenchants into; with neither, the section isn't drawn at all.
+function Pages.Worth(d, spell, handed)
 	local worth = Calc.Worth(spell)
+	local routes = worth and worth.routes or {}
+	if handed and worth then
+		routes = {}
+		for _, route in ipairs(worth.routes) do
+			if route.label ~= "Auction House" then routes[#routes + 1] = route end
+		end
+		if #routes == 0 and not worth.de then return end
+	end
 	d:Heading(L["Value"])
 	if not worth then
 		d:Line(L["It makes no item to sell."], "small", "OFF")
@@ -144,11 +159,11 @@ function Pages.Worth(d, spell)
 	local name, icon = ItemName(worth.itemID, d)
 	local made = worth.count ~= 1 and ("  x" .. (worth.count % 1 == 0 and worth.count or ("%.1f"):format(worth.count))) or ""
 	d:Row({ icon = icon, left = name .. made, tip = ItemTip(worth.itemID) })
-	if worth.bound then d:Line(L["It binds when made: no Auction House."], "small", "OFF") end
+	if worth.bound and not handed then d:Line(L["It binds when made: no Auction House."], "small", "OFF") end
 	if #worth.routes == 0 then
 		d:Line(L["No price is known for it."], "small", "OFF")
 	end
-	for _, route in ipairs(worth.routes) do
+	for _, route in ipairs(routes) do
 		local sub, ink
 		if route.profit then
 			-- (The label is Calc's English word, text its name in your language; the Auction House's value is after its cut.)
@@ -176,7 +191,9 @@ function Pages.Worth(d, spell)
 end
 
 -- The pane's recipe page: name, then the three parts.
-function Pages.Recipe(d)
+-- handed: Daylight UI's window beside the pane shows the materials total and the Auction House's
+-- profit itself (Pane.lua's ProfitHanded): those are left out here.
+function Pages.Recipe(d, handed)
 	local spell = S.recipe
 	if not spell then
 		d:Line(L["Pick a recipe."], "body", "OFF")
@@ -184,8 +201,8 @@ function Pages.Recipe(d)
 	end
 	d:Line(RecipeName(spell), "head", "VALUE")
 	local chance = Pages.Skill(d, spell)
-	Pages.Cost(d, spell, chance)
-	Pages.Worth(d, spell)
+	Pages.Cost(d, spell, chance, handed and { handed = true } or nil)
+	Pages.Worth(d, spell, handed)
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -363,6 +380,10 @@ function Pages.CraftNext(d, ctx, count)
 		d:Line(L["None of your recipes gives a point now: learn a new one (see the route below)."], "small", "OFF")
 		return
 	end
+	-- (None orange or yellow: the green ones that come nearest, said to be.)
+	if list[1].low then
+		d:Line(L["None of your recipes is orange or yellow now: these come nearest."], "small", "WARN")
+	end
 	for _, e in ipairs(list) do
 		local sub = L["%s chance"]:format(Pct(e.chance))
 		if e.can and e.can > 0 then sub = sub .. " · " .. L["you can make %d"]:format(e.can) end
@@ -399,6 +420,7 @@ function Pages.Route(d, ctx, plan)
 	for _, s in ipairs(route.steps) do
 		if s.kind == "craft" then
 			local sub = Plural(s.count, "about %d craft", "about %d crafts"):format(s.count)
+			if s.low then sub = sub .. " · " .. L["green: a point only now and then"] end
 			if s.learn then sub = sub .. " · " .. L["learn it first (%s)"]:format(s.learn > 0 and Calc.Money(s.learn) or L["trainer"]) end
 			local known = not s.learn
 			d:Row({ left = ("%d-%d  %s"):format(s.from, s.to, RecipeName(s.spell)), leftInk = "VALUE",
@@ -408,7 +430,8 @@ function Pages.Route(d, ctx, plan)
 		elseif s.kind == "rank" then
 			d:Line(TrainAt(s), "small", "WARN")
 		elseif s.kind == "gap" then
-			d:Line(L["Past %d no recipe in the data gives points."]:format(s.at), "small", "OFF")
+			d:Line((s.rare and L["Past %d the recipes in the data give a point less than one craft in five."]
+				or L["Past %d no recipe in the data gives points."]):format(s.at), "small", "OFF")
 		end
 	end
 end
@@ -476,6 +499,11 @@ local function LearnText(s)
 	local cost = (s.learn or 0) > 0 and Calc.Money(s.learn) or L["free"]
 	if s.source == "vendor" then return L["First buy the recipe from a vendor (%s): see the Missing tab."]:format(cost) end
 	if s.source == "auction" then return L["First buy the recipe on the Auction House (%s)."]:format(cost) end
+	-- (Taught by a trainer, but which one and for how much isn't in the data: said, not guessed.)
+	if s.source == "unknown" then
+		if S.name then return L["First learn it from a %s trainer: the data doesn't say which one teaches it yet."]:format(S.name) end
+		return L["First learn it from a profession trainer: the data doesn't say which one teaches it yet."]
+	end
 	if S.name then return L["First learn it from a %s trainer (%s): it's marked Recommended there."]:format(S.name, cost) end
 	return L["First learn it from a profession trainer (%s): it's marked Recommended there."]:format(cost)
 end
@@ -524,6 +552,13 @@ local function StepCard(d, ctx, s, n, glowTop)
 	else
 		local span = math.max(1, s.to - s.from)
 		d:Bar(math.max(0, math.min(1, (skill - s.from) / span)))
+		-- (No recipe is orange or yellow over these points: the step is the nearest there is, and
+		-- says so rather than pass for a normal one.)
+		if s.low then
+			d:Line(L["This recipe is green at this skill (a point only now and then): nothing you know or can learn does better here."],
+				"small", "WARN")
+			d:Line(L["About %.1f crafts a point."]:format(s.crafts / span), "small", "TEXT")
+		end
 	end
 	if s.learn then d:Line(LearnText(s), "small", "WARN") end
 	local mats = Calc.Materials(s.spell)
@@ -656,6 +691,7 @@ function Pages.Guide(d, ctx)
 				end
 			elseif s.kind == "craft" or s.kind == "tool" then
 				local sub = s.kind == "tool" and L["make 1: the next recipes need it"] or L["make about %d"]:format(s.count)
+				if s.low then sub = sub .. " · " .. L["green: a point only now and then"] end
 				if s.learn then
 					local price = s.learn > 0 and Calc.Money(s.learn) or nil
 					local how
@@ -680,18 +716,22 @@ function Pages.Guide(d, ctx)
 			end
 		elseif s.kind == "gap" then
 			-- (Nothing in the data gives points there: the route goes on where something does.)
+			-- (rare: some do, but under one craft in five: not a step to send anyone on.)
 			if s.to and s.to > s.at then
-				d:Line(L["From %d to %d no recipe in the data gives points: you'll need one it doesn't know of."]:format(s.at, s.to),
+				d:Line((s.rare and L["From %d to %d the recipes in the data give a point less than one craft in five: you'll need one it doesn't know of."]
+					or L["From %d to %d no recipe in the data gives points: you'll need one it doesn't know of."]):format(s.at, s.to),
 					"small", "WARN", 4)
 			else
-				d:Line(L["Past %d no recipe in the data gives points yet."]:format(s.at), "small", "OFF", 4)
+				d:Line((s.rare and L["Past %d the recipes in the data give a point less than one craft in five."]
+					or L["Past %d no recipe in the data gives points yet."]):format(s.at), "small", "OFF", 4)
 			end
 		end
 	end
 
 	-- Cheaper than the step right now (prices move): offered, not in the way.
 	local picks = ns.Plan.CraftNext(3)
-	if current and current.kind == "craft" and picks[1] and picks[1].spell ~= current.spell then
+	-- (Not when the best of them is only a green one: that is not "good".)
+	if current and current.kind == "craft" and picks[1] and picks[1].spell ~= current.spell and not picks[1].low then
 		d:Heading(L["Also Good Right Now"])
 		for _, e in ipairs(picks) do
 			d:Row({ left = RecipeName(e.spell), leftInk = "TEXT",

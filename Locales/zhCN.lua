@@ -602,3 +602,26 @@ L["Average: %s each"] = "平均：每个%s"
 -- 2.7.0: What's New
 L["Buy List: Check Prices at the Auction House reads how many are for sale at each price, so a row shows what the amount you need really costs."] = "购买清单：拍卖行的“检查价格”会读取每个价位的在售数量，使每行显示所需数量的真实花费。"
 L["Buy List: when a vendor also sells an item, the Auction House row asks only for the cheaper units and the vendor's list for the rest."] = "购买清单：当商人也出售某物品时，拍卖行一行只要求更便宜的部分，其余由商人清单要求。"
+
+-- The Leveling Guide: a step on a green recipe says so
+L["This recipe is green at this skill (a point only now and then): nothing you know or can learn does better here."] = "此配方在当前技能下为绿色（只是偶尔提升一点）：你已学会或能学到的配方中，这里没有更好的。"
+L["green: a point only now and then"] = "绿色：只是偶尔提升一点"
+L["None of your recipes is orange or yellow now: these come nearest."] = "你现在没有橙色或黄色的配方：这些最接近。"
+L["From %d to %d the recipes in the data give a point less than one craft in five: you'll need one it doesn't know of."] = "从%d到%d，数据中的配方每制作五次还提升不了一点：你需要一个数据里没有的配方。"
+L["Past %d the recipes in the data give a point less than one craft in five."] = "%d之后，数据中的配方每制作五次还提升不了一点。"
+
+-- Docked Pane beside Daylight UI's profession window: cost and profit left to it (Pane.lua, Core.lua)
+L["Daylight UI's profession window now shows a recipe's materials cost and profit. Leave those to it in the Docked Pane?\n\nThe pane keeps what Daylight UI doesn't show: each material's price, the cost per skill point, and the vendor and disenchant value. You can change this later in Glowey's Recipes' options."] = "Daylight UI 的专业窗口现在会显示配方的材料成本和利润。在停靠面板中把这些交给它显示吗？\n\n面板保留 Daylight UI 不显示的内容：每种材料的价格、每技能点成本，以及商人价值和分解价值。你可以稍后在 Glowey's Recipes 的选项中更改。"
+L["Use Daylight UI's"] = "使用 Daylight UI 的"
+L["Leave Cost and Profit to Daylight UI"] = "成本和利润交给 Daylight UI"
+L["Beside Daylight UI's window the pane leaves the materials total and Auction House profit to it."] = "在 Daylight UI 的窗口旁，面板把材料总价和拍卖行利润交给它显示。"
+
+-- The Leveling Guide: a recipe taught by a trainer the data does not place
+L["First learn it from a %s trainer: the data doesn't say which one teaches it yet."] = "先向%s训练师学习：数据中还没有是哪位训练师教授。"
+L["First learn it from a profession trainer: the data doesn't say which one teaches it yet."] = "先向专业训练师学习：数据中还没有是哪位训练师教授。"
+
+-- 2.8.0: What's New
+L["Leveling Guide: steps only use recipes that are orange or yellow at that skill, whatever the goal. No more crafts that give no points."] = "升级指南：无论选择哪个目标，步骤只使用在该技能值为橙色或黄色的配方。不再有不涨技能的制作。"
+L["424 recipes added, Runecloth Bandage among them: the guide reaches 300 on recipes that give points in every crafting profession."] = "新增 424 个配方，包括符文布绷带：指南在每个制造专业都能用会涨技能的配方到达 300。"
+L["Prices and your other characters are found again after the game stopped giving realm names. Nothing was lost."] = "在游戏不再提供服务器名称之后，价格和你的其他角色都能重新找到。没有任何数据丢失。"
+L["With Daylight UI 2.1.2: the Docked Pane can leave materials cost and profit to its profession window (asked once)."] = "配合 Daylight UI 2.1.2：停靠面板可以把材料成本和利润交给它的专业窗口显示（只询问一次）。"

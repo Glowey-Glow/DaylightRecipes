@@ -43,6 +43,7 @@ local DEFAULTS = {
 	guideGlow = true,
 	vendorMarks = true,
 	mastercraftTips = true,
+	duiProfit = true,
 	duiOpacity = true,
 	opacity = 0.85,
 }
@@ -430,6 +431,9 @@ local pages = {
 			  desc = L["How large Glowey's Recipes' window is."], disabled = WindowOff },
 			{ type = "slider", key = "paneWidth", label = L["Pane Width"], min = 260, max = 400, step = 10,
 			  desc = L["How wide the pane beside Daylight UI's or DaylightMogul's profession window is."], disabled = PaneOff },
+			{ type = "toggle", key = "duiProfit", label = L["Leave Cost and Profit to Daylight UI"],
+			  hidden = function() return not (ns.Pane and ns.Pane.ProfitCould and ns.Pane.ProfitCould()) end, disabled = PaneOff,
+			  desc = L["Beside Daylight UI's window the pane leaves the materials total and Auction House profit to it."] },
 		} },
 		{ label = L["Look"], items = {
 			{ type = "toggle", key = "duiOpacity", label = L["Use Daylight UI's Opacity"],
@@ -494,6 +498,12 @@ me.On("SettingChanged", function(scope, path)
 		ns.Changed()
 		return
 	end
+	-- Daylight UI's own Profit switch for its profession window: the pane beside it shows its cost
+	-- and profit again, or leaves them to it (Pane.lua's ProfitHanded).
+	if scope == "Professions" and path == "profit" then
+		ns.Changed()
+		return
+	end
 	if scope ~= ADDON then return end
 	if path == "guideGlow" then
 		ns.Changed()
@@ -509,6 +519,10 @@ me.On("SettingChanged", function(scope, path)
 	end
 	if path == "paneWidth" then
 		if ns.Pane then ns.Pane.Resize() end
+		return
+	end
+	if path == "duiProfit" then
+		ns.Changed()
 		return
 	end
 	if path == "window" then

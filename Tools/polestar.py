@@ -5,7 +5,8 @@ those need, and every profession's camping items. Run from the repo root with th
 	python Tools/polestar.py "D:/World of Warcraft/_forever_/Interface/AddOns"
 
 Reads Polestar_Codex/*.lua (the facts, decoded the way Polestar/Lookup/Codex.lua does) and this
-plugin's Data/Recipes.lua, Sources.lua and Npcs.lua. Facts only Polestar's QuestieDB source has
+plugin's Data/Recipes.lua, Sources.lua and Npcs.lua, and Data/Client.lua's recipes (run
+Tools/client.py first when the client or ForeverRecipes' tables changed). Facts only Polestar's QuestieDB source has
 (provenance "q" alone) are left out: QuestieDB's maintainers ask that their data be treated as all
 rights reserved. Pass --questie to keep them anyway.
 """
@@ -134,6 +135,24 @@ def as_list(v):
 	if isinstance(v, dict):
 		return [v[k] for k in sorted(v)]
 	return v
+
+
+def with_client(data):
+	"""Adds Data/Client.lua's recipes and trainers (Tools/client.py: the ones ForeverRecipes' tables
+	lack) to the tables read from Data/Recipes.lua and Sources.lua, as the plugin does when it loads."""
+	path = os.path.join(ROOT, 'Data', 'Client.lua')
+	if not os.path.exists(path):
+		return data
+	extra = lua_tables(path, ('ClientRecipes', 'ClientTrainers'))
+	for src, dst in (('ClientRecipes', 'Recipes'), ('ClientTrainers', 'Trainers')):
+		rows = extra.get(src)
+		if not isinstance(rows, dict):
+			continue
+		if not isinstance(data.get(dst), dict):
+			data[dst] = {}
+		for k, v in rows.items():
+			data[dst].setdefault(k, v)
+	return data
 
 # --------------------------------------------------------------------------------------------
 # Polestar's Codex
@@ -272,6 +291,7 @@ def main():
 	for f, names in (('Recipes.lua', ('Recipes',)), ('Npcs.lua', ('Npcs',)),
 			('Sources.lua', ('Trainers', 'AutomaticRecipes', 'AutomaticQuests', 'Sellers', 'Drops', 'OtherDrops', 'QuestRewards'))):
 		data.update(lua_tables(os.path.join(ROOT, 'Data', f), names))
+	with_client(data)
 	recipes, npcs = data['Recipes'], data['Npcs']
 
 	# Recipe items by the spell they teach.

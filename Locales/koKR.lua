@@ -602,3 +602,26 @@ L["Average: %s each"] = "평균: 개당 %s"
 -- 2.7.0: What's New
 L["Buy List: Check Prices at the Auction House reads how many are for sale at each price, so a row shows what the amount you need really costs."] = "구매 목록: 경매장의 가격 확인이 가격대별 판매 수량을 읽어, 필요한 수량의 실제 비용을 줄에 보여 줍니다."
 L["Buy List: when a vendor also sells an item, the Auction House row asks only for the cheaper units and the vendor's list for the rest."] = "구매 목록: 상인도 파는 아이템은 경매장 줄에서 더 싼 수량만, 상인 목록에서 나머지를 요청합니다."
+
+-- The Leveling Guide: a step on a green recipe says so
+L["This recipe is green at this skill (a point only now and then): nothing you know or can learn does better here."] = "이 제조법은 이 숙련도에서 초록색입니다 (가끔만 숙련도가 오름): 알고 있거나 배울 수 있는 것 중 여기서 더 나은 것이 없습니다."
+L["green: a point only now and then"] = "초록: 가끔만 숙련도가 오름"
+L["None of your recipes is orange or yellow now: these come nearest."] = "지금 주황색이나 노란색인 제조법이 없습니다: 이것들이 가장 가깝습니다."
+L["From %d to %d the recipes in the data give a point less than one craft in five: you'll need one it doesn't know of."] = "%d부터 %d까지는 데이터의 제조법이 5회 제작에 1번도 숙련도를 주지 않습니다: 데이터에 없는 제조법이 필요합니다."
+L["Past %d the recipes in the data give a point less than one craft in five."] = "%d 이후로는 데이터의 제조법이 5회 제작에 1번도 숙련도를 주지 않습니다."
+
+-- Docked Pane beside Daylight UI's profession window: cost and profit left to it (Pane.lua, Core.lua)
+L["Daylight UI's profession window now shows a recipe's materials cost and profit. Leave those to it in the Docked Pane?\n\nThe pane keeps what Daylight UI doesn't show: each material's price, the cost per skill point, and the vendor and disenchant value. You can change this later in Glowey's Recipes' options."] = "이제 Daylight UI의 전문 기술 창이 제조법의 재료비와 수익을 표시합니다. 붙는 판에서는 그 부분을 Daylight UI에 맡길까요?\n\n붙는 판은 Daylight UI가 표시하지 않는 것을 계속 보여 줍니다: 재료별 가격, 숙련도 1점당 비용, 상인 판매가와 마력 추출 가치. 나중에 Glowey's Recipes 옵션에서 바꿀 수 있습니다."
+L["Use Daylight UI's"] = "Daylight UI 사용"
+L["Leave Cost and Profit to Daylight UI"] = "비용과 수익을 Daylight UI에 맡기기"
+L["Beside Daylight UI's window the pane leaves the materials total and Auction House profit to it."] = "Daylight UI 창 옆에서는 붙는 판이 재료비 합계와 경매장 수익을 Daylight UI에 맡깁니다."
+
+-- The Leveling Guide: a recipe taught by a trainer the data does not place
+L["First learn it from a %s trainer: the data doesn't say which one teaches it yet."] = "먼저 %s 상급자에게 배우세요: 누가 가르치는지는 아직 데이터에 없습니다."
+L["First learn it from a profession trainer: the data doesn't say which one teaches it yet."] = "먼저 전문 기술 상급자에게 배우세요: 누가 가르치는지는 아직 데이터에 없습니다."
+
+-- 2.8.0: What's New
+L["Leveling Guide: steps only use recipes that are orange or yellow at that skill, whatever the goal. No more crafts that give no points."] = "숙련 안내서: 목표와 상관없이 해당 숙련도에서 주황색이나 노란색인 제조법만 단계에 사용합니다. 숙련이 오르지 않는 제작은 더 이상 없습니다."
+L["424 recipes added, Runecloth Bandage among them: the guide reaches 300 on recipes that give points in every crafting profession."] = "룬무늬 붕대를 포함해 제조법 424개 추가: 모든 제작 전문 기술에서 숙련이 오르는 제조법으로 300까지 안내합니다."
+L["Prices and your other characters are found again after the game stopped giving realm names. Nothing was lost."] = "게임이 서버 이름을 주지 않게 된 뒤에도 가격과 다른 캐릭터를 다시 찾습니다. 잃은 것은 없습니다."
+L["With Daylight UI 2.1.2: the Docked Pane can leave materials cost and profit to its profession window (asked once)."] = "Daylight UI 2.1.2: 고정 창이 재료 비용과 이익 표시를 Daylight UI의 전문 기술 창에 맡길 수 있습니다(한 번만 묻습니다)."

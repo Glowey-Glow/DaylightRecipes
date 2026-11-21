@@ -86,12 +86,29 @@ end
 -- Skill-up chance
 -- ---------------------------------------------------------------------------------------------
 
+-- Recipes whose yellow and gray skill ForeverRecipes' table has otherwise than the game are set right
+-- from ns.ClientRanges (Data/Client.lua, made by Tools/client.py from the client's own table):
+-- { yellow, gray }. Most are Forever's own additions (First Aid Kit, Anvil, ...), which the table
+-- gives five points of range (20 to 25, 140 to 145) where the game gives none: yellow and gray at
+-- one skill is gray from there on.
+local fixed = {}   -- spell -> its thresholds set right (made once)
+
 -- The recipe's four skill thresholds (orange from, yellow, green, gray), or nil when unknown.
 function Calc.Thresholds(spell)
 	local data = ns.Recipes and ns.Recipes[spell]
 	local meta = ns.RecipeMeta and ns.RecipeMeta[spell]
 	if not data or type(data[2]) ~= "table" then return nil end
 	if meta and meta.thresholdsKnown == false then return nil end
+	local range = ns.ClientRanges and ns.ClientRanges[spell]
+	if range then
+		local t = fixed[spell]
+		if not t then
+			-- (Green is halfway, as the game has it and as every recipe of the data does.)
+			t = { data[2][1], range[1], floor((range[1] + range[2]) / 2), range[2] }
+			fixed[spell] = t
+		end
+		return t
+	end
 	return data[2]
 end
 
@@ -141,8 +158,13 @@ function Calc.Chance(spell, skill, cap)
 			else
 				base = max(0, min(1, (grey - skill) / (grey - yellow)))
 			end
-			-- The game says yellow or green but the data says sure or none: the data is off here.
-			if color and COLOR_GUESS[color] and (base >= 1 or base <= 0) then base = COLOR_GUESS[color] end
+			-- The game says yellow or green where the data has another color: the data is off here.
+			-- (By color, not by the odds: the first yellow point is still a sure one, and a recipe
+			-- the game shows green is never taken for a yellow one on the data's word.)
+			if color and COLOR_GUESS[color] then
+				local mine = skill >= grey and 3 or skill < yellow and 0 or skill < t[3] and 1 or 2
+				if mine ~= color then base = COLOR_GUESS[color] end
+			end
 		elseif color and COLOR_GUESS[color] then
 			base = COLOR_GUESS[color]
 		else

@@ -13,6 +13,7 @@
 
 Data\Recipes.lua
 Data\Sources.lua
+Data\Client.lua
 Data\Npcs.lua
 Data\Polestar.lua
 Data\Corrections.lua

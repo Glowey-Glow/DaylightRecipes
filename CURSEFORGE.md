@@ -29,6 +29,12 @@ Drag a cheap item into the slot and level on it: enchant after enchant, with the
 ## Around the game
 Item tooltips (what uses a material, what your guides need of it, and for a recipe who on your account knows it and who could learn it, in class colors, with the skill still needed; only this character's guides), and trainer reminders in chat when a skill-up opens new recipes or you reach your rank's cap.
 
+## New in 2.8.0
+- **Leveling Guide you can trust:** every step uses a recipe that is orange or yellow at that skill, for all four goals (Cheapest, Vendor, Disenchant, Auction House). No more "make 100" of something that barely gives points. For recipes you know, the game's own color decides.
+- **424 recipes added:** everything whose gray skill lies past 300 was missing, Runecloth Bandage among them. The guide now reaches 300 on recipes that give points in every crafting profession.
+- **Your prices are back:** the game stopped giving realm names on Nov 20, which hid saved prices and your other characters' holdings. They are found again and kept by the server's rules from now on. Nothing was lost.
+- **Daylight UI 2.1.2:** its profession window now shows cost and profit, so the Docked Pane can leave those to it (asked once, switch it back in the options). Buy List searches find items in every category.
+
 ## New in 2.7.0
 - **Check Prices:** a button on the Auction House Buy List reads how many are for sale at each price for everything on the list. A row then shows what the amount you need really costs (not the amount times the lowest price), says "only N for sale" when there aren't enough, and its tooltip lists the price steps. Until checked, a row says "about".
 - **Vendor split:** when a vendor also sells an item, the Auction House row asks only for the units cheaper than the vendor, and the vendor's Buy List asks for the rest.

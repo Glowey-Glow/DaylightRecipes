@@ -243,7 +243,10 @@ function Where.Npc(id, foe)
 		local b, z = NearestPlace(other)
 		best, zoneOnly = b, zoneOnly or z
 	end
-	return (npc and npc[1]) or other[1], best or zoneOnly
+	-- (A record with neither a name nor a place, as ForeverRecipes' table has a few: no one to show.)
+	local name = (npc and npc[1]) or (other and other[1])
+	if not name then return nil end
+	return name, best or zoneOnly
 end
 
 -- The item that teaches a recipe: ForeverRecipes', else Polestar's.
@@ -391,8 +394,11 @@ local function Fixed(list, kind, item)
 		local id = type(rec) == "table" and rec[1] or rec
 		if not (gone and gone[id]) then out[#out + 1] = rec end
 	end
+	-- (Not one the list has already: the tables may have caught up with the correction.)
+	local have = {}
+	for _, rec in ipairs(out) do have[type(rec) == "table" and rec[1] or rec] = true end
 	for _, s in ipairs(fix.add or {}) do
-		if s[1] == kind then out[#out + 1] = kind == "q" and s[2] or { s[2], s[3], s[4] } end
+		if s[1] == kind and not have[s[2]] then out[#out + 1] = kind == "q" and s[2] or { s[2], s[3], s[4] } end
 	end
 	return out
 end
@@ -406,7 +412,11 @@ local function Merged(item, list)
 		local gone = fix.remove and fix.remove[s[1]]
 		if not (gone and gone[s[2]]) then out[#out + 1] = s end
 	end
-	for _, s in ipairs(fix.add or {}) do out[#out + 1] = s end
+	local have = {}
+	for _, s in ipairs(out) do have[s[1] .. ":" .. tostring(s[2])] = true end
+	for _, s in ipairs(fix.add or {}) do
+		if not have[s[1] .. ":" .. tostring(s[2])] then out[#out + 1] = s end
+	end
 	return out
 end
 
@@ -676,7 +686,9 @@ local function Base()
 		if data[1] == S.line then
 			local meta = ns.RecipeMeta and ns.RecipeMeta[spell]
 			local variant = meta and meta.variantFaction
-			if (not variant or variant == mine) and not Where.Knows(spell) then
+			-- (knownOnly: a recipe of Data/Client.lua's that no way to learn is known for. Not one to
+			-- list as missing: it may not be in the game for you at all.)
+			if (not variant or variant == mine) and not (meta and meta.knownOnly) and not Where.Knows(spell) then
 				local name = ns.SpellName(spell) or L["Recipe %d"]:format(spell)
 				local groups = Where.Sources(spell)
 				local teach = Where.Teach(spell)

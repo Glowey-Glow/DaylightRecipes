@@ -12,7 +12,295 @@ ns.Store = Store
 -- Bumped after every read of bags, bank, mail or a merchant: the plan keys its shopping list on it.
 Store.version = 0
 
-local DB_VERSION = 1
+-- 2: prices and vendors kept by rules key (db.books), the old "Realm-Faction" tables (db.prices,
+-- db.vendors) left as they were. An older version of the plugin reading this file sets the number
+-- back to 1 and goes on with the old tables, which are all still there for it.
+local DB_VERSION = 2
+
+-- ---------------------------------------------------------------------------------------------
+-- Which server: the rules key
+-- ---------------------------------------------------------------------------------------------
+-- Forever has no realms to trade on: each set of rules (PvE, PvP, RP, RPvP, Hardcore) is one
+-- server in a region, its many numbered realms ("CAMWOW US1 Realm 5 PvE", "CAMWOW US2 Realm 2
+-- PvP") sharing one Auction House that both factions use (Daylight UI's own Auction House keys its
+-- prices the same way, DaylightUI_AuctionHouse\Ruleset.lua:1-7, and its alt lists take every realm
+-- of a ruleset as one, DaylightUI\Alts.lua:26-41). And since 2026-11-20 the game gives no realm
+-- name at all here (GetRealmName() is ""), so a realm can't be the key any more.
+-- The rules key is "<Region>-<Rules>", "US-PvP": the region from GetCurrentRegion()
+-- (LocaleDocumentation.lua:40), the rules from the game's own rules for this character
+-- (C_GameRules.IsGameRuleActive, GameRulesDocumentation.lua:225-238, of Enum.GameRule's
+-- HardcoreRuleset, PvPRuleset and RPRuleset), asked only where the game runs without trading
+-- realms (RegionalUniqueNamesEnabled(), UnitDocumentation.lua:536-543). The same facts, read the
+-- same way, as Daylight UI's ns.Ruleset.Key(), so the two agree wherever both answer; nothing of
+-- Daylight UI is needed for it. Where the game can't say (rules not known yet early in a login),
+-- the key this character was last saved with stands in, then the rules word in its saved realm
+-- name. A client that still has trading realms gets "<Region>-<Realm Name>", as Daylight UI's.
+--
+-- Prices are kept per rules key (one Auction House for both factions); the vendors you've seen
+-- per rules key and faction (who sells to you, and for how much, hangs on your side); alts are
+-- the account's other characters of the same rules key and faction.
+
+local REGIONS = { [1] = "US", [2] = "KR", [3] = "EU", [4] = "TW", [5] = "CN" }
+
+-- The region's two letters, nil when the game doesn't say.
+function Store.Region()
+	local get = _G.GetCurrentRegion
+	local n = type(get) == "function" and get() or nil
+	return REGIONS[n]
+end
+
+-- The rules word in a realm's name: "CAMWOW US1 Realm 5 PvE" gives "PvE". nil with none.
+local function RulesWord(realm)
+	if type(realm) ~= "string" or realm == "" then return nil end
+	local s = " " .. realm:lower():gsub("[^%a]+", " ") .. " "
+	if s:find(" hardcore ", 1, true) then return "Hardcore" end
+	if s:find(" rppvp ", 1, true) or s:find(" rpvp ", 1, true) or s:find(" rp pvp ", 1, true) then return "RPvP" end
+	if s:find(" pvp ", 1, true) then return "PvP" end
+	if s:find(" pve ", 1, true) then return "PvE" end
+	if s:find(" rp ", 1, true) then return "RP" end
+	return nil
+end
+Store.RulesWord = RulesWord
+
+-- Whether the game runs without trading realms here (then the rules are the server).
+local function NoRealms()
+	local enabled = _G.RegionalUniqueNamesEnabled
+	return type(enabled) == "function" and enabled() == true
+end
+
+-- The rules the game says this character plays under, nil when it can't.
+local function GameRules()
+	if not NoRealms() then return nil end
+	local rules = Enum and Enum.GameRule
+	local G = _G.C_GameRules
+	if not (type(G) == "table" and type(G.IsGameRuleActive) == "function" and type(rules) == "table") then return nil end
+	if rules.PvPRuleset == nil or rules.RPRuleset == nil then return nil end
+	local function on(rule)
+		if rule == nil then return false end
+		local ok, active = pcall(G.IsGameRuleActive, rule)
+		return ok and active == true
+	end
+	if on(rules.HardcoreRuleset) then return "Hardcore" end
+	local pvp, rp = on(rules.PvPRuleset), on(rules.RPRuleset)
+	if pvp and rp then return "RPvP" end
+	if pvp then return "PvP" end
+	if rp then return "RP" end
+	return "PvE"
+end
+
+-- The rules key of a saved character, from what's saved alone: the key it was last seen with,
+-- else the rules word of its realm name (in this region: an account's characters are one
+-- region's), else, on a client with trading realms, its realm. nil when nothing says.
+local function RulesOf(c, region)
+	if type(c) ~= "table" then return nil end
+	if type(c.rules) == "string" and c.rules ~= "" then return c.rules end
+	region = region or Store.Region()
+	if not region then return nil end
+	local word = RulesWord(c.realm)
+	if word then return region .. "-" .. word end
+	return nil
+end
+Store.RulesOf = RulesOf
+
+
+-- On 2026-11-20 the game stopped giving realm names on this client (GetRealmName() is "";
+-- Daylight UI 2.1.2 DB.lua:226-238), so the prices and vendors kept under "Realm-Faction"
+-- (Store.RealmKey) went on under "-H" and "-A" and the ones seen before looked gone. RealmKey now
+-- falls back on the realm a character was first saved under (Store.Realm), which brings the old
+-- ones back; this brings what was seen meanwhile along. A "-Faction" book is copied into a realm's
+-- when the characters of that faction seen since its oldest entry (their bags, bank or mail read
+-- no earlier) are all of one realm, so it is known whose it is: an entry the realm's book lacks,
+-- or has an older price or a dearer vendor of, is taken. Once per book, at the first load after the update, before this
+-- session reads anything. With more than one realm to choose from, or a character that has no
+-- realm saved (its own book is "-Faction"), nothing is copied. Nothing is deleted: the "-Faction"
+-- book stays as it is.
+local function AdoptBare(db)
+	if type(db.prices) ~= "table" or type(db.vendors) ~= "table" or type(db.chars) ~= "table" then return end
+	local done = type(db.bareAdopted) == "table" and db.bareAdopted or {}
+	for _, faction in ipairs({ "H", "A" }) do
+		local bare = "-" .. faction
+		local book, shop = db.prices[bare], db.vendors[bare]
+		local items = type(book) == "table" and type(book.items) == "table" and book.items or nil
+		if type(shop) ~= "table" then shop = nil end
+		local oldest
+		for _, row in pairs(items or {}) do
+			local t = type(row) == "table" and tonumber(row.t)
+			if t and (not oldest or t < oldest) then oldest = t end
+		end
+		for _, row in pairs(shop or {}) do
+			local t = type(row) == "table" and tonumber(row.at)
+			if t and (not oldest or t < oldest) then oldest = t end
+		end
+		if oldest and not done[bare] then
+			local realm, several = nil, false
+			for _, c in pairs(db.chars) do
+				if type(c) == "table" and c.faction == faction then
+					local seen = math.max(tonumber(c.bagsAt) or 0, tonumber(c.bankAt) or 0, tonumber(c.mailAt) or 0)
+					local r = type(c.realm) == "string" and c.realm or ""
+					if r == "" then
+						several = true
+					elseif seen >= oldest then
+						if realm and realm ~= r then several = true end
+						realm = r
+					end
+				end
+			end
+			if realm and not several then
+				local key = realm .. bare
+				if items then
+					local into = type(db.prices[key]) == "table" and db.prices[key] or { items = {} }
+					db.prices[key] = into
+					if type(into.items) ~= "table" then into.items = {} end
+					for itemID, row in pairs(items) do
+						local have = into.items[itemID]
+						if type(row) == "table" and (type(have) ~= "table" or (tonumber(have.t) or 0) < (tonumber(row.t) or 0)) then
+							local copy = {}
+							for k, v in pairs(row) do copy[k] = v end
+							into.items[itemID] = copy
+						end
+					end
+					if tonumber(book.scanned) and (tonumber(into.scanned) or 0) < book.scanned then into.scanned = book.scanned end
+				end
+				if shop then
+					local into = type(db.vendors[key]) == "table" and db.vendors[key] or {}
+					db.vendors[key] = into
+					for itemID, row in pairs(shop) do
+						local have = into[itemID]
+						-- (The cheaper vendor stays, as when one is read.)
+						if type(row) == "table" and (type(have) ~= "table" or (tonumber(row.unit) or math.huge) <= (tonumber(have.unit) or math.huge)) then
+							local copy = {}
+							for k, v in pairs(row) do copy[k] = v end
+							into[itemID] = copy
+						end
+					end
+				end
+			end
+			done[bare] = time()
+			db.bareAdopted = done
+		end
+	end
+end
+
+local adoptedIn       -- the saved table AdoptBare has gone through this session
+
+-- The books move from "Realm-Faction" (db.prices, db.vendors) to the rules key (db.books.prices
+-- [rules], db.books.vendors[rules-Faction]). Each old book goes to the rules key its characters
+-- belong to, decided by what's saved: for "Realm-F", the rules word in the realm's name and the
+-- rules keys of the characters saved on that realm; for a bare "-F" (written since the game
+-- stopped naming realms), the rules keys of that faction's characters seen since its oldest
+-- entry (bags, bank or mail read no earlier). One answer, and all of it agreeing: the book is
+-- merged in, a newer price winning and a cheaper vendor staying. No answer, or two: it stays
+-- where it is and is still read by the characters it was written by (OldKey). Nothing is deleted
+-- or changed in the old tables: db.migrated[old key] = { to, at } says where a book went.
+-- Run when db.version isn't this one (the first load, and again after an older version of the
+-- plugin, which sets it back and goes on writing the old tables: what it wrote is merged then).
+-- Merging twice changes nothing.
+local function MergePrices(into, from)
+	if type(into.items) ~= "table" then into.items = {} end
+	for itemID, row in pairs(type(from.items) == "table" and from.items or {}) do
+		local have = into.items[itemID]
+		if type(row) == "table" and (type(have) ~= "table" or (tonumber(have.t) or 0) < (tonumber(row.t) or 0)) then
+			local copy = {}
+			for k, v in pairs(row) do copy[k] = v end
+			into.items[itemID] = copy
+		end
+	end
+	if tonumber(from.scanned) and (tonumber(into.scanned) or 0) < from.scanned then into.scanned = from.scanned end
+end
+
+local function MergeVendors(into, from)
+	for itemID, row in pairs(from) do
+		local have = into[itemID]
+		-- (The cheaper vendor stays, as when one is read; of two as cheap, the later sighting.)
+		if type(row) == "table" then
+			local mine, theirs = type(have) == "table" and tonumber(have.unit) or math.huge, tonumber(row.unit) or math.huge
+			if theirs < mine or (theirs == mine and (tonumber(row.at) or 0) > (type(have) == "table" and tonumber(have.at) or 0)) then
+				local copy = {}
+				for k, v in pairs(row) do copy[k] = v end
+				into[itemID] = copy
+			end
+		end
+	end
+end
+
+-- Where an old book belongs: its rules key, or nil when what's saved doesn't say, or says two.
+local function Belongs(db, realm, faction, region)
+	local found, several = nil, false
+	local function say(key)
+		if not key then return end
+		if found and found ~= key then several = true end
+		found = key
+	end
+	if realm ~= "" then
+		local word = RulesWord(realm)
+		say(word and (region .. "-" .. word) or nil)
+		for _, c in pairs(db.chars) do
+			if type(c) == "table" and c.realm == realm then say(RulesOf(c, region)) end
+		end
+	else
+		local oldest
+		local book, shop = db.prices[realm .. "-" .. faction], db.vendors[realm .. "-" .. faction]
+		for _, row in pairs(type(book) == "table" and type(book.items) == "table" and book.items or {}) do
+			local t = type(row) == "table" and tonumber(row.t)
+			if t and (not oldest or t < oldest) then oldest = t end
+		end
+		for _, row in pairs(type(shop) == "table" and shop or {}) do
+			local t = type(row) == "table" and tonumber(row.at)
+			if t and (not oldest or t < oldest) then oldest = t end
+		end
+		if not oldest then return nil end
+		for _, c in pairs(db.chars) do
+			if type(c) == "table" and c.faction == faction then
+				local seen = math.max(tonumber(c.bagsAt) or 0, tonumber(c.bankAt) or 0, tonumber(c.mailAt) or 0)
+				if seen >= oldest then
+					local key = RulesOf(c, region)
+					-- (Someone seen since whose rules nothing says: it may be theirs.)
+					if not key then several = true end
+					say(key)
+				end
+			end
+		end
+	end
+	if several then return nil end
+	return found
+end
+
+-- True when it ran (the region known), so the version can be set.
+local function Migrate(db)
+	local region = Store.Region()
+	if not region then return false end
+	db.books = type(db.books) == "table" and db.books or {}
+	local books = db.books
+	books.prices = type(books.prices) == "table" and books.prices or {}
+	books.vendors = type(books.vendors) == "table" and books.vendors or {}
+	db.migrated = type(db.migrated) == "table" and db.migrated or {}
+	local olds = {}
+	for key in pairs(db.prices) do olds[key] = true end
+	for key in pairs(db.vendors) do olds[key] = true end
+	for old in pairs(olds) do
+		local realm, faction = tostring(old):match("^(.*)%-([HA])$")
+		local to = realm and Belongs(db, realm, faction, region) or nil
+		-- (A book that went somewhere once goes there again: what was decided stands.)
+		local was = type(db.migrated[old]) == "table" and db.migrated[old].to or nil
+		if was then to = was end
+		if to then
+			local book, shop = db.prices[old], db.vendors[old]
+			if type(book) == "table" then
+				local into = type(books.prices[to]) == "table" and books.prices[to] or { items = {} }
+				books.prices[to] = into
+				MergePrices(into, book)
+			end
+			if type(shop) == "table" then
+				local key = to .. "-" .. faction
+				local into = type(books.vendors[key]) == "table" and books.vendors[key] or {}
+				books.vendors[key] = into
+				MergeVendors(into, shop)
+			end
+			db.migrated[old] = { to = to, at = was and db.migrated[old].at or time() }
+		end
+	end
+	return true
+end
 
 local function DB()
 	local db = _G.DaylightRecipesDB
@@ -21,11 +309,20 @@ local function DB()
 		_G.DaylightRecipesDB = db
 	end
 	if db.version ~= DB_VERSION then
-		db.version = DB_VERSION
 		db.chars = type(db.chars) == "table" and db.chars or {}
 		db.account = type(db.account) == "table" and db.account or {}
 		db.vendors = type(db.vendors) == "table" and db.vendors or {}
 		db.prices = type(db.prices) == "table" and db.prices or {}
+		db.books = type(db.books) == "table" and db.books or {}
+		db.books.prices = type(db.books.prices) == "table" and db.books.prices or {}
+		db.books.vendors = type(db.books.vendors) == "table" and db.books.vendors or {}
+		db.migrated = type(db.migrated) == "table" and db.migrated or {}
+		if adoptedIn ~= db then
+			adoptedIn = db
+			AdoptBare(db)
+		end
+		-- (With the region not known yet, the old books are gone through at the next ask.)
+		if Migrate(db) then db.version = DB_VERSION end
 	end
 	return db
 end
@@ -47,19 +344,121 @@ function Store.Char()
 		c = { prof = {}, known = {}, bags = {}, bank = {}, mail = {} }
 		chars[guid] = c
 	end
+	-- (The realm it was first seen on. The game may give none, "": then the one saved stays.)
+	local realm = GetRealmName and GetRealmName()
+	if type(realm) ~= "string" or realm == "" then realm = nil end
+	if realm and (c.realm == nil or c.realm == "") then c.realm = realm end
 	if not c.named then
 		c.name = UnitName("player")
-		c.realm = GetRealmName and GetRealmName() or c.realm
+		c.realm = realm or c.realm
 		c.faction = ns.Faction()
 		c.class = select(2, UnitClass("player"))
 		c.named = true
 	end
+	-- (The rules key it plays under, whenever the game says: what its alts and books go by.)
+	local rules = Store.LiveRules()
+	if rules then c.rules = rules end
 	return c
 end
 
--- The key prices and vendors are kept under: realm and faction share an auction house.
+-- The rules key as the game gives it right now ("US-PvP"; "US-Realm Name" on a client with
+-- trading realms), nil while it can't say.
+function Store.LiveRules()
+	local region = Store.Region()
+	if not region then return nil end
+	local kind = GameRules()
+	if kind then return region .. "-" .. kind end
+	if NoRealms() then return nil end
+	local realm = GetRealmName and GetRealmName()
+	if type(realm) == "string" and realm ~= "" then return region .. "-" .. realm end
+	return nil
+end
+
+-- This character's rules key: the game's, else the one it was last saved with, else the rules
+-- word of its saved realm. nil when none of those says (a character never seen, the game's rules
+-- not in yet): then the old "Realm-Faction" books are used meanwhile (Store.RealmKey).
+local keptRules       -- the game's answer, kept from login on (asked again when the rules change)
+function Store.RulesKey()
+	local live = keptRules or Store.LiveRules()
+	if live then return live end
+	local guid = Me()
+	local c = guid and DB().chars[guid]
+	return RulesOf(c)
+end
+
+-- This character's realm: the game's name for it, else (since 2026-11-20 the game gives none on
+-- this client: GetRealmName() is "") the one the character was first saved under, else "".
+function Store.Realm()
+	local realm = GetRealmName and GetRealmName()
+	if type(realm) == "string" and realm ~= "" then return realm end
+	local guid = Me()
+	local c = guid and DB().chars[guid]
+	realm = type(c) == "table" and c.realm
+	return type(realm) == "string" and realm or ""
+end
+
+-- The old key of this character's books, "Realm-Faction" ("-H" with no realm known).
+local function OldKey()
+	return Store.Realm() .. "-" .. ns.Faction()
+end
+
+-- The key of this character's Auction House: its rules key (one house for both factions), or,
+-- while that isn't known, the old "Realm-Faction". What's kept for a session by Auction House
+-- (Prices' price steps) goes by it. (The name is from when a realm and faction shared one.)
 function Store.RealmKey()
-	return (GetRealmName and GetRealmName() or "?") .. "-" .. ns.Faction()
+	return Store.RulesKey() or OldKey()
+end
+
+-- This character's price book ({ items = { [itemID] = { p, t, q } }, scanned }), made when there
+-- is none: the rules key's, or the old "Realm-Faction" one while the rules aren't known.
+function Store.PriceBook()
+	local db = DB()
+	local rules = Store.RulesKey()
+	local shelf, key = db.prices, OldKey()
+	if rules and type(db.books) == "table" then shelf, key = db.books.prices, rules end
+	local book = shelf[key]
+	if type(book) ~= "table" then
+		book = { items = {} }
+		shelf[key] = book
+	end
+	if type(book.items) ~= "table" then book.items = {} end
+	return book
+end
+
+-- The old "Realm-Faction" price book this character wrote and nobody could place (it wasn't
+-- merged into a rules key's): read beside the rules key's own. nil when there is none, or when
+-- the old book is the one in use anyway.
+function Store.OldPriceBook()
+	local db = DB()
+	if not Store.RulesKey() then return nil end
+	local key = OldKey()
+	if type(db.migrated) == "table" and db.migrated[key] then return nil end
+	local book = db.prices[key]
+	return type(book) == "table" and type(book.items) == "table" and book or nil
+end
+
+-- The same two for the vendors seen ({ [itemID] = { unit, who, map, x, y, at } }): kept by rules
+-- key and faction.
+local function VendorBook(make)
+	local db = DB()
+	local rules = Store.RulesKey()
+	local shelf, key = db.vendors, OldKey()
+	if rules and type(db.books) == "table" then shelf, key = db.books.vendors, rules .. "-" .. ns.Faction() end
+	local book = shelf[key]
+	if type(book) ~= "table" and make then
+		book = {}
+		shelf[key] = book
+	end
+	return type(book) == "table" and book or nil
+end
+
+local function OldVendorBook()
+	local db = DB()
+	if not Store.RulesKey() then return nil end
+	local key = OldKey()
+	if type(db.migrated) == "table" and db.migrated[key] then return nil end
+	local book = db.vendors[key]
+	return type(book) == "table" and book or nil
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -100,17 +499,28 @@ function Store.SaveKnown(line, set)
 	Store.version = Store.version + 1
 end
 
--- The other characters on this realm and faction (the ones you can mail): guid -> record.
-local alts, altsAt
+-- The account's other characters you can mail: the same rules key (every numbered realm of a
+-- set of rules is one server) and faction. guid -> record. While this character's rules key
+-- isn't known: the ones saved on its realm, as before; a character whose rules nothing says is
+-- nobody's alt.
+local alts, altsAt, altsKey
 function Store.Alts()
-	if alts and altsAt == Store.version then return alts end
+	local rules = Store.RulesKey()
+	if alts and altsAt == Store.version and altsKey == rules then return alts end
 	local out = {}
 	local guid = Me()
-	local realm, faction = GetRealmName and GetRealmName(), ns.Faction()
+	local realm, faction = Store.Realm(), ns.Faction()
+	local region = Store.Region()
 	for g, c in pairs(DB().chars) do
-		if g ~= guid and type(c) == "table" and c.realm == realm and c.faction == faction then out[g] = c end
+		if g ~= guid and type(c) == "table" and c.faction == faction then
+			if rules then
+				if RulesOf(c, region) == rules then out[g] = c end
+			elseif realm ~= "" and c.realm == realm then
+				out[g] = c
+			end
+		end
 	end
-	alts, altsAt = out, Store.version
+	alts, altsAt, altsKey = out, Store.version, rules
 	return out
 end
 
@@ -315,8 +725,7 @@ local function ReadMerchant()
 	if n == 0 then return false end
 	local changed = false
 	local want = Reagents()
-	local vendors = DB().vendors
-	local key = Store.RealmKey()
+	local byRealm = VendorBook(true)
 	local who = UnitName("npc")
 	local map = C_Map and C_Map.GetBestMapForUnit and C_Map.GetBestMapForUnit("player")
 	local x, y
@@ -337,8 +746,6 @@ local function ReadMerchant()
 			end
 			if price and price > 0 and not extended then
 				local unit = price / math.max(1, stack or 1)
-				local byRealm = vendors[key] or {}
-				vendors[key] = byRealm
 				local old = byRealm[itemID]
 				if not old or unit <= old.unit or old.who == who then
 					if not old or old.unit ~= unit then changed = true end
@@ -354,9 +761,12 @@ end
 
 -- The cheapest vendor you've seen selling an item: unit price, who, place ({ mapID, x, y }).
 function Store.SeenVendor(itemID)
-	local byRealm = DB().vendors[Store.RealmKey()]
-	local v = byRealm and byRealm[itemID]
-	if not v then return nil end
+	local book, old = VendorBook(), OldVendorBook()
+	local v = book and book[itemID]
+	-- (An old book nobody could place: its vendor when it's the cheaper one.)
+	local w = old and old[itemID]
+	if type(w) == "table" and (type(v) ~= "table" or (tonumber(w.unit) or math.huge) < (tonumber(v.unit) or math.huge)) then v = w end
+	if type(v) ~= "table" then return nil end
 	return v.unit, v.who, v.map and { mapID = v.map, x = v.x, y = v.y } or nil
 end
 
@@ -385,14 +795,22 @@ local function Soon(what, fn, delay)
 end
 
 local f = CreateFrame("Frame")
-for _, e in ipairs({ "PLAYER_LOGIN", "BAG_UPDATE_DELAYED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
+for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "GAME_RULES_CHANGED", "BAG_UPDATE_DELAYED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
 	"PLAYERBANKSLOTS_CHANGED", "MAIL_SHOW", "MAIL_INBOX_UPDATE", "MERCHANT_SHOW" }) do
 	pcall(f.RegisterEvent, f, e)
 end
 f:SetScript("OnEvent", function(_, event)
-	if event == "PLAYER_LOGIN" then
+	if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" or event == "GAME_RULES_CHANGED" then
+		-- (The game's rules for this character can come in after login: its key is saved when
+		-- they do, and what hangs on it worked out again.)
+		local was = keptRules
+		keptRules = Store.LiveRules()
 		Store.Char()
-		Soon("bags", ReadBags, 2)
+		if keptRules ~= was then
+			Store.version = Store.version + 1
+			if ns.Calc then ns.Calc.Forget() end
+		end
+		if event == "PLAYER_LOGIN" then Soon("bags", ReadBags, 2) end
 	elseif event == "BAG_UPDATE_DELAYED" then
 		Soon("bags", ReadBags)
 		if bankOpen then Soon("bank", ReadBank) end
