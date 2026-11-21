@@ -6,6 +6,14 @@ A plugin for Daylight UI, by Glowey (not part of Daylight UI itself: report its 
 
 ---
 
+## New in 2.8.0
+- **Leveling Guide you can trust:** every step uses a recipe that is orange or yellow at that skill, for all four goals (Cheapest, Vendor, Disenchant, Auction House). No more "make 100" of something that barely gives points. For recipes you know, the game's own color decides.
+- **424 recipes added:** everything whose gray skill lies past 300 was missing, Runecloth Bandage among them. The guide now reaches 300 on recipes that give points in every crafting profession.
+- **Your prices are back:** the game stopped giving realm names on Nov 20, which hid saved prices and your other characters' holdings. They are found again and kept by the server's rules from now on. Nothing was lost.
+- **Daylight UI 2.1.2:** its profession window now shows cost and profit, so the Docked Pane can leave those to it (asked once, switch it back in the options). Buy List searches find items in every category.
+
+---
+
 ## The window
 Open any profession and Glowey's Recipes' window takes the place of the game's (and Daylight UI's or Mogul's).
 - **Your professions on the left** (click one to open it), with your alts' below: see what each alt knows. Herbalism, Skinning and Fishing open their own page (skill, rank, where to train next) and a **Camping** entry lists every profession's camping items. Right-click a main profession to **unlearn** it.
@@ -28,46 +36,6 @@ Drag a cheap item into the slot and level on it: enchant after enchant, with the
 
 ## Around the game
 Item tooltips (what uses a material, what your guides need of it, and for a recipe who on your account knows it and who could learn it, in class colors, with the skill still needed; only this character's guides), and trainer reminders in chat when a skill-up opens new recipes or you reach your rank's cap.
-
-## New in 2.8.0
-- **Leveling Guide you can trust:** every step uses a recipe that is orange or yellow at that skill, for all four goals (Cheapest, Vendor, Disenchant, Auction House). No more "make 100" of something that barely gives points. For recipes you know, the game's own color decides.
-- **424 recipes added:** everything whose gray skill lies past 300 was missing, Runecloth Bandage among them. The guide now reaches 300 on recipes that give points in every crafting profession.
-- **Your prices are back:** the game stopped giving realm names on Nov 20, which hid saved prices and your other characters' holdings. They are found again and kept by the server's rules from now on. Nothing was lost.
-- **Daylight UI 2.1.2:** its profession window now shows cost and profit, so the Docked Pane can leave those to it (asked once, switch it back in the options). Buy List searches find items in every category.
-
-## New in 2.7.0
-- **Check Prices:** a button on the Auction House Buy List reads how many are for sale at each price for everything on the list. A row then shows what the amount you need really costs (not the amount times the lowest price), says "only N for sale" when there aren't enough, and its tooltip lists the price steps. Until checked, a row says "about".
-- **Vendor split:** when a vendor also sells an item, the Auction House row asks only for the units cheaper than the vendor, and the vendor's Buy List asks for the rest.
-- **Leveling Guide:** material costs, step costs and the route total follow the checked prices.
-
-## New in 2.6.0
-- **Buy List, two lists:** Queue List and Guide List, picked with the tabs under its title, plus profession tags when the list covers more than one profession.
-- **Only what is cheapest where you are:** at the Auction House the list leaves out what a vendor sells for less, and the other way round at a vendor. A line under the list brings the rest back.
-- **Remove:** hold Shift over a row and Shift-click to take it off the list; a line under the list puts it back.
-- **Counts down as you buy:** what you buy on the Auction House comes off the list right away, before you visit a mailbox, and buying by hand at a vendor is followed at once.
-- **Daylight UI's prices:** with Daylight UI 2.0's Auction House, the prices it has already collected are used, so fewer materials say "No price". Fixed a Leveling Guide alternative showing "200000 gold a point".
-
-## New in 2.5.0
-- **Enchanting in the Docked Pane:** the item slot, Auto-replace and enchant runs (Next / Done) beside Daylight UI's or DaylightMogul's profession window, as in the Recipes window.
-
-## New in 2.4.0
-- **Cooldowns:** your craft cooldowns (transmutes, Mooncloth, Cured Rugged Hide…) as tiles under the professions list, with the time left. Click one to open the recipe.
-- **Controller support:** the whole window, the shopping panels and the tours work with a controller.
-
-## New in 2.3.0
-- **Tracking:** your profession tracking spells (Find Minerals, Find Herbs) at the foot of the professions list. Click one to turn it on or off; the one on glows.
-
-## New in 2.2.1
-- The window tour that starts by itself opens the Glowey's Recipes window again.
-
-## New in 2.2.0
-- **A welcome and tours:** on first launch a welcome lists what Glowey's Recipes takes over; **Start Tour** walks you through the window, opening each tab as it goes (Recipes, Leveling Guide, Materials, Queue, Missing). The buy lists, the trainer panel and enchanting runs explain themselves the first time.
-- **Help** in the settings: **Retake Tour**, **What's New**, and **Revert to** the profession window you had (Daylight UI's, DaylightMogul's or the game's).
-- **Link your profession:** with the chat box open, Shift-click the profession's icon at the top of the window, or the profession on the left.
-- **Mastercraft's gathering node tooltips** read "Turns gray in 30 more skill", the color in its own color.
-- **Update alert:** a chat line when a newer version is out (once a session; switch it off under Updates).
-
-**Recipes marked at vendors (new in 2.2.0):** a small square on any recipe a vendor sells that you or an alt on this realm can learn, bright when you can learn it now. On Daylight UI's vendor page and the game's own vendor window.
 
 ---
 
