@@ -29,6 +29,10 @@ Glowey's Recipes is free software under the GNU General Public License, version 
   `python Tools/questie.py "<AddOns folder>" [--report FILE]` again after a ForeverRecipes, Polestar
   or QuestieDB update (run `Tools/polestar.py` first if Polestar changed). Use only QuestieDB's
   facts, never its code, text or the Questie name and logo.
+- `Ranks.lua` (in the root, not `Data/`) is written by hand from research: how each profession's ranks are
+  learned (trainer, book or quest), from what skill and level, and who teaches or sells them. Its header
+  names the sources and which entries a database confirms and which only the trainer guides do. Change it
+  only from a source you can name there; `Tools/tests/test_ranks.lua` checks every NPC it lists.
 - The rest is this plugin's own code, built on `DaylightUI.API` only (see DaylightUI's `API.md`).
   DaylightUI and DaylightMogul have their own licenses (All Rights Reserved): read them to
   understand how they work, but never copy their code, art or text into this plugin, and never

@@ -525,7 +525,7 @@ local function Route(from, target, cap, goal, credit)
 			if cap >= TOP then break end
 			local nextCap = cap + 75
 			for _, c in ipairs(RANK_CAPS) do if c > cap then nextCap = c break end end
-			steps[#steps + 1] = { kind = "rank", at = k, cap = nextCap, name = RANK_SHOWN[nextCap], level = RANK_LEVEL[nextCap] }
+			steps[#steps + 1] = { kind = "rank", at = k, cap = nextCap, name = RANK_SHOWN[nextCap], level = Plan.RankLevel(nextCap) }
 			cap = nextCap
 		else
 			-- The cheapest three a point here (the best and the next two, for the alternatives), among
@@ -948,4 +948,11 @@ end
 -- Rank names for a cap (for text).
 function Plan.RankName(cap) return RANK_SHOWN[cap] end
 -- The character level a rank asks (nil for Apprentice).
-function Plan.RankLevel(cap) return RANK_LEVEL[cap] end
+-- (Ranks.lua's word for the open profession where it has one: Cooking, First Aid and Mining ask
+-- for no level.)
+function Plan.RankLevel(cap)
+	local ranks = ns.Ranks and S.line and ns.Ranks[S.line]
+	local rec = ranks and ranks[cap]
+	if type(rec) == "table" then return rec.level end
+	return RANK_LEVEL[cap]
+end

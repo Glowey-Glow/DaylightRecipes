@@ -499,6 +499,8 @@ ns.Where = {
 	-- (The guide's nearest trainer and vendor: one with a spot on the map, one without.)
 	NearestTrainer = function() return { name = "Tepa", place = { zone = "Thunder Bluff", mapID = 1, x = 44, y = 45 }, copper = 500 } end,
 	NearestSeller = function() return { name = "Borya", place = { zone = "Orgrimmar" } } end,
+	-- (Ranks.lua's record for the plan's Artisan step: a quest, its giver, what to bring.)
+	RankInfo = function(_, cap) if cap == 300 then return { how = "quest", at = 200, level = 35, quest = 6610, questName = "Clamlette Surprise", who = { name = "Dirge Quikcleave", place = { zone = "Tanaris", mapID = 1446, x = 52.6, y = 28.1 } }, bring = { { 12207, 12 } } } end end,
 	NearestRankTrainer = function() return { name = "Tepa", place = { zone = "Thunder Bluff", mapID = 1, x = 44, y = 45 } } end,
 }
 local CHAR = { queue = {}, prof = {}, known = {} }

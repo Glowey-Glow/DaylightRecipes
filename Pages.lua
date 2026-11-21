@@ -670,10 +670,65 @@ local function StepCard(d, ctx, s, n, glowTop)
 	end
 end
 
+-- A quest's name in the player's language when the game has it, else the data's (English).
+local function QuestTitle(id, english)
+	local f = C_QuestLog and C_QuestLog.GetTitleForQuestID
+	if f and id then
+		local ok, name = pcall(f, id)
+		if ok and type(name) == "string" and name ~= "" then return name end
+	end
+	return english
+end
+
+-- Where the rank whose cap is `cap` is learned, under a rank's card or notice: Ranks.lua's record
+-- (a trainer, a book's vendor, a quest's giver: looked up for this client) with the nearest one;
+-- where it has none, the nearest trainer by what the trainers teach (Where.NearestRankTrainer),
+-- which says when it is only likely. at: the cap you're at.
+local function RankWhere(d, at, cap)
+	local info = Where.RankInfo(S.line, cap)
+	if info and info.how == "book" then
+		local name = info.item and ItemName(info.item, d) or nil
+		d:Line(name and L["It is learned from a book: %s."]:format(name) or L["It is learned from a book."], "small", "TEXT")
+		if info.who then
+			NearestRow(d, L["Nearest Vendor"], info.who, info.cost and info.cost > 0 and Calc.Money(info.cost) or nil)
+		else
+			d:Line(L["The data doesn't say where."], "small", "OFF")
+		end
+		return
+	elseif info and info.how == "quest" then
+		local name = QuestTitle(info.quest, info.questName)
+		d:Line(name and L["It is learned from a quest: %s."]:format(name) or L["It is learned from a quest."], "small", "TEXT")
+		if info.who then
+			NearestRow(d, L["Quest Giver"], info.who)
+		else
+			d:Line(L["The data doesn't say where."], "small", "OFF")
+		end
+		-- (What the quest has you bring, with what you hold of each.)
+		if type(info.bring) == "table" and #info.bring > 0 then
+			d:Line(L["You Need"], "small", "LABEL")
+			for _, m in ipairs(info.bring) do MaterialRow(d, m[1], m[2], 0) end
+		end
+		return
+	elseif info and info.who then
+		NearestRow(d, L["Nearest Trainer"], info.who, info.cost and info.cost > 0 and Calc.Money(info.cost) or nil)
+		return
+	end
+	local who = Where.NearestRankTrainer(S.line, at)
+	if who then
+		NearestRow(d, L["Nearest Trainer"], who, info and info.cost and info.cost > 0 and Calc.Money(info.cost) or nil)
+	else
+		d:Line(L["The data doesn't say which trainers train this rank."], "small", "OFF")
+	end
+end
+
 local function RankCard(d, s, n)
 	d:Heading(L["Step %d · Skill %d"]:format(n, s.at))
 	local name, text = s.name or L["the next rank"]
-	if S.name and s.level then
+	local info = Where.RankInfo(S.line, s.cap)
+	if info and info.how ~= "trainer" then
+		-- (A book or a quest: no trainer to send you to.)
+		text = s.level and L["Learn %s (it asks level %d)."]:format(name, s.level) or L["Learn %s."]:format(name)
+	elseif S.name and s.level then
 		text = L["Train %s at a %s trainer (it asks level %d)."]:format(name, S.name, s.level)
 	elseif S.name then
 		text = L["Train %s at a %s trainer."]:format(name, S.name)
@@ -684,18 +739,26 @@ local function RankCard(d, s, n)
 	end
 	d:Line(text, "body", "WARN")
 	d:Line(L["You're capped at %d until you do."]:format(s.at), "small", "TEXT")
-	local who, certain = Where.NearestRankTrainer(S.line, s.at)
-	if who then
-		NearestRow(d, L["Nearest Trainer"], who)
-		-- (Only likely: a trainer of the tier that trains this rank, which the data can't prove for
-		-- one trainer. The nearest one it can prove goes under it.)
-		if not who.sure then
-			d:Line(L["Trainers of this tier normally train this rank, but the data can't confirm it for this one."], "small", "OFF")
-			if certain then NearestRow(d, L["Certain to Train It"], certain) end
-		end
-	else
-		d:Line(L["The data doesn't say which trainers train this rank."], "small", "OFF")
-	end
+	RankWhere(d, s.at, s.cap)
+end
+
+-- Before your cap: the next rank can be learned some points early (Ranks.lua's `at`: Journeyman
+-- from 50, Expert from 125, Artisan from 200). Said once you're there, with where, so the trip
+-- can be made before the cap stops you. Not when the first step is the rank itself.
+local RANK_AFTER = { [75] = 150, [150] = 225, [225] = 300 }
+local function RankEarly(d, route)
+	local cap, skill = S.max or 0, S.skill or 0
+	local nextCap = RANK_AFTER[cap]
+	if not nextCap or skill >= cap then return end
+	local first = route.steps[1]
+	if first and first.kind == "rank" then return end
+	local info = Where.RankInfo(S.line, nextCap)
+	if not info or not info.at or skill < info.at then return end
+	local level = UnitLevel and UnitLevel("player") or 0
+	if info.level and level < info.level then return end
+	d:Line(L["You can already learn %s (from skill %d)."]:format(ns.Plan.RankName(nextCap) or L["the next rank"], info.at), "small", "GOOD")
+	RankWhere(d, cap, nextCap)
+	d:Gap(4)
 end
 
 -- Your goal: the skills worth aiming for, and what the route aims for (cheapest materials, or the
@@ -752,6 +815,8 @@ function Pages.Guide(d, ctx)
 		end
 		d:Line(text, "small", "TEXT")
 	end
+
+	RankEarly(d, route)
 
 	-- Now: the first step, as a card. Then the rest, numbered.
 	local n, current = 0, nil

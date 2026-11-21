@@ -33,6 +33,7 @@ ProfLost.lua
 Calc.lua
 Store.lua
 Prices.lua
+Ranks.lua
 Where.lua
 Plan.lua
 Queue.lua
