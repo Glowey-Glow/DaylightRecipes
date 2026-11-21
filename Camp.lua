@@ -196,7 +196,7 @@ function Camp.Section(d, line, redraw)
 	for _, c in ipairs(list) do ItemRow(d, c, p, redraw) end
 end
 
--- Every profession's camping items: yours first, then the rest.
+-- Every profession's camping items: yours first, then the rest (folded away until asked for).
 function Camp.Page(d, redraw)
 	d:Line(NOTE, "small", "TEXT")
 	local lines, seen = {}, {}
@@ -222,10 +222,22 @@ function Camp.Page(d, redraw)
 		for _, c in ipairs(Items(line)) do ItemRow(d, c, p, redraw) end
 	end
 	if #others > 0 then
-		d:Heading(L["Other Professions"])
-		for _, line in ipairs(others) do
-			d:Line(Name(line), "small", "LABEL")
-			for _, c in ipairs(Items(line)) do ItemRow(d, c, nil, redraw) end
+		-- Folded away to start (a click shows them, another folds them again): the page opens on
+		-- your own professions. With none of your own to show, they start open instead.
+		local st = d.state
+		local open = st.campOthers
+		if open == nil then open = #lines == 0 end
+		d:Gap(10)
+		d:Row({ left = L["Other Professions"], leftInk = "LABEL", right = open and L["Hide"] or L["Show"], rightInk = "ACCENT",
+			onClick = function()
+				st.campOthers = not open
+				redraw()
+			end })
+		if open then
+			for _, line in ipairs(others) do
+				d:Line(Name(line), "small", "LABEL")
+				for _, c in ipairs(Items(line)) do ItemRow(d, c, nil, redraw) end
+			end
 		end
 	end
 end

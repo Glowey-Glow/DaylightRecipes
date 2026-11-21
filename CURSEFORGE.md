@@ -6,12 +6,8 @@ A plugin for Daylight UI, by Glowey (not part of Daylight UI itself: report its 
 
 ---
 
-## New in 3.0.3
-- **Leveling Guide, learn it first:** a step whose recipe you haven't learned opens with "Learn ... First" and names the nearest trainer who teaches it (or the vendor who sells it). A click sets a waypoint.
-- **Leveling Guide, your next rank:** every profession's Journeyman, Expert and Artisan say how they are learned and where: the nearest trainer who teaches that rank, the book and its vendor (Expert Cooking and First Aid), or the quest and its giver (Artisan Cooking and First Aid, with what to bring).
-- **Learn it early:** ranks can be learned from skill 50, 125 and 200. Once you can, the guide says so, with where to go.
-- **Buy List:** the Guide List also holds the recipes the guide has you buy, from a vendor or the Auction House.
-
+## New in 3.0.4
+- **Camping, tidier:** Other Professions starts folded away, so the Camping page opens on your own professions' camping items. Click the Other Professions row to show the rest.
 ---
 
 ## The window

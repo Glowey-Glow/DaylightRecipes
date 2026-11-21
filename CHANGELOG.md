@@ -1,5 +1,9 @@
 # Glowey's Recipes (DaylightUI Plugin)
 
+## 3.0.4
+
+- Camping: Other Professions starts folded away, so the page opens on your own professions' camping items. Click the Other Professions row to show the rest, and again to fold them. A character with no profession of its own on the page sees them open, as before.
+
 ## 3.0.3
 
 - Leveling Guide: a step whose recipe you haven't learned now says so first, in its own row ("Learn ... First", with the price), before it asks you to make anything; the crafting row under it reads "Then Make ...". Before, the card opened with "Make 12 x ..." and the learning was a small line further down.
