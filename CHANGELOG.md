@@ -1,5 +1,12 @@
 # Glowey's Recipes (DaylightUI Plugin)
 
+## 3.0.3
+
+- Leveling Guide: a step whose recipe you haven't learned now says so first, in its own row ("Learn ... First", with the price), before it asks you to make anything; the crafting row under it reads "Then Make ...". Before, the card opened with "Make 12 x ..." and the learning was a small line further down.
+- Leveling Guide: that step names the nearest trainer who teaches the recipe (or the nearest vendor who sells it), with the zone and coordinates. A click sets a waypoint. In the list of later steps, a click on a recipe you still have to learn sets the same waypoint.
+- Leveling Guide: the step for training your next rank (Journeyman, Expert, Artisan) names the nearest trainer for it. The data has no list of who trains which rank, so it goes by what each trainer teaches: one that teaches recipes past your cap is certain to train the rank; one of the tier that normally trains it is shown as likely, with the nearest certain one under it. For Cooking and First Aid past 150 it says the data doesn't know.
+- "Nearest" is your zone first (by distance), then your continent, then elsewhere.
+
 ## 3.0.2
 
 - Your professions are across the window's title bar: a small chip for each, by its abbreviation (Cook, FA, LW, Fish, Skin), and one for Camping. One press opens another profession; there is no menu to open first. The open one is lit in your accent color and shows its skill ("Cook 153 / 225"); point at any chip for its full name and skill. Rolled up, the window has the same chips.

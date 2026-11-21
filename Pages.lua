@@ -571,6 +571,28 @@ local function MaterialRow(d, itemID, need, indent)
 end
 Pages.MaterialRow = MaterialRow
 
+-- Where to go for a step: the nearest trainer or vendor as a row (a click pins it on the map), its
+-- price on the right. who: Where.NearestTrainer / NearestSeller / NearestRankTrainer's answer.
+local function NearestRow(d, label, who, price)
+	d:Line(label, "small", "LABEL")
+	local located = who.place and who.place.mapID
+	d:Row({ left = who.name, leftInk = "TEXT", right = price or "", rightInk = "VALUE",
+		sub = PlaceText(who.place), subInk = located and "ACCENT" or "OFF",
+		tip = located and function(tip)
+			tip:SetText(who.name)
+			tip:AddLine(PlaceText(who.place), 1, 1, 1)
+			tip:AddLine(L["Click for a waypoint."], Color("LABEL"))
+		end or nil,
+		onClick = located and function() Where.Go(who.name, who.place) end or nil })
+end
+
+-- Who teaches (or sells) the recipe of a step you haven't learned, nearest to you: who, its label.
+local function LearnFrom(s)
+	if s.source == "trainer" then return Where.NearestTrainer(s.spell), L["Nearest Trainer"] end
+	if s.source == "vendor" then return Where.NearestSeller(s.spell), L["Nearest Vendor"] end
+	return nil
+end
+
 -- The step you're on, as a card: what to make and how many, its progress, its materials, and
 -- buttons to make it, queue it or look at it. glowTop: where the guide's light round it starts
 -- (it ends above the other recipes offered instead).
@@ -584,8 +606,18 @@ local function StepCard(d, ctx, s, n, glowTop)
 		if type(made) == "table" and made[1] then icon = select(2, ItemName(made[1], d)) end
 	end
 	local money, ink = Net(s.cost)
-	d:Row({ icon = icon, left = L["Make %d x %s"]:format(s.count, RecipeName(s.spell)), leftInk = "VALUE",
-		right = s.complete and money or "?", rightInk = s.complete and ink or "OFF",
+	-- A recipe you haven't learned: said first and plainly, with where to learn it, before the
+	-- step asks you to make anything.
+	if s.learn then
+		d:Row({ icon = icon, left = L["Learn %s First"]:format(RecipeName(s.spell)), leftInk = "WARN",
+			right = s.learn > 0 and Calc.Money(s.learn) or "", rightInk = "VALUE", tip = SpellTip(s.spell) })
+		d:Line(LearnText(s), "small", "WARN")
+		local who, label = LearnFrom(s)
+		if who then NearestRow(d, label, who, who.copper and who.copper > 0 and Calc.Money(who.copper) or nil) end
+		d:Gap(4)
+	end
+	d:Row({ icon = icon, left = (s.learn and L["Then Make %d x %s"] or L["Make %d x %s"]):format(s.count, RecipeName(s.spell)),
+		leftInk = "VALUE", right = s.complete and money or "?", rightInk = s.complete and ink or "OFF",
 		tip = SpellTip(s.spell) })
 	if s.kind == "tool" then
 		d:Line(L["The recipes from here on need it: made once, kept in your bags."], "small", "TEXT")
@@ -600,7 +632,6 @@ local function StepCard(d, ctx, s, n, glowTop)
 			d:Line(L["About %.1f crafts a point."]:format(s.crafts / span), "small", "TEXT")
 		end
 	end
-	if s.learn then d:Line(LearnText(s), "small", "WARN") end
 	local mats = Calc.Materials(s.spell)
 	if #mats > 0 then
 		d:Line(L["You Need"], "small", "LABEL")
@@ -653,6 +684,18 @@ local function RankCard(d, s, n)
 	end
 	d:Line(text, "body", "WARN")
 	d:Line(L["You're capped at %d until you do."]:format(s.at), "small", "TEXT")
+	local who, certain = Where.NearestRankTrainer(S.line, s.at)
+	if who then
+		NearestRow(d, L["Nearest Trainer"], who)
+		-- (Only likely: a trainer of the tier that trains this rank, which the data can't prove for
+		-- one trainer. The nearest one it can prove goes under it.)
+		if not who.sure then
+			d:Line(L["Trainers of this tier normally train this rank, but the data can't confirm it for this one."], "small", "OFF")
+			if certain then NearestRow(d, L["Certain to Train It"], certain) end
+		end
+	else
+		d:Line(L["The data doesn't say which trainers train this rank."], "small", "OFF")
+	end
 end
 
 -- Your goal: the skills worth aiming for, and what the route aims for (cheapest materials, or the
@@ -747,10 +790,13 @@ function Pages.Guide(d, ctx)
 				end
 				local range = s.kind == "tool" and L["at %d"]:format(s.at) or L["%d to %d"]:format(s.from, s.to)
 				local money, ink = Net(s.cost)
+				-- (A recipe to learn first: a click pins its nearest trainer or vendor.)
+				local who = s.learn and LearnFrom(s) or nil
+				local pin = who and who.place and who.place.mapID and function() Where.Go(who.name, who.place) end or nil
 				d:Row({ left = ("%d.  %s   %s"):format(n, range, RecipeName(s.spell)), leftInk = "TEXT",
 					right = s.complete and money or "?", rightInk = s.complete and ink or "OFF",
 					sub = sub, subInk = s.learn and "WARN" or "OFF", tip = SpellTip(s.spell),
-					onClick = not s.learn and ctx.pick and function() ctx.pick(s.spell) end or nil })
+					onClick = pin or (not s.learn and ctx.pick and function() ctx.pick(s.spell) end) or nil })
 			else
 				d:Line(("%d.  "):format(n) .. TrainAt(s), "small", "WARN", 4)
 			end

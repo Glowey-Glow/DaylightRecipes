@@ -569,6 +569,101 @@ function Where.NpcGroup(kind, title, list, note)
 	return out[1]
 end
 
+-- ---------------------------------------------------------------------------------------------
+-- The nearest one (for the Leveling Guide: where to learn a recipe, where to train a rank)
+-- ---------------------------------------------------------------------------------------------
+
+-- Of a list of the data's NPCs (ids, or records whose first field is one), the nearest your
+-- faction can reach, from where you stand now: { name, place, rec }, or nil when none is yours.
+local function NearestOf(list)
+	ReadHere()
+	local best
+	for _, rec in ipairs(list or {}) do
+		local id = type(rec) == "table" and rec[1] or rec
+		local name, place = Where.Npc(id)
+		if name then
+			local rank, dist = Near(place)
+			local line = { name = name, place = place, rank = rank, dist = dist, rec = rec }
+			if not best or NearestFirst(line, best) then best = line end
+		end
+	end
+	return best
+end
+
+-- The nearest trainer that teaches a recipe: { name, place, copper }, or nil.
+function Where.NearestTrainer(spell)
+	local list = ns.Trainers and ns.Trainers[spell]
+	if type(list) ~= "table" then return nil end
+	local line = NearestOf(list)
+	if line then line.copper = type(line.rec) == "table" and type(line.rec[2]) == "number" and line.rec[2] or nil end
+	return line
+end
+
+-- The nearest vendor of a recipe's item: { name, place }, or nil.
+function Where.NearestSeller(spell)
+	local data = ns.Recipes and ns.Recipes[spell]
+	local teach = data and data[5]
+	if not teach then return nil end
+	local fixed = AnySource(spell, teach) and teach
+	return NearestOf(Fixed(ns.Sellers and ns.Sellers[teach], "v", fixed))
+end
+
+-- Who trains the rank past `cap` (75, 150, 225) of a profession, nearest to you. The data has no
+-- list of who trains which rank: what it has is every trainer's recipes with the skill each asks,
+-- and those fall into tiers (Tailoring: trainers whose recipes stop at 55, at 150, at 225, at 255).
+--   sure:   a trainer that teaches a recipe asking MORE than `cap` teaches people of the next
+--           rank, so it trains that rank.
+--   likely: a trainer whose recipes reach to within 50 of `cap` is of the tier that trains it in
+--           the classic game the data is built on (an Expert trainer's recipes stop at 150, and
+--           it trains Expert), but nothing in the data proves it for one trainer.
+-- Returns nearest, certain: the nearest of both kinds ({ name, place, sure }), and, when that one
+-- is only likely, the nearest sure one as well. Cooking and First Aid get no answer past 150 or
+-- 225 (there the classic game used books and quests while trainers still taught recipes, so
+-- neither rule holds): their first rank, like every profession's, is any trainer's. nil when the
+-- data shows no one (said so, not guessed).
+local BOOK_LINES = { [185] = true, [129] = true }
+local LIKELY_WITHIN = 50
+local FEW = 5             -- under this many recipes it's no profession trainer (a quest giver, a foe)
+local rankTrainers = {}   -- line .. ":" .. cap -> { sure = { id, ... }, likely = { id, ... } }
+function Where.NearestRankTrainer(line, cap)
+	if not line or type(cap) ~= "number" then return nil end
+	local key = line .. ":" .. cap
+	local lists = rankTrainers[key]
+	if not lists then
+		local top, count = {}, {}
+		for spell, trainers in pairs(ns.Trainers or {}) do
+			local data = ns.Recipes and ns.Recipes[spell]
+			if data and data[1] == line and type(trainers) == "table" then
+				for _, rec in ipairs(trainers) do
+					if type(rec) == "table" and type(rec[3]) == "number" then
+						local id = rec[1]
+						count[id] = (count[id] or 0) + 1
+						if not top[id] or rec[3] > top[id] then top[id] = rec[3] end
+					end
+				end
+			end
+		end
+		lists = { sure = {}, likely = {} }
+		local book = BOOK_LINES[line]
+		for id, most in pairs(top) do
+			if count[id] >= FEW then
+				if book then
+					if cap <= 75 then lists.sure[#lists.sure + 1] = id end
+				elseif most > cap then
+					lists.sure[#lists.sure + 1] = id
+				elseif most >= cap - LIKELY_WITHIN then
+					lists.likely[#lists.likely + 1] = id
+				end
+			end
+		end
+		rankTrainers[key] = lists
+	end
+	local sure, likely = NearestOf(lists.sure), NearestOf(lists.likely)
+	if sure then sure.sure = true end
+	if likely and (not sure or NearestFirst(likely, sure)) then return likely, sure end
+	return sure
+end
+
 -- Where a recipe item comes from by Polestar's data alone (a camping blueprint): its groups.
 local itemSources = {}
 function Where.ItemSources(item)
