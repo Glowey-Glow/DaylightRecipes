@@ -1636,6 +1636,180 @@ end, function()
 	Flush()
 end)
 
+-- ---- 3.0.1: a profession's row opens it by its spell -------------------------------------------------
+-- Cooking and First Aid did not open from the menu: it asked the game by skill line. A row now
+-- carries the profession's spell and a secure button over it casts that, as the game's tabs do.
+local realProfessions, realProfessionInfo = GetProfessions, GetProfessionInfo
+local realOpen = C_TradeSkillUI.OpenTradeSkill
+Case("3.0.1: a profession's row opens it by its spell", function()
+	local asked = {}
+	C_TradeSkillUI.OpenTradeSkill = function(line) asked[#asked + 1] = line return true end
+	-- (As this client lists them: two primaries, then First Aid, Fishing, Cooking.)
+	GetProfessions = function() return 1, 2, 4, 3, 5 end
+	GetProfessionInfo = function(i)
+		if i == 4 then return "First Aid", 9, 79, 150, 0, 60, 129 end
+		if i == 5 then return "Cooking", 10, 153, 225, 0, 40, 185 end
+		local name, icon, skill, max, n, _, line = realProfessionInfo(i)
+		return name, icon, skill, max, n, i * 10, line
+	end
+	ns.LINES[185], ns.LINES[129] = true, true
+	Enum = { SpellBookSpellBank = { Player = 0 } }
+	C_SpellBook = { GetSpellBookItemInfo = function(slot, bank)
+		if bank ~= 0 then error("the player's spell bank") end
+		return { spellID = 5000 + slot }
+	end }
+	-- (Herbalism's and Fishing's spells show no crafting window.)
+	C_TradeSkillUI.CanTradeSkillShowCraftingUI = function(spell) return spell ~= 5021 and spell ~= 5031 end
+	local function RowOf(name)
+		local found
+		for _, o in ipairs(ALL) do
+			if rawget(o, "more") and o:IsVisible() and strip(o.name.textValue) == name then found = o end
+		end
+		return found
+	end
+	W.nameButton:Click()
+	ok(Menu.Shown(), "the menu is open")
+	local cooking, aid, tailoring, herbs = RowOf("Cooking"), RowOf("First Aid"), RowOf("Tailoring"), RowOf("Herbalism")
+	ok(cooking and aid and tailoring and herbs, "Cooking and First Aid are listed with the others")
+	eq(cooking.cast, 5041, "Cooking's row carries its spell: the first in its part of the spellbook")
+	eq(aid.cast, 5061, "and First Aid's row its own")
+	eq(tailoring.cast, nil, "the profession open now has none: casting it again would close it")
+	eq(herbs.cast, nil, "a gathering profession has none")
+	-- The mouse on Cooking's row: the secure button comes over it, set to that spell.
+	cooking.left, cooking.bottom, cooking.w, cooking.h = 300, 500, 206, 34
+	cooking.more.left, cooking.more.bottom = 480, 507
+	W.menuList.left, W.menuList.bottom, W.menuList.h = 300, 200, 400
+	cooking.scripts.OnEnter(cooking)
+	local cast = _G.DaylightRecipesMenuCast
+	ok(cast and cast:IsShown(), "a secure button is over the row")
+	ok(rawget(cast, "secure") and cast.parent == UIParent, "the game's own kind, on the screen alone")
+	eq(cast.attrs.type1, "spell", "a left click casts a spell")
+	eq(cast.attrs.spell, 5041, "Cooking's")
+	eq(cast.px, 300, "at the row's left")
+	eq(cast.py, 500, "and bottom")
+	eq(cast.h, 34, "as tall as the row")
+	eq(cast.w, 178, "and as wide as the row left of its More button")
+	ok(cast.level > cooking.level, "over the row")
+	eq(cast:GetFrameStrata(), W.menu.parent:GetFrameStrata(), "in the menu's own layer")
+	-- The click: the game casts (its own handler), then ours closes the menu. Nothing is asked by line.
+	cast.scripts.PreClick(cast, "LeftButton")
+	cast.scripts.PostClick(cast, "LeftButton")
+	ok(not Menu.Shown(), "the click closes the menu")
+	ok(not cast:IsShown(), "and puts the button away")
+	eq(#asked, 0, "the game was not asked by skill line")
+	-- A row scrolled half out of the list: only the part on show takes the click.
+	W.nameButton:Click()
+	cooking = RowOf("Cooking")
+	cooking.left, cooking.bottom, cooking.w, cooking.h = 300, 190, 206, 34
+	cooking.scripts.OnEnter(cooking)
+	eq(cast.py, 200, "a row half under the list's foot: the button stops at the foot")
+	eq(cast.h, 24, "and covers what shows")
+	-- A right-click on it: the row's More menu, and the button out of its way.
+	MENU = nil
+	cast.scripts.PreClick(cast, "RightButton")
+	cast.scripts.PostClick(cast, "RightButton")
+	ok(MENU and table.concat(MENU.keys, " ") == "link", "a right-click opens Cooking's More menu")
+	ok(not cast:IsShown(), "with the button put away")
+	if MENU and MENU.catcher then MENU.catcher:Hide() end
+	-- The mouse leaves it: away. A row with no spell: none.
+	cooking.scripts.OnEnter(cooking)
+	ok(cast:IsShown(), "back on the row: back")
+	cast.scripts.OnLeave(cast)
+	ok(not cast:IsShown(), "the mouse leaves it: away")
+	cooking.scripts.OnEnter(cooking)
+	tailoring = RowOf("Tailoring")
+	tailoring.scripts.OnEnter(tailoring)
+	ok(not cast:IsShown(), "on the open profession's row there is none")
+	-- A controller's A on the row: the same spell through Daylight UI's secure key.
+	local keyA = win.padKeys[1]
+	eq(keyA.key, "A", "the window's A")
+	local attrs = keyA.secure(cooking)
+	ok(attrs and attrs.type == "spell" and attrs.spell == 5041, "A on Cooking's row casts its spell")
+	eq(keyA.secure(tailoring), nil, "A on the open profession's row is the row's own press")
+	eq(keyA.label(), nil, "and the hint is Daylight UI's own Select")
+	-- The game opens the profession: the menu closes by itself (a controller's A has no click of ours).
+	Fire("TRADE_SKILL_SHOW")
+	ok(not Menu.Shown(), "the profession opening closes the menu")
+	eq(keyA.label(), "Stop", "menu shut: A is Stop's again")
+	-- A fight starts with the button out: it is put away at once, and never touched in the fight.
+	W.nameButton:Click()
+	cooking = RowOf("Cooking")
+	cooking.left, cooking.bottom, cooking.w, cooking.h = 300, 500, 206, 34
+	cooking.scripts.OnEnter(cooking)
+	ok(cast:IsShown(), "out again")
+	Fire("PLAYER_REGEN_DISABLED")
+	ok(not cast:IsShown(), "a fight starts: put away")
+	FIGHT = true
+	cooking.scripts.OnEnter(cooking)          -- (the strict stand-in raises on any protected call now)
+	ok(not cast:IsShown(), "in a fight it stays away")
+	eq(Menu.PadCast(cooking), nil, "and A has no spell")
+	cooking:Click()
+	eq(asked[#asked], 185, "in a fight the row's own click asks the game by line, as before")
+	ok(not Menu.Shown(), "and closes the menu")
+	FIGHT = false
+end, function()
+	FIGHT = false
+	if MENU and MENU.catcher then MENU.catcher:Hide() end
+	Menu.Close()
+	GetProfessions, GetProfessionInfo = realProfessions, realProfessionInfo
+	C_TradeSkillUI.OpenTradeSkill = realOpen
+	C_TradeSkillUI.CanTradeSkillShowCraftingUI = nil
+	C_SpellBook, Enum = nil, nil
+	ns.LINES[185], ns.LINES[129] = nil, nil
+	W.menuList.left, W.menuList.bottom, W.menuList.h = nil, nil, 0
+	Window.OpenProfession(197, 197)
+	Flush()
+end)
+
+-- ---- 3.0.1: the menu carries everything the old sidebar did ------------------------------------------
+-- Your professions, Camping, your alts, and at its foot the Cooldowns and Tracking tiles: all of
+-- them, from the window as it stands and from a rolled-up one (it unrolls first, and the menu has
+-- the unrolled window's room).
+Case("3.0.1: the menu carries everything the old sidebar did", function()
+	local function Look(what)
+		ok(Menu.Shown(), what .. ": the menu is open")
+		local names, titles, tiles = {}, {}, 0
+		for _, o in ipairs(ALL) do
+			if rawget(o, "more") and rawget(o, "name") and o:IsVisible() then names[strip(o.name.textValue)] = o end
+			if rawget(o, "title") and o.kind == "Frame" and o:IsVisible() and o.parent == W.menu then
+				titles[strip(o.title.textValue)] = o
+			end
+			if rawget(o, "ring") and o.kind == "Button" and o:IsVisible() and o.parent and o.parent.parent == W.menu then
+				tiles = tiles + 1
+			end
+		end
+		ok(names["Professions"] and names["Tailoring"] and names["Herbalism"] and names["Fishing"], what .. ": your professions")
+		ok(names["Camping"], what .. ": Camping")
+		ok(names["Camping"].onClick ~= nil, what .. ": which opens its page")
+		ok(names["Your Alts"] and names["Mira"], what .. ": your alts")
+		ok(titles["Cooldowns"], what .. ": the Cooldowns tiles")
+		ok(titles["Tracking"], what .. ": the Tracking tiles")
+		eq(tiles, 3, what .. ": two cooldown tiles and one tracking tile")
+		local foot = titles["Cooldowns"].h + titles["Tracking"].h
+		ok(foot > 0 and W.menu.h >= foot + 34 * 5, what .. ": the menu has room for its rows over the foot: " .. W.menu.h)
+		ok(W.menu.h <= win.h - State.HEADER, what .. ": inside the window")
+		-- Camping's row opens the camping page.
+		names["Camping"]:Click()
+		ok(not Menu.Shown() and W.gather == W.CAMP, what .. ": a press on Camping shows the camping page")
+		Window.OpenProfession(197, 197)
+		Flush()
+	end
+	W.nameButton:Click()
+	Look("the window open")
+	Window.SetTab("recipes")
+	Window.SetRolled(true)
+	Flush()
+	eq(Window.Mode(), "rolled", "rolled up")
+	W.nameButton:Click()
+	ok(Window.Mode() ~= "rolled", "the menu unrolls the window")
+	Look("from a rolled-up window")
+end, function()
+	Menu.Close()
+	Window.SetRolled(false)
+	Window.OpenProfession(197, 197)
+	Flush()
+end)
+
 if #FAILED > 0 then error(#FAILED .. " case(s) failed: " .. table.concat(FAILED, " || ")) end
 if #ERRORS > 0 then error("an error reached the error handler: " .. ERRORS[1]) end
 return ("ok, %d checks"):format(checks)

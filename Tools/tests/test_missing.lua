@@ -114,6 +114,88 @@ end
 local LINES = { [164] = "Blacksmithing", [165] = "Leatherworking", [171] = "Alchemy", [185] = "Cooking", [186] = "Mining",
 	[197] = "Tailoring", [202] = "Engineering", [333] = "Enchanting", [129] = "First Aid", [40] = "Poisons" }
 
+-- ---- the generated data carries every table the plugin reads ------------------------------------------
+-- The Data files are generated (Tools/*.py) and regenerated when their sources update. A table one
+-- of them stops writing would go unnoticed: every reader guards with "ns.X or {}", so its feature
+-- just goes quiet (the Camping page, a source on the Missing tab). So: every table the plugin's
+-- code reads from the data is named here, must be in the data, and must hold something; and the
+-- code is read for the names, so one it starts reading has to be added here.
+local READ = {
+	-- Data/Recipes.lua
+	"Recipes", "RecipeMeta", "RecipeNames", "ItemNames",
+	-- Data/Sources.lua
+	"Trainers", "AutomaticRecipes", "AutomaticQuests", "Sellers", "Drops", "OtherDrops", "QuestRewards",
+	"VendorSellers", "RecipeVendorCosts",
+	-- Data/Client.lua
+	"ClientRanges",
+	-- Data/Npcs.lua
+	"Npcs", "Quests", "QuestMeta",
+	-- Data/Polestar.lua
+	"PolestarTeach", "PolestarRep", "PolestarSources", "PolestarNpcs", "PolestarNames", "FactionVendors",
+	"CampTrainers", "Camping", "CampReagents",
+	-- Data/Corrections.lua
+	"CorrectionSources", "CorrectionNpcs", "CorrectionNames",
+	-- Data/Disenchant.lua
+	"DisenchantProfiles", "DisenchantExcluded", "DisenchantItems",
+}
+-- (Written empty by their generators today: nothing of the kind is in the sources.)
+local MAY_BE_EMPTY = { AutomaticQuests = true, OtherDrops = true }
+T.case("the generated data carries every table the plugin reads", function()
+	local listed = {}
+	for _, name in ipairs(READ) do
+		listed[name] = true
+		local t = ns[name]
+		T.ok(type(t) == "table", "ns." .. name .. " is in the data")
+		if type(t) == "table" and not MAY_BE_EMPTY[name] then
+			T.ok(next(t) ~= nil, "ns." .. name .. " holds something")
+		end
+	end
+	-- The tables the data files write, and which of them the plugin's own files read.
+	local written = {}
+	for _, name in ipairs(dataFiles) do
+		local f = assert(io.open(ROOT .. "/Data/" .. name, "rb"))
+		for line in f:lines() do
+			local t = line:match("^ns%.([%w_]+)%s*=")
+			if t then written[t] = name end
+		end
+		f:close()
+	end
+	local toc2 = assert(io.open(ROOT .. "/DaylightRecipes.toc", "r"))
+	local files = 0
+	for line in toc2:lines() do
+		local file = line:gsub("\r", ""):match("^([%w_]+%.lua)$")
+		if file then
+			files = files + 1
+			local f = assert(io.open(ROOT .. "/" .. file, "rb"))
+			local src = f:read("*a")
+			f:close()
+			for t in src:gmatch("ns%.([%w_]+)") do
+				if written[t] and not listed[t] then
+					T.ok(false, file .. " reads ns." .. t .. " (Data/" .. written[t] .. "): name it in this test's READ list")
+					listed[t] = true
+				end
+			end
+		end
+	end
+	toc2:close()
+	T.ok(files >= 25, "the plugin's files were read for the names: " .. files)
+	for _, name in ipairs(READ) do
+		T.ok(written[name] ~= nil, "ns." .. name .. " is written by a data file in the .toc")
+	end
+	-- The shapes the Camping page and the menu read (Camp.lua, WindowMenu.lua).
+	T.ok(#ns.Camping >= 30, "camping items for every profession: " .. #ns.Camping)
+	local lines = {}
+	for i, c in ipairs(ns.Camping) do
+		T.ok(type(c[1]) == "number" and type(c[2]) == "number" and type(c[3]) == "number" and type(c[4]) == "number"
+			and (c[5] == false or type(c[5]) == "number"), "camping item " .. i .. ": { spell, line, skill, item, blueprint or false }")
+		lines[c[2]] = true
+	end
+	for _, line in ipairs({ 129, 164, 165, 171, 185, 186, 197, 202, 333, 182, 393, 356 }) do
+		T.ok(lines[line], "camping items for skill line " .. line)
+	end
+	T.ok(type(ns.PolestarNames.quest) == "table", "quest names (a gathering page's rank quest)")
+end)
+
 -- ---- Data/Client.lua ------------------------------------------------------------------------------
 T.case("Data/Client.lua: its recipes are in the plugin's tables, its corrections in Calc.Thresholds", function()
 	T.ok(type(ns.ClientRanges) == "table" and next(ns.ClientRanges) ~= nil, "the client's threshold corrections are loaded")

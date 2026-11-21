@@ -3,6 +3,8 @@
 -- the header and inside the window's bounds, so it adds no area:
 --   your professions (a press opens one; a gathering one shows its own page), Camping, your alts'
 --   professions on this realm, and at its foot your craft cooldowns and the tracking spells.
+--   A profession opens by its own spell, cast through a secure button laid over its row, as the
+--   game's own profession tabs do it ("Opening a profession", below).
 --   Each of your professions has a "more" button (and a right-click, and a controller's Y) with
 --   Link to Chat and Unlearn, so neither is said only in a tooltip.
 -- It is built the way DaylightUI builds its own dropdown (DaylightUI/Options/Widgets.lua:2652-2666:
@@ -45,10 +47,30 @@ local Paint, PaintTrack, PaintCooldowns, PlaceFoot
 -- Your professions
 -- ---------------------------------------------------------------------------------------------
 
--- Your professions now: { name, icon, skill, max, line, game, crafts }, those with recipes first.
--- line: the data's skill line (the game's own when the data doesn't cover it); game: the game's
--- line, the one OpenTradeSkill takes; crafts: the data has recipes for it. The rest (Herbalism,
--- Skinning, Fishing) have no trade skill window: a press on one shows its own page (GatherPage).
+-- Your professions now: { name, icon, skill, max, line, game, crafts, spell }, those with recipes
+-- first. line: the data's skill line (the game's own when the data doesn't cover it); game: the
+-- game's line, the one OpenTradeSkill takes; crafts: the data has recipes for it; spell: the spell
+-- that opens its recipe window (OpenSpell). The rest (Herbalism, Skinning, Fishing) have no trade
+-- skill window: a press on one shows its own page (GatherPage).
+
+-- The spell that opens a profession's recipe window: the first of its spells in the spellbook,
+-- when the game says that one shows a crafting window. It is what the game's own profession tabs
+-- read and cast (Blizzard_Professions/Camelot/Blizzard_ProfessionsFrame.lua:42-65: GetProfessionInfo's
+-- spellOffset, C_SpellBook.GetSpellBookItemInfo(spellOffset + 1, Enum.SpellBookSpellBank.Player)
+-- .spellID, C_TradeSkillUI.CanTradeSkillShowCraftingUI(spellID); Blizzard_ProfessionsTemplates/
+-- Blizzard_ProfessionsTemplates.lua:965-971 casts it). Nil when the game has none to offer.
+local function OpenSpell(offset)
+	if type(offset) ~= "number" then return nil end
+	local bank = Enum and Enum.SpellBookSpellBank and Enum.SpellBookSpellBank.Player
+	if not (C_SpellBook and C_SpellBook.GetSpellBookItemInfo and bank ~= nil) then return nil end
+	if not (C_TradeSkillUI and C_TradeSkillUI.CanTradeSkillShowCraftingUI) then return nil end
+	local ok, info = pcall(C_SpellBook.GetSpellBookItemInfo, offset + 1, bank)
+	local spell = ok and type(info) == "table" and info.spellID or nil
+	if type(spell) ~= "number" then return nil end
+	local got, can = pcall(C_TradeSkillUI.CanTradeSkillShowCraftingUI, spell)
+	return got and can == true and spell or nil
+end
+
 function W.MyProfessions()
 	local out = {}
 	if type(GetProfessions) ~= "function" or type(GetProfessionInfo) ~= "function" then return out end
@@ -60,7 +82,8 @@ function W.MyProfessions()
 			if ok and name then
 				local data = ns.DataLine(line, name)
 				out[#out + 1] = { name = name, icon = icon, skill = skill or 0, max = max or 0, line = data or line,
-					game = line, crafts = data ~= nil, offset = spellOffset, index = index, primary = i <= 2 }
+					game = line, crafts = data ~= nil, offset = spellOffset, index = index, primary = i <= 2,
+					spell = OpenSpell(spellOffset) }
 			end
 		end
 	end
@@ -130,6 +153,7 @@ local function MoreMenu(owner, p)
 	if p.crafts then keys[#keys + 1] = "link" end
 	if p.primary then keys[#keys + 1] = "unlearn" end
 	if #keys == 0 then return end
+	Menu.HideCaster()
 	API.Menu(owner, keys, words, nil, function(key)
 		if key == "link" then
 			Menu.Close()
@@ -162,6 +186,135 @@ end)
 -- ---------------------------------------------------------------------------------------------
 -- The menu's rows
 -- ---------------------------------------------------------------------------------------------
+
+-- ---------------------------------------------------------------------------------------------
+-- Opening a profession
+-- ---------------------------------------------------------------------------------------------
+-- The game's own profession tabs never ask for a profession by its skill line: each casts the
+-- profession's spell (ProfessionsLargeRightTabMixin:CastProfessionSpell, Blizzard_ProfessionsTemplates/
+-- Blizzard_ProfessionsTemplates.lua:965-971, C_SpellBook.CastSpellBookItem). This menu asked by line
+-- (C_TradeSkillUI.OpenTradeSkill, TradeSkillUIDocumentation.lua:1113-1126), and Cooking and First
+-- Aid did not open from it. So a row opens its profession the game's way. Casting a spell is
+-- protected, so addon code can't do it from a click of its own: a secure button
+-- (SecureActionButtonTemplate, type1 "spell": SECURE_ACTIONS.spell casts it by ID,
+-- Blizzard_FrameXML/SecureTemplates.lua:396-405) lies over the row under the mouse and takes the
+-- click. By the rules Craft.lua's Stop keeps: UIParent's child, anchored to the screen alone at
+-- the row's place, and placed, sized, shown, hidden and given its spell out of a fight only. In a
+-- fight it is away (put away as the fight starts) and the row's own click asks by line, as
+-- before. A row whose profession is the one open has no spell to cast (casting it again would
+-- close it): its own click shows its recipes.
+-- A right-click on it opens the row's More menu and a Shift-click links the profession, as on the
+-- row; it leaves the row's More button free.
+
+local caster
+local PlaceCaster
+
+local function HideCaster()
+	if not caster or InCombatLockdown() then return end
+	local r = caster.row
+	caster.row = nil
+	if caster:IsShown() then caster:Hide() end
+	if r then r.wash:Hide() end
+end
+Menu.HideCaster = HideCaster
+
+local function Caster()
+	if caster or InCombatLockdown() then return caster end
+	caster = CreateFrame("Button", "DaylightRecipesMenuCast", UIParent, "SecureActionButtonTemplate")
+	-- (On the release, whatever the player's "cast on key down" setting: SecureActionButton_OnClick,
+	-- SecureTemplates.lua:802-811, reads useOnKeyDown first.)
+	caster:RegisterForClicks("AnyUp")
+	caster:SetAttribute("useOnKeyDown", false)
+	caster:Hide()
+	caster:SetScript("OnEnter", function(self)
+		local r = self.row
+		if r and r:IsShown() then r.wash:Show() end
+	end)
+	caster:SetScript("OnLeave", function() HideCaster() end)
+	-- (Before and after the game's own click handler, which casts the spell: the row is kept from
+	-- before it, since the profession opening closes the menu and may do so before PostClick.)
+	caster:SetScript("PreClick", function(self) self.clicked = self.row end)
+	caster:SetScript("PostClick", function(self, button)
+		local r = self.clicked
+		self.clicked = nil
+		if not r then return end
+		if button == "RightButton" then
+			if r.onRight then r.onRight(r) end
+			return
+		end
+		if button ~= "LeftButton" then return end
+		local p = r.prof
+		local link = p and p.crafts and IsModifiedClick("CHATLINK")
+		Menu.Close()
+		-- (Linked once the game has it open: it opens a moment after the press.)
+		if link then ns.Window.LinkOnceOpen(p.line) end
+	end)
+	-- (A fight starts: put away while that is still allowed, so the row's own click is what's left.)
+	caster:RegisterEvent("PLAYER_REGEN_DISABLED")
+	caster:SetScript("OnEvent", function(self)
+		local r = self.row
+		self.row = nil
+		self:Hide()
+		if r then r.wash:Hide() end
+	end)
+	return caster
+end
+
+-- The secure button over row `r` (the part of it the list shows, left of its More button), set to
+-- the row's spell; put away for a row with none.
+PlaceCaster = function(r)
+	if InCombatLockdown() then return end
+	if not (r and r.cast and r:IsVisible() and catcher and catcher:IsShown()) then
+		HideCaster()
+		return
+	end
+	local b = Caster()
+	if not b then return end
+	local left, bottom, top = r:GetLeft(), r:GetBottom(), r:GetTop()
+	local listTop, listBottom = list:GetTop(), list:GetBottom()
+	if not (left and bottom and top and listTop and listBottom) then
+		HideCaster()
+		return
+	end
+	local right = left + r:GetWidth()
+	if r.more:IsShown() then
+		local moreLeft = r.more:GetLeft()
+		if moreLeft then right = math.min(right, moreLeft - 2) end
+	end
+	top, bottom = math.min(top, listTop), math.max(bottom, listBottom)
+	if top - bottom < 4 or right - left < 4 then
+		HideCaster()
+		return
+	end
+	local scale = r:GetEffectiveScale() / UIParent:GetEffectiveScale()
+	if b.row and b.row ~= r then b.row.wash:Hide() end
+	b:ClearAllPoints()
+	b:SetPoint("BOTTOMLEFT", UIParent, "BOTTOMLEFT", left * scale, bottom * scale)
+	b:SetSize((right - left) * scale, (top - bottom) * scale)
+	-- (Over the row, in the menu's own layer: under Daylight UI's dropdown, as the rows are.)
+	b:SetFrameStrata(catcher:GetFrameStrata())
+	b:SetFrameLevel(r:GetFrameLevel() + 1)
+	b:SetAttribute("type1", "spell")
+	b:SetAttribute("spell", r.cast)
+	b.row = r
+	b:Show()
+end
+
+-- A controller's A on a profession's row: the same spell, through Daylight UI's secure key (the
+-- window's padKeys, Window.lua). Nil for any other stop, and in a fight.
+function Menu.PadCast(at)
+	if InCombatLockdown() or not Menu.Shown() then return nil end
+	if type(at) ~= "table" or type(at.cast) ~= "number" or not at.prof then return nil end
+	return { type = "spell", spell = at.cast }
+end
+
+-- The game opened a profession (a row's spell, a controller's A, the spellbook): the menu has done
+-- its work and closes.
+local opened = CreateFrame("Frame")
+opened:RegisterEvent("TRADE_SKILL_SHOW")
+opened:SetScript("OnEvent", function()
+	if Menu.Shown() then Menu.Close() end
+end)
 
 -- A controller's cursor on a row scrolled out of the list's sight: the list scrolls to it.
 local function IntoView(r)
@@ -236,6 +389,7 @@ local function Row()
 			if self.onClick then self.wash:Show() end
 			Pad.Into(self, menuPad)
 			IntoView(self)
+			PlaceCaster(self)
 			if self.tip then
 				GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
 				pcall(self.tip, GameTooltip)
@@ -281,6 +435,7 @@ local function Heading(text)
 	r.edge:Hide()
 	r.more:Hide()
 	r.onClick, r.tip, r.onRight = nil, nil, nil
+	r.cast, r.prof = nil, nil
 	-- (A heading wraps onto more lines rather than being cut off, its row as tall as it.)
 	r.name:ClearAllPoints()
 	r.name:SetPoint("TOPLEFT", r, "TOPLEFT", 14, -2)
@@ -293,13 +448,15 @@ local function Heading(text)
 	y = y + h + 2
 end
 
--- o: icon, name, nameColor {r,g,b}, sub, value (0-1 for the bar), picked, onClick, onRight, tip
+-- o: icon, name, nameColor {r,g,b}, sub, value (0-1 for the bar), picked, onClick, onRight, tip,
+-- cast (the spell that opens it: PlaceCaster) and prof (your profession it is)
 local function Entry(o)
 	local r = Row()
 	r:SetHeight(ENTRY)
 	r:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -y)
 	r:SetPoint("RIGHT", list, "RIGHT", 0, 0)
 	r.onClick, r.tip, r.onRight = o.onClick, o.tip, o.onRight
+	r.cast, r.prof = o.cast, o.prof
 	r.more:SetShown(o.onRight ~= nil)
 	local x = 12
 	if o.icon then
@@ -678,9 +835,13 @@ local function PaintRows()
 			picked = not alt and S.mode == "win" and not W.Linked() and p.line == S.line
 		end
 		-- (One with recipes opens its trade skill; a gathering one shows its own page.)
+		-- Its spell opens it (PlaceCaster), unless it is the one open now: casting that again would
+		-- close it, and the row's own click shows its recipes (OpenProfession).
+		local openNow = S.mode == "win" and S.line == p.line and not W.Linked()
 		Entry({ icon = p.icon, name = p.name,
 			sub = p.max > 0 and ("%d / %d"):format(p.skill, p.max) or "",
 			value = p.max > 0 and p.skill / p.max or nil, picked = picked,
+			cast = p.crafts and not openNow and p.spell or nil, prof = p,
 			onClick = function()
 				Menu.Close()
 				if p.crafts and IsModifiedClick("CHATLINK") then
@@ -746,6 +907,9 @@ end
 Paint = function()
 	if not (menu and menu:IsShown() and W.win) then return end
 	local win = W.win
+	-- (The rows are drawn anew, maybe elsewhere: the secure button comes back with the next row
+	-- the mouse is on.)
+	HideCaster()
 	menu:SetScale(win:GetScale())
 	local room = math.max(120, win:GetHeight() - State.HEADER - 4)
 	for _ = 1, 2 do
@@ -889,6 +1053,7 @@ function Menu.Close()
 	if not Menu.Shown() then return end
 	StopCoolTicker()
 	GameTooltip:Hide()
+	HideCaster()
 	catcher:Hide()
 	if W.win and W.win:IsShown() and Pad.On() then Pad.Settle(W.nameButton) end
 end

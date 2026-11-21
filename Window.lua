@@ -618,9 +618,11 @@ local function BuildPad()
 	end
 	win.padKeys = {
 		-- A on Stop: the secure Stop's own action, through DaylightUI's secure key (the Stop drawn
-		-- here only shows it).
-		{ key = "A", label = L["Stop"],
+		-- here only shows it). A on a profession's row in the menu: that profession's spell, the
+		-- same way (Menu.PadCast; the hint stays "Select", Daylight UI's own word for A).
+		{ key = "A", label = function() if Menu.Shown() then return nil end return L["Stop"] end,
 			secure = function(at)
+				if Menu.Shown() then return Menu.PadCast(at) end
 				local cb = W.craftBar
 				if cb and at == cb.stop and cb.stop:IsVisible() and not cb.stop.off then
 					return { type = "macro", macrotext = "/stopcasting" }
@@ -1134,6 +1136,12 @@ function Window.LinkProfession(line, game)
 		return
 	end
 	Window.OpenProfession(line, game)
+	Window.LinkOnceOpen(line)
+end
+
+-- Links your profession once the game has it open (asked for a moment ago: by OpenProfession, or
+-- by its spell from the menu's row).
+function Window.LinkOnceOpen(line)
 	local tries = 0
 	local function wait()
 		tries = tries + 1

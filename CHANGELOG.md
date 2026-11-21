@@ -1,5 +1,11 @@
 # Glowey's Recipes (DaylightUI Plugin)
 
+## 3.0.1
+
+- Fixed: Cooking and First Aid open from the professions menu. A press on one of your professions there now opens it the way the game's own profession tabs do, by its spell, so every profession with recipes opens from the menu. A Shift-click still links it to chat, and a right-click or its More button still opens Link to Chat and Unlearn. With a controller, A on a profession does the same. In combat the menu asks the game the way it did before.
+- The menu closes by itself when a profession opens.
+- Camping, Cooldowns and Tracking are in the same menu (press the profession's name in the header): Camping under your professions, the Cooldowns and Tracking tiles at its foot. A Cooldowns tile shows for each recipe you know that has a cooldown (transmutes, Mooncloth, Cured Rugged Hide and any other the game reports one for), ready or not; with none, there is no Cooldowns row.
+
 ## 3.0.0
 
 ### Window
