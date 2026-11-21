@@ -749,6 +749,13 @@ end
 -- The recipe the Leveling Guide's current step makes: nil when there's no plan, the goal is
 -- reached, or the step is training the next rank.
 function Plan.CurrentSpell()
+	-- The guide is Professionally Lost's for this profession (ProfLost.lua): its step is the one
+	-- lit, when the player asked for that and the recipe is one of ours; else nothing is.
+	local P = ns.ProfLost
+	if P and P.Handed and P.Handed("guide", S.line) then
+		local theirs = P.Handed("step", S.line) and P.NextStepSpell and P.NextStepSpell(S.line) or nil
+		return theirs and ns.Recipes and ns.Recipes[theirs] and theirs or nil
+	end
 	local ok, plan = pcall(Plan.Get)
 	if not ok or type(plan) ~= "table" or (S.skill or 0) >= plan.target then return nil end
 	for _, s in ipairs(plan.route.steps) do
@@ -879,7 +886,14 @@ function Plan.Get()
 		full, fullKey = Build(skill, target, goal), routeKey
 	end
 	local key = routeKey .. ":" .. skill .. ":" .. ns.Store.version
-	if kept and keptKey == key then return kept end
+	if kept and keptKey == key then
+		-- (Worked out for exactly this: the one saved with the character is current, so it rests
+		-- no longer. ProfLost.RestPlan marks one that was not kept up; a new one, below, has no mark.)
+		local c = ns.Store.Char()
+		local saved = c and type(c.plans) == "table" and c.plans[S.line]
+		if type(saved) == "table" then saved.rested = nil end
+		return kept
+	end
 	-- A route worked out some points ago rests on the data from there on. Where the game now shows
 	-- the recipe of the step you're in gray, or green in a step not marked low, the data is off for
 	-- it: the route is worked out again from here, with the game's word for every recipe you know.

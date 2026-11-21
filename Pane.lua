@@ -31,10 +31,22 @@ local root, doc
 -- outer edge with a grip on it, tucked under the edge). Folded, the pane slides away and fades
 -- out, and the tab stays against the profession window's edge to bring it back. Always shown.
 -- Remembered between sessions in DaylightRecipesDB.
+-- It sits at the host's top corner on the side the pane hangs from (never mid-edge), 14 down from
+-- the corner, the same spot open (on the pane's edge) and folded (on the window's edge): the place
+-- the shop panels' tabs have had since 2.5 (Shop.lua's PlaceTab was the reference).
+-- Docked means flush: the pane we hang ourselves (on DaylightMogul's window) sits against its
+-- host's visible edge with no gap, and shares the host's border line when the host wears
+-- DaylightUI's shell (Seam, below). On DaylightUI's own window the pane is DaylightUI's frame,
+-- placed by DaylightUI with its own gap (Craft.PANE_GAP = 6: DaylightUI/Craft/Window.lua:726,
+-- 759-760), and its frames are not ours to move (API.md, "The game's rules still apply"): that
+-- gap stays.
+-- luacheck: read globals GetPhysicalScreenSize
 local FOLDED_WIDTH = 1          -- AttachCraftPane takes no 0; at 1 the pane is out of sight
 local TAB_W, TAB_H = 14, 34
 local TAB_TUCK = 3              -- how far the tab sits under the edge it hangs from
-local WINDOW_GAP = 6            -- the gap between the window and a docked pane
+local TAB_DROP = 14             -- how far below the host's top corner it sits
+local DUI_GAP = 6               -- DaylightUI's own gap between its window and a docked pane
+local mogulSeam = 0             -- how far our pane on DaylightMogul's window tucks into it now
 local shownWidth                -- the width the pane has now, while it slides
 local foldTab
 local slider                    -- drives the fold's slide
@@ -62,8 +74,30 @@ local ctx = {
 -- Frame
 -- ---------------------------------------------------------------------------------------------
 
+-- Professionally Lost has the open profession's Leveling Guide (ProfLost.lua): the Guide tab is
+-- left out, and its guide's own window is a press away where the tab was.
+local function Handed()
+	local PL = ns.ProfLost
+	if not (PL and PL.Handed) or S.linked then return false end
+	return PL.Handed("guide", S.line) == true
+end
+
 local function PaintTabs()
+	local handed = Handed()
+	if handed and tab == "plan" then tab = "recipe" end
+	local last
 	for _, b in ipairs(root.tabs) do
+		local shown = not (handed and b.key == "plan")
+		b:SetShown(shown)
+		if shown then
+			b:ClearAllPoints()
+			if last then
+				b:SetPoint("LEFT", last, "RIGHT", 2, 0)
+			else
+				b:SetPoint("TOPLEFT", root, "TOPLEFT", PAD - 8, -10)
+			end
+			last = b
+		end
 		local on = b.key == tab
 		if on then
 			b.text:SetTextColor(Color("VALUE"))
@@ -169,7 +203,9 @@ PaintEnchant = function()
 	end
 	ench:Show()
 	scroll:SetPoint("BOTTOMRIGHT", ench, "TOPRIGHT", 0, 0)
-	local target = ench.row:Update(spell)
+	-- (The item's name and hint wrap inside the pane's width; the section is as tall as they need.)
+	local target = ench.row:Update(spell, shownWidth or TargetWidth())
+	ench:SetHeight(ench.row:GetHeight() + ENCH_BAR)
 	local run = Craft.Making()
 	local f = ench
 	local counting = not run and target ~= nil
@@ -263,6 +299,20 @@ local function Build()
 		end
 		root.tabs[i] = b
 	end
+	-- "Open Professionally Lost", for a profession whose Leveling Guide is handed to it: after the
+	-- tabs when it fits there, else on a line of its own under them (Pane.Render places it).
+	root.pl = CreateFrame("Button", nil, root)
+	root.pl:SetHeight(26)
+	root.pl.text = Text(root.pl, "small")
+	root.pl.text:SetPoint("CENTER", 0, 1)
+	root.pl.text:SetWordWrap(false)
+	root.pl:SetScript("OnEnter", function(self) self.text:SetTextColor(Color("VALUE")) end)
+	root.pl:SetScript("OnLeave", function(self) self.text:SetTextColor(Color("ACCENT")) end)
+	root.pl:SetScript("OnClick", function()
+		local PL = ns.ProfLost
+		if PL and PL.OpenGuide then PL.OpenGuide(S.line) end
+	end)
+	root.pl:Hide()
 	root.skill = Text(root, "small", "RIGHT")
 	root.skill:SetPoint("TOPRIGHT", root, "TOPRIGHT", -PAD, -18)
 	root:SetClipsChildren(true)
@@ -306,16 +356,71 @@ function Pane.HostWindow()
 	return nil
 end
 
+-- How far a pane of ours tucks into its host so the two share one border line, the way
+-- DaylightUI's threat meter hangs on its damage meter (DaylightUI_InfoPanel/ThreatMeter.lua:458-466:
+-- moved in by the host's border, Pixel.Px(h, Style.BorderPx(h))). 0 for a host without DaylightUI's
+-- bordered shell: flush at its edge, no overlap.
+--   - Whether the host wears that shell: Style.GetShell(frame) (DaylightUI/Style.lua:988), which the
+--     threat meter asks of its host the same way. It is not part of DaylightUI's API, so it is read
+--     guarded and nothing is ever changed through it; without it there is no overlap.
+--   - The border's thickness: the player's setting "general" > borderPx (default 8: DaylightUI/
+--     DB.lua:52), read the sanctioned way (API.GetSetting: API.md, "Read settings"), in screen
+--     pixels; one screen pixel is 768 / the screen's physical height, over the frame's effective
+--     scale (DaylightUI/Pixel.lua:11-28; GetPhysicalScreenSize: Blizzard_APIDocumentationGenerated/
+--     ScreenDocumentation.lua:19).
+--   - A shell can have a thickness of its own (its opts.borderPx: DaylightUI/Style.lua:994-1003), and
+--     DaylightUI's own docking asks the host's shell for it (Style.BorderPx(h): ThreatMeter.lua:420,
+--     459). Asked first, guarded the same way; the general setting is the fallback.
+local function Seam(host)
+	local D = _G.DaylightUI
+	local style = type(D) == "table" and D.Style
+	local get = type(style) == "table" and style.GetShell
+	if type(get) ~= "function" then return 0 end
+	local ok, shell = pcall(get, host)
+	if not ok or type(shell) ~= "table" then return 0 end
+	if type(shell.opts) == "table" and shell.opts.noBorder == true then return 0 end
+	local px
+	local own = style.BorderPx
+	if type(own) == "function" then
+		local got, value = pcall(own, host)
+		if got and type(value) == "number" then px = value end
+	end
+	if px == nil then
+		local okPx, value = pcall(API.GetSetting, "general", "borderPx")
+		if okPx then px = value end
+	end
+	if type(px) ~= "number" or px <= 0 then return 0 end
+	local height
+	if type(GetPhysicalScreenSize) == "function" then
+		local _, h = GetPhysicalScreenSize()
+		height = h
+	end
+	if type(height) ~= "number" or height <= 0 then return 0 end
+	local scale = host:GetEffectiveScale()
+	if type(scale) ~= "number" or scale <= 0 then return 0 end
+	return px * 768 / height / scale
+end
+
+-- Our pane on DaylightMogul's window: flush against its visible right edge (no gap), one border
+-- line between them. Placed again whenever it's drawn (the border's thickness is a setting).
+local function PlaceMogul()
+	local win = mogulPane and mogulPane:GetParent()
+	if not win then return end
+	mogulSeam = Seam(win)
+	mogulPane:ClearAllPoints()
+	mogulPane:SetPoint("TOPLEFT", win, "TOPRIGHT", -mogulSeam, 0)
+	mogulPane:SetPoint("BOTTOMLEFT", win, "BOTTOMRIGHT", -mogulSeam, 0)
+end
+
 function Pane.AttachMogul(win)
 	if type(win) ~= "table" or not win.CreateTexture then return end
 	if not mogulPane then
 		mogulPane = CreateFrame("Frame", "DaylightRecipesPane", win)
-		mogulPane:SetPoint("TOPLEFT", win, "TOPRIGHT", 6, 0)
-		mogulPane:SetPoint("BOTTOMLEFT", win, "BOTTOMRIGHT", 6, 0)
 		mogulPane:SetWidth(shownWidth or TargetWidth())
 		mogulPane:EnableMouse(true)
 		ns.SkinWindow(mogulPane)
 	end
+	PlaceMogul()
 end
 
 function Pane.Shown()
@@ -387,11 +492,20 @@ end
 -- Something else of Daylight UI's or of a Daylight plugin is up (its setup guide, tour or a
 -- question; a plugin's welcome, What's New or tour, ours included: _G.DaylightGuides, Guide.lua),
 -- or a fight is on: our question waits.
+-- The face lift's order at login is the welcome or What's New first, then Professionally Lost's
+-- "which addon does what" window, each only once the one before is closed (Guide.Busy, ProfLost.lua).
+-- This question takes its turn after both: it waits while Guide.Busy holds (the welcome or the
+-- note not yet decided or still up, a tour, Daylight UI's own guides), while that window is still
+-- to come at this login (ProfLost.Due) and while it is up (it holds our mark in _G.DaylightGuides,
+-- looked at below). And while this question is up it holds that mark itself (Guide.Hold), which
+-- Guide.Busy counts, so that window waits for it in turn: the two are never up together.
 local DAYLIGHT_DIALOGS = { "DaylightUIInstaller", "DaylightUITour", "DaylightUITourAsk", "DaylightUIAsk",
 	"DaylightUIQuestieChoice" }
 local function Busy()
 	if InCombatLockdown() then return true end
+	if ns.Guide and ns.Guide.Busy and ns.Guide.Busy() then return true end
 	if ns.Guide and ns.Guide.Welcoming and ns.Guide.Welcoming() then return true end
+	if ns.ProfLost and ns.ProfLost.Due and ns.ProfLost.Due() then return true end
 	for _, name in ipairs(DAYLIGHT_DIALOGS) do
 		local f = _G[name]
 		if type(f) == "table" and f.IsShown and f:IsShown() and (not f.GetAlpha or (f:GetAlpha() or 0) > 0.05) then return true end
@@ -435,8 +549,11 @@ local function AskProfit()
 			OnCancel = function(_, _, reason)
 				if reason == "clicked" then DUI:Set(ADDON, "duiProfit", false) end
 			end,
+			-- (Answered or put away: Professionally Lost's window, if it was waiting, may come.)
+			OnHide = function() if ns.Guide and ns.Guide.Hold then ns.Guide.Hold("profit", false) end end,
 			timeout = 0, whileDead = true, hideOnEscape = false, preferredIndex = 3,
 		}
+		if ns.Guide and ns.Guide.Hold then ns.Guide.Hold("profit", true) end
 		StaticPopup_Show("DAYLIGHTRECIPES_DUI_PROFIT")
 	end
 	C_Timer.After(1, try)
@@ -469,6 +586,7 @@ function Pane.Render()
 		root:SetAllPoints(host)
 	end
 	root:Show()
+	if host == mogulPane then PlaceMogul() end
 	if not host:IsVisible() then return end
 
 	-- Folded (after a reload, or the window reopened): out of sight at once. A slide fades it itself.
@@ -477,11 +595,39 @@ function Pane.Render()
 	if Folded() then return end
 
 	PaintTabs()
+	local width = shownWidth or TargetWidth()
+	-- The tabs' width, and "Open Professionally Lost" where the Guide tab was: on the tabs' row when
+	-- it fits there, else on a row of its own under them (the page starts that much lower).
+	local tabsW = PAD - 8
+	for _, b in ipairs(root.tabs) do
+		if b:IsShown() then tabsW = tabsW + b:GetWidth() + 2 end
+	end
+	local PL = ns.ProfLost
+	local offer = Handed() and PL.OpenGuide and (not PL.CanOpenGuide or PL.CanOpenGuide())
+	local drop = 0          -- how much lower the page starts
+	root.pl:SetShown(offer and true or false)
+	if offer then
+		root.pl.text:SetText(L["Open Professionally Lost"])
+		root.pl.text:SetTextColor(Color(root.pl:IsMouseOver() and "VALUE" or "ACCENT"))
+		local bw = math.ceil(root.pl.text:GetUnboundedStringWidth()) + 16
+		root.pl:SetWidth(bw)
+		root.pl:ClearAllPoints()
+		if tabsW + bw <= width - PAD + 8 then
+			root.pl:SetPoint("TOPLEFT", root, "TOPLEFT", tabsW, -10)
+			tabsW = tabsW + bw + 2
+		else
+			root.pl:SetPoint("TOPLEFT", root, "TOPLEFT", PAD - 8, -36)
+			drop = 26
+		end
+	end
 	local missing = tab == "missing"
 	root.search:SetShown(missing)
+	root.search:ClearAllPoints()
+	root.search:SetPoint("TOPLEFT", root, "TOPLEFT", PAD, -44 - drop)
+	root.search:SetPoint("TOPRIGHT", root, "TOPRIGHT", -PAD, -44 - drop)
 	local scroll = doc.scroll
 	scroll:ClearAllPoints()
-	scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 0, missing and -(44 + root.search:GetHeight() + 8) or -40)
+	scroll:SetPoint("TOPLEFT", root, "TOPLEFT", 0, (missing and -(44 + root.search:GetHeight() + 8) or -40) - drop)
 	scroll:SetPoint("BOTTOMRIGHT", root, "BOTTOMRIGHT", 0, 10)
 	-- (An enchant picked, or a run of ours under way: the enchant section, the page ending above it.)
 	PaintEnchant()
@@ -491,9 +637,7 @@ function Pane.Render()
 		root.skill:SetTextColor(Color("VALUE"))
 		-- (Too long for the room right of the tabs, in a narrow pane: the skill alone, or nothing when
 		-- even that would run into them; the profession window beside shows it too.)
-		local tabs = PAD - 8
-		for i, b in ipairs(root.tabs) do tabs = tabs + b:GetWidth() + (i > 1 and 2 or 0) end
-		local room = (shownWidth or TargetWidth()) - PAD - tabs - 8
+		local room = width - PAD - tabsW - 8
 		if root.skill:GetStringWidth() > room then root.skill:SetText(S.skill .. " / " .. S.max) end
 		if root.skill:GetStringWidth() > room then root.skill:SetText("") end
 	else
@@ -570,8 +714,9 @@ local function BuildTab()
 	end)
 end
 
--- The tab on the host's outer edge, vertically centered: on the pane's edge while it's open, on the
--- window's edge (where the pane folds into) while folded. Under the edge's border either way.
+-- The tab at the host's top corner, on the side the pane hangs from: on the pane's outer edge
+-- while it's open, on the window's edge (where the pane folds into) while folded, 14 down from the
+-- corner either way, and under the edge's border.
 function Pane.PlaceTab(host)
 	if not host then return end
 	if not foldTab then BuildTab() end
@@ -583,9 +728,11 @@ function Pane.PlaceTab(host)
 	foldTab:SetFrameLevel(math.max(0, host:GetFrameLevel() - 1))
 	foldTab:ClearAllPoints()
 	if Folded() then
-		foldTab:SetPoint("LEFT", host, "LEFT", -WINDOW_GAP - TAB_TUCK, 0)
+		-- (The window's own right edge: the host's left, less the gap its dock has.)
+		local gap = host == mogulPane and -mogulSeam or DUI_GAP
+		foldTab:SetPoint("TOPLEFT", host, "TOPLEFT", -gap - TAB_TUCK, -TAB_DROP)
 	else
-		foldTab:SetPoint("LEFT", host, "RIGHT", -TAB_TUCK, 0)
+		foldTab:SetPoint("TOPLEFT", host, "TOPRIGHT", -TAB_TUCK, -TAB_DROP)
 	end
 	foldTab:Show()
 end

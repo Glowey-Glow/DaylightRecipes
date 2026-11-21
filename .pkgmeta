@@ -1,6 +1,10 @@
 package-as: DaylightRecipes
 
 # Kept in the repo, left out of the zip players download. LICENSE.md and AGENTS.md ship with it.
+# design/ holds the studies, the audit and the in-game check list (among them the study of another
+# author's All Rights Reserved addon and notes on the owner's own setup): never in the zip. The two
+# NEEDS files were the builders' notes to each other; they are deleted, and named here so that
+# one made again is not shipped either.
 ignore:
   - README.md
   - CHANGELOG.md
@@ -11,6 +15,9 @@ ignore:
   - .pkgmeta
   - .luacheckrc
   - Tools
+  - design
+  - NEEDS-shop.md
+  - NEEDS-window.md
 
 manual-changelog:
   filename: CHANGELOG.md

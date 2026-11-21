@@ -1,8 +1,12 @@
 -- What the pages say, drawn on a doc (Doc.lua): the recipe's skill-up chance, costs and value; the
 -- plan (craft next, the route, Auction House prices); the materials the route needs; the recipes
--- you don't know yet and where to get them. Used by the docked pane and by the big window alike.
+-- you don't know yet and where to get them. Used by the docked pane and by the window alike: each
+-- page is one column on the docs' grid (Doc.lua), so it reads the same at the pane's 300 and the
+-- window's 420.
 -- ctx (from whoever draws): pick(spell) picks a recipe (nil: nowhere to pick it), redraw() draws
--- the page again, filter (the missing list's search, lower case).
+-- the page again, filter (the missing list's search, lower case), detail(entry) (the window with
+-- its detail column open: a missing recipe's sources show there, not under its row) with
+-- detailSpell (the one shown there now).
 local _, ns = ...
 if not ns.ok then return end
 
@@ -78,17 +82,18 @@ local function HaveText(itemID)
 end
 Pages.HaveText = HaveText
 
--- "[Mira has 12]" (and how many more the other alts hold), or nil when no alt has any.
+-- "[Mira Has 12]" (and how many more the other alts hold), or nil when no alt has any. A label,
+-- so Title Case (the design's own: facelift.md principle 11); the shop strips show it too.
 function Pages.AltAlert(have)
 	if not have or (have.altTotal or 0) <= 0 or not have.alts[1] then return nil end
 	local first = have.alts[1]
 	if #have.alts > 1 then
-		return L["[%s has %d] (+%d on other alts)"]:format(first.name, first.count, have.altTotal - first.count)
+		return L["[%s Has %d] (+%d on Other Alts)"]:format(first.name, first.count, have.altTotal - first.count)
 	end
-	return L["[%s has %d]"]:format(first.name, first.count)
+	return L["[%s Has %d]"]:format(first.name, first.count)
 end
 
--- opts.have: each material says what you hold of it (the big window's recipe page).
+-- opts.have: each material says what you hold of it (the window's recipe page).
 -- opts.handed: the total is Daylight UI's window's to show (the pane docked to it, Pane.lua's
 -- ProfitHanded): the materials with their prices and the cost per skill point stay, the Total row
 -- and the note on a short total go.
@@ -324,23 +329,58 @@ function Pages.Missing(d, ctx)
 		if e.level then sub = sub .. (sub ~= "" and " · " or "") .. L["Level %d"]:format(e.level) end
 		d:Row({ left = e.name, leftInk = e.reachable and "VALUE" or "OFF",
 			right = e.required and L["Skill %d"]:format(e.required) or "", rightInk = e.reachable and "GOOD" or "OFF",
-			sub = sub, subInk = "TEXT",
+			sub = sub, subInk = "TEXT", marked = ctx.detail ~= nil and ctx.detailSpell == e.spell,
 			tip = e.item and ItemTip(e.item) or SpellTip(e.spell),
 			onClick = function()
+				-- (The window with its detail column open: the sources show there, the list stays whole.)
+				if ctx.detail then
+					ctx.detail(e)
+					return
+				end
 				st.open[e.spell] = not st.open[e.spell] or nil
 				ctx.redraw()
 			end })
-		if st.open[e.spell] then
-			if e.unknown and rep then
-				Pages.RepLine(d, rep, 12)
-				d:Line(L["The recipe data doesn't say where yet: look for that faction's vendor."], "small", "OFF", 12)
-			elseif e.unknown then
-				d:Line(L["Where to get this isn't in the recipe data yet."], "small", "OFF", 12)
-			end
-			Pages.SourceGroups(d, e.groups, 12)
+		if st.open[e.spell] and not ctx.detail then
+			Pages.MissingSources(d, e, rep, 12)
 			d:Gap(6)
 		end
 	end
+end
+
+-- Where a missing recipe comes from: under its row in the list, or in the window's detail column.
+function Pages.MissingSources(d, e, rep, indent)
+	if e.unknown and rep then
+		Pages.RepLine(d, rep, indent)
+		d:Line(L["The recipe data doesn't say where yet: look for that faction's vendor."], "small", "OFF", indent)
+	elseif e.unknown then
+		d:Line(L["Where to get this isn't in the recipe data yet."], "small", "OFF", indent)
+	end
+	Pages.SourceGroups(d, e.groups, indent)
+end
+
+-- The window's detail column on the Missing tab: the picked missing recipe (by its spell), its
+-- skill and where to get it. The entry is looked up again each time, so it follows the data.
+function Pages.MissingDetail(d, spell)
+	local e
+	if spell and S.line and not S.linked then
+		for _, m in ipairs(Where.Missing("")) do
+			if m.spell == spell then e = m break end
+		end
+	end
+	if not e then
+		d:Line(L["Pick a recipe."], "body", "OFF")
+		return
+	end
+	local rep, waiting
+	if e.item and (e.unknown or e.hasRep) then rep, waiting = Where.Rep(e.item) end
+	if waiting then d.waiting[e.item] = true end
+	d:Row({ left = e.name, leftInk = e.reachable and "VALUE" or "OFF",
+		right = e.required and L["Skill %d"]:format(e.required) or "", rightInk = e.reachable and "GOOD" or "OFF",
+		tip = e.item and ItemTip(e.item) or SpellTip(e.spell) })
+	if e.level then d:Line(L["Level %d"]:format(e.level), "small", "TEXT") end
+	if rep and not e.unknown then Pages.RepLine(d, rep, 0) end
+	d:Gap(4)
+	Pages.MissingSources(d, e, rep, 0)
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -616,25 +656,25 @@ local function RankCard(d, s, n)
 end
 
 -- Your goal: the skills worth aiming for, and what the route aims for (cheapest materials, or the
--- least it costs after vendoring, disenchanting or selling what you make), as buttons (picked lit).
+-- least it costs after vendoring, disenchanting or selling what you make), as two pickers on one
+-- line (they were two rows of buttons; the design's feature map: "Two pickers on one line").
 local function GoalPart(d, plan)
+	local pickers = {}
 	local targets = ns.Plan.Targets()
 	if #targets >= 2 then
-		local list = {}
+		local keys, values = {}, {}
 		for _, v in ipairs(targets) do
-			list[#list + 1] = { text = tostring(v), width = 56, active = v == plan.target,
-				onClick = function() ns.Plan.SetTarget(v) end }
+			local key = tostring(v)
+			keys[#keys + 1] = key
+			values[key] = key
 		end
-		d:Line(L["Goal"], "small", "LABEL")
-		d:Buttons(list)
+		pickers[#pickers + 1] = { label = L["Goal"], keys = keys, values = values, current = tostring(plan.target),
+			onPick = function(key) ns.Plan.SetTarget(tonumber(key)) end }
 	end
-	local goal = ns.Plan.Goal()
-	local list = {}
-	for _, g in ipairs(ns.Plan.GOALS) do
-		list[#list + 1] = { text = ns.Plan.GOAL_WORDS[g], active = g == goal, onClick = function() ns.Plan.SetGoal(g) end }
-	end
-	d:Line(L["Cheapest Route"], "small", "LABEL")
-	d:Buttons(list)
+	pickers[#pickers + 1] = { label = L["Cheapest Route"], keys = ns.Plan.GOALS, values = ns.Plan.GOAL_WORDS,
+		current = ns.Plan.Goal(), onPick = function(g) ns.Plan.SetGoal(g) end }
+	d:Gap(2)
+	d:Pickers(pickers)
 end
 
 -- ctx.make: the step's Make button is offered (the trade skill is open here).
@@ -808,7 +848,7 @@ function Pages.Queue(d, ctx)
 	for _, it in ipairs(items) do MaterialRow(d, it.itemID, it.n, 0) end
 end
 
--- The big window's Materials tab: what the route needs, and where it comes from.
+-- The window's Materials tab: what the route needs, and where it comes from.
 function Pages.Materials(d)
 	local why = NoPlan()
 	if why then

@@ -1,7 +1,9 @@
 -- A scrolling page drawn from pooled pieces, top to bottom: lines of text, rows (icon, left and
--- right text, a line under them, a hover wash when they do something) and bars. The docked pane
--- and the big window each draw their pages on one of these; the pages themselves are in Pages.lua.
--- Also the small helpers every page uses (colors, item names, tooltips, percentages).
+-- right text, a line under them, a hover wash when they do something), buttons, pickers and bars.
+-- The docked pane and the window each draw their pages on one of these; the pages themselves are
+-- in Pages.lua. Also the small helpers every page uses (colors, item names, tooltips, percentages).
+-- One grid for every page (design\facelift.md, principle 6): type sizes 10 / 12 / 13 / 15 / 18
+-- only (Doc.SIZES), edge padding 14, rows 20 (one line) and 34 (two lines), buttons 24 tall.
 local _, ns = ...
 if not ns.ok then return end
 local L, Plural = ns.L, ns.Plural
@@ -102,31 +104,51 @@ end
 local D = {}
 D.__index = D
 
--- A row's right text: its Shift action's word (o.shift: the buy lists' Remove) while Shift is held
--- with the mouse on it; else its hover hint (o.hint: what a click does) while the mouse, or a
--- controller's cursor, is on it; else the row's own.
-local function PaintShift(r)
-	local s = r.shift
-	if s and r.hover and IsShiftKeyDown() then
-		r.right:SetText(s.text or "")
-		r.right:SetTextColor(Color(s.ink or "WARN"))
-	elseif r.hint and r.hover then
-		r.right:SetText(r.hint.text or "")
-		r.right:SetTextColor(Color(r.hint.ink or "ACCENT"))
+-- A row with a Shift action (o.shift = { text, tip, run }: the strips' "Remove", Shop.lua). While
+-- Shift is held with the mouse on the row, its right text reads shift.text in the warning ink and
+-- its tooltip gains shift.tip; a Shift-click runs shift.run and nothing else of the row.
+-- (IsShiftKeyDown() -> bool: Blizzard_APIDocumentationGenerated/InputDocumentation.lua:236-242.)
+local function ShiftHeld(r)
+	return r.shift ~= nil and type(IsShiftKeyDown) == "function" and IsShiftKeyDown() == true
+end
+
+-- The row's tooltip, shown anew (also when Shift goes down or up over it).
+local function RowTip(r)
+	local held = r.hovered and ShiftHeld(r)
+	if not (r.tip or held) then
+		if GameTooltip:IsOwned(r) then GameTooltip:Hide() end
+		return
+	end
+	GameTooltip:SetOwner(r, "ANCHOR_LEFT")
+	if r.tip then pcall(r.tip, GameTooltip) end
+	if held and r.shift.tip then GameTooltip:AddLine(r.shift.tip, Color("WARN")) end
+	GameTooltip:Show()
+end
+
+-- The row's right text as it reads now: the Shift action's word while Shift is held over it
+-- (Shift wins), else its hover hint (o.hover = { text, ink }: what a press does, the Auction House
+-- strip's "Left Click to Search") while the mouse, or a controller's cursor, is on it, else its
+-- own. D:Row keeps room for the longest of the three beside the left text, so none of them ever
+-- runs into it or is cut.
+local function RowFace(r)
+	local face
+	if r.hovered then
+		if ShiftHeld(r) then face = "shift" elseif r.hover then face = "hover" end
+	end
+	if face == r.face then return end
+	r.face = face
+	if face then
+		local alt = face == "shift" and r.shift or r.hover
+		r.right:SetWidth(0)
+		r.right:SetWordWrap(false)
+		r.right:SetText(alt.text or "")
+		r.right:SetTextColor(Color(face == "shift" and "WARN" or alt.ink or "ACCENT"))
 	else
+		r.right:SetWidth(r.rightW or 0)
+		r.right:SetWordWrap(r.rightWrap == true)
 		r.right:SetText(r.rightText or "")
 		r.right:SetTextColor(Color(r.rightInk or "VALUE"))
 	end
-end
-
--- A row's tooltip, with its Shift action's line under it while Shift is held.
-local function ShowRowTip(r)
-	if not r.tip then return end
-	GameTooltip:SetOwner(r, "ANCHOR_LEFT")
-	pcall(r.tip, GameTooltip)
-	local s = r.shift
-	if s and s.tip and IsShiftKeyDown() then GameTooltip:AddLine(s.tip, Color(s.ink or "WARN")) end
-	GameTooltip:Show()
 end
 
 -- A row: icon, a left and right text, a line under them; hover wash when it does something.
@@ -152,46 +174,41 @@ local function MakeRow(child)
 	r.sub:SetWordWrap(true)
 	r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
 	r:SetScript("OnEnter", function(self)
-		if self.onClick or self.onDouble or self.tip or self.shift then self.wash:Show() end
+		self.hovered = true
+		if self.onClick or self.onDouble or self.tip or self.shift or self.hover then self.wash:Show() end
 		-- (A controller: the right stick scrolls the page this row is on. Guide.lua's Pad)
 		if ns.Pad then ns.Pad.Into(self, child:GetParent()) end
-		-- (A row with a Shift action follows the key while the mouse is on it, and only then.)
-		self.hover = true
-		if self.shift then self:RegisterEvent("MODIFIER_STATE_CHANGED") end
-		if self.shift or self.hint then PaintShift(self) end
-		ShowRowTip(self)
+		-- (Shift going down or up while the mouse is here: MODIFIER_STATE_CHANGED(key, down),
+		-- KeyBindingsDocumentation.lua:158-166. Heard only while the mouse is on a row that has a
+		-- Shift action.)
+		if self.shift then pcall(self.RegisterEvent, self, "MODIFIER_STATE_CHANGED") end
+		RowFace(self)
+		RowTip(self)
 	end)
-	r:SetScript("OnLeave", function(self)
+	local function Left(self)
+		self.hovered = false
+		pcall(self.UnregisterEvent, self, "MODIFIER_STATE_CHANGED")
 		self.wash:Hide()
-		self.hover = false
-		self:UnregisterEvent("MODIFIER_STATE_CHANGED")
-		PaintShift(self)
+		RowFace(self)
 		if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
-	end)
-	-- Shift pressed or let go with the mouse on the row: its right text and tooltip follow at once.
+	end
+	r:SetScript("OnLeave", Left)
+	r:SetScript("OnHide", Left)
 	r:SetScript("OnEvent", function(self)
-		if not (self.hover and self.shift and self:IsVisible()) then
-			self.hover = false
-			self:UnregisterEvent("MODIFIER_STATE_CHANGED")
-			return
-		end
-		PaintShift(self)
-		if GameTooltip:IsOwned(self) then ShowRowTip(self) end
+		if not self.hovered then return end
+		RowFace(self)
+		RowTip(self)
 	end)
 	r:SetScript("OnDoubleClick", function(self, button)
-		-- (The second of two quick Shift-clicks: the Shift action again, on the row that moved up
-		-- under the mouse, never the row's double-click, which buys.)
-		if button == "LeftButton" and self.shift and IsShiftKeyDown() then
-			self.shift.onClick()
-			return
-		end
+		if ShiftHeld(self) then return end
 		if button == "LeftButton" and self.onDouble then self.onDouble(self) end
 	end)
 	r:SetScript("OnClick", function(self, button)
-		-- (Shift-click on a row with a Shift action is that action and nothing else. Such rows carry
-		-- no link, so no chat link is lost to it.)
-		if button == "LeftButton" and self.shift and IsShiftKeyDown() then
-			self.shift.onClick()
+		-- (A Shift-click on a row with a Shift action is that action and nothing else: it never
+		-- reaches the row's own press, with either mouse button. Such rows carry no link, so the
+		-- chat-link Shift-click below has nothing to do on them.)
+		if ShiftHeld(self) then
+			if button == "LeftButton" and self.shift.run then self.shift.run() end
 			return
 		end
 		-- (Shift-click a row with an item or recipe link: into the open chat box.)
@@ -213,6 +230,11 @@ end
 
 local function FitThumb(d)
 	local scroll, thumb = d.scroll, d.thumb
+	-- (A page that never scrolls has no thumb, whatever the scroll frame thinks its range is.)
+	if d.still then
+		thumb:Hide()
+		return
+	end
 	local range = scroll:GetVerticalScrollRange() or 0
 	local h = scroll:GetHeight()
 	if range <= 0.5 or h <= 0 then thumb:Hide() return end
@@ -227,8 +249,13 @@ end
 -- page's side margin (14); opts.width: its width, for a doc that's always as wide; opts.redraw: draws
 -- its owner again (only that one: not every window and panel of ours) after a change of width;
 -- opts.idle: true while that redraw would draw nothing (a folded pane), then it's skipped.
+-- opts.still: a plain area that never scrolls (a list's head, Shop.lua): no wheel, no thumb, and
+-- its child exactly as tall as what was drawn (Finish adds no foot to it), so its owner can make
+-- the frame that tall and nothing of it is ever out of sight.
 function Doc.New(parent, opts)
 	local d = setmetatable({}, D)
+	d.still = opts and opts.still == true or nil
+	d.marks = {}            -- where each piece drawn ends (d.y after it): a page cut there cuts no row
 	d.pad = opts and opts.pad or 14
 	d.fixed = opts and opts.width or nil   -- its width, when it never changes
 	d.redraw = opts and opts.redraw or nil
@@ -239,8 +266,9 @@ function Doc.New(parent, opts)
 	local child = CreateFrame("Frame", nil, scroll)
 	child:SetSize(200, 1)
 	scroll:SetScrollChild(child)
-	scroll:EnableMouseWheel(true)
+	scroll:EnableMouseWheel(not d.still)
 	scroll:SetScript("OnMouseWheel", function(self, delta)
+		if d.still then return end
 		local range = self:GetVerticalScrollRange() or 0
 		local to = math.max(0, math.min(range, self:GetVerticalScroll() - delta * 48))
 		self:SetVerticalScroll(to)
@@ -286,6 +314,7 @@ end
 
 function D:Begin()
 	wipe(self.waiting)
+	wipe(self.marks)
 	for _, p in pairs(self.pools) do
 		for i = 1, #p.list do p.list[i]:Hide() end
 		p.used = 0
@@ -298,10 +327,15 @@ function D:Begin()
 end
 
 function D:Finish()
-	self:Gap(8)
+	if not self.still then self:Gap(8) end
 	self.drawn = true
 	self.child:SetHeight(math.max(1, self.y))
 	local scroll = self.scroll
+	if self.still then
+		scroll:SetVerticalScroll(0)
+		self.thumb:Hide()
+		return
+	end
 	local range = scroll:GetVerticalScrollRange() or 0
 	if scroll:GetVerticalScroll() > range then scroll:SetVerticalScroll(range) end
 	self.thumb:SetColorTexture(API.Accent())
@@ -375,47 +409,8 @@ function D:Line(text, size, ink, indent)
 	fs:SetText(text)
 	fs:SetTextColor(Color(ink))
 	self.y = self.y + math.ceil(fs:GetStringHeight()) + 4
+	self.marks[#self.marks + 1] = self.y
 	return fs
-end
-
--- A quiet line that does something when clicked (small, wrapped like a line; lit under the mouse or
--- a controller's cursor, which stops on it as on a row).
-function D:Link(text, onClick, indent)
-	indent = indent or 0
-	local child = self.child
-	local b = self:Take("link", function()
-		local f = CreateFrame("Button", nil, child)
-		f.text = Doc.Text(f, "small")
-		f.text:SetJustifyH("LEFT")
-		f.text:SetWordWrap(true)
-		f.text:SetPoint("TOPLEFT", f, "TOPLEFT", 4, -3)
-		f.wash = f:CreateTexture(nil, "BACKGROUND")
-		f.wash:SetAllPoints()
-		f.wash:SetColorTexture(1, 1, 1, 0.05)
-		f.wash:Hide()
-		f:SetScript("OnEnter", function(me)
-			me.wash:Show()
-			me.text:SetTextColor(Color("VALUE"))
-			if ns.Pad then ns.Pad.Into(me, child:GetParent()) end
-		end)
-		f:SetScript("OnLeave", function(me)
-			me.wash:Hide()
-			me.text:SetTextColor(Color("LABEL"))
-		end)
-		f:SetScript("OnClick", function(me) if me.onClick then me.onClick() end end)
-		return f
-	end)
-	local w = self.width - self.pad * 2 + 8 - indent
-	b.onClick = onClick
-	b.wash:Hide()
-	b:SetPoint("TOPLEFT", child, "TOPLEFT", self.pad - 4 + indent, -self.y)
-	b.text:SetWidth(math.max(20, w - 8))
-	b.text:SetText(text)
-	b.text:SetTextColor(Color("LABEL"))
-	local h = math.max(20, math.ceil(b.text:GetStringHeight()) + 7)
-	b:SetSize(w, h)
-	self.y = self.y + h + 2
-	return b
 end
 
 function D:Heading(text)
@@ -427,10 +422,8 @@ end
 -- o: icon, left, right, sub, leftInk, rightInk, subInk, indent, onClick(button), tip(tooltip),
 -- link (shift-click into chat), marked (a faint accent ground: the one picked), dim (a gray icon),
 -- rightClick (onClick hears right clicks too), onDouble(row) (a left double click),
--- shift = { text, ink, tip, onClick() } (while Shift is held with the mouse on the row its right
--- text reads `text` and its tooltip ends with `tip`; a Shift-click runs onClick. A controller's
--- button for it is the panel's own: Shop.lua's padKeys), hint = { text, ink } (the right text
--- while the mouse or a controller's cursor is on the row: what a click does).
+-- shift = { text, tip, run } (a Shift action: above MakeRow), hover = { text, ink } (a hint in the
+-- right text's place while the mouse is on the row: RowFace).
 function D:Row(o)
 	local child = self.child
 	local r = self:Take("row", function() return MakeRow(child) end)
@@ -438,7 +431,8 @@ function D:Row(o)
 	local w = self.width - self.pad * 2 + 8 - indent
 	r:SetPoint("TOPLEFT", child, "TOPLEFT", self.pad - 4 + indent, -self.y)
 	r.onClick, r.tip, r.link, r.rightClick, r.onDouble = o.onClick, o.tip, o.link, o.rightClick, o.onDouble
-	r.shift, r.hint, r.rightText, r.rightInk = o.shift, o.hint, o.right, o.rightInk
+	r.shift = type(o.shift) == "table" and o.shift or nil
+	r.hover = type(o.hover) == "table" and o.hover or nil
 	if o.marked then
 		local ar, ag, ab = API.Accent()
 		r.mark:SetColorTexture(ar, ag, ab, 0.14)
@@ -466,42 +460,39 @@ function D:Row(o)
 	local inner = w - x - 4
 	r.right:SetWidth(0)
 	r.right:SetWordWrap(false)
+	-- (The words that can stand in the right text's place, each on one line: the widest of them
+	-- and the right text is the room kept, so the left text is laid out clear of all of them.)
+	local alt = 0
+	if r.hover and r.hover.text then
+		r.right:SetText(r.hover.text)
+		alt = math.max(alt, math.ceil(r.right:GetStringWidth() or 0))
+	end
+	if r.shift and r.shift.text then
+		r.right:SetText(r.shift.text)
+		alt = math.max(alt, math.ceil(r.right:GetStringWidth() or 0))
+	end
 	r.right:SetText(o.right or "")
 	r.right:SetTextColor(Color(o.rightInk or "VALUE"))
 	local rw = (o.right and o.right ~= "") and math.ceil(r.right:GetStringWidth()) or 0
-	-- (Room for the Shift action's word and the hover hint too, so swapping one in never runs into
-	-- the left text: the widest of the three sets the column.)
-	local swaps
-	if o.shift and o.shift.text then swaps = { o.shift.text } end
-	if o.hint and o.hint.text then
-		swaps = swaps or {}
-		swaps[#swaps + 1] = o.hint.text
-	end
-	for _, text in ipairs(swaps or {}) do
-		r.right:SetText(text)
-		rw = math.max(rw, math.ceil(r.right:GetStringWidth()))
-	end
-	if swaps then r.right:SetText(o.right or "") end
 	local half = math.floor(inner / 2)
+	local wrapped = false
 	if rw > half then
 		r.right:SetWidth(half)
 		r.right:SetWordWrap(true)
 		rw = half
+		wrapped = true
 	end
 	r.right:SetPoint("TOPRIGHT", r, "TOPRIGHT", -4, -3)
 	r.left:SetPoint("TOPLEFT", r, "TOPLEFT", x, -3)
-	r.left:SetWidth(math.max(20, inner - (rw > 0 and rw + 8 or 0)))
+	local room = math.max(rw, alt)
+	r.left:SetWidth(math.max(20, inner - (room > 0 and room + 8 or 0)))
+	-- (Kept for the words that take the right text's place and give it back: RowFace.)
+	r.rightText, r.rightInk = o.right or "", o.rightInk
+	r.rightW, r.rightWrap = wrapped and half or 0, wrapped
+	r.face = nil
 	r.left:SetText(o.left or "")
 	r.left:SetTextColor(Color(o.leftInk or "VALUE"))
-	-- (As tall as the tallest of the right texts it can show: a hint wrapped onto two lines in the
-	-- right half never runs into the line under it.)
-	local rh = rw > 0 and math.ceil(r.right:GetStringHeight()) or 0
-	for _, text in ipairs(swaps or {}) do
-		r.right:SetText(text)
-		rh = math.max(rh, math.ceil(r.right:GetStringHeight()))
-	end
-	if swaps then r.right:SetText(o.right or "") end
-	local top = 3 + math.max(math.ceil(r.left:GetStringHeight()), rh)
+	local top = 3 + math.max(math.ceil(r.left:GetStringHeight()), rw > 0 and math.ceil(r.right:GetStringHeight()) or 0)
 	local h
 	if o.sub then
 		r.sub:SetPoint("TOPLEFT", r, "TOPLEFT", x, -(top + 3))
@@ -516,50 +507,160 @@ function D:Row(o)
 	end
 	r:SetSize(w, h)
 	self.y = self.y + h + 2
-	-- (Drawn again under the mouse, as when the row above was removed or bought: the Shift look
-	-- and the tooltip are this row's now.)
-	if r.hover and not r:IsMouseOver() then r.hover = false end
-	if not o.shift then r:UnregisterEvent("MODIFIER_STATE_CHANGED") end
-	PaintShift(r)
-	if GameTooltip:IsOwned(r) then
-		if r.tip then ShowRowTip(r) else GameTooltip:Hide() end
+	self.marks[#self.marks + 1] = self.y
+	-- (Drawn again under the mouse with Shift held: the Shift action's word is back at once.)
+	if r.hovered then
+		RowFace(r)
+		if GameTooltip:IsOwned(r) then RowTip(r) end
 	end
 	return r
 end
 
--- A line of DaylightUI buttons, left to right: { { text, onClick, off, width }, ... }.
-function D:Buttons(list, indent)
+-- A line of DaylightUI buttons, left to right: { { text, onClick, off, width, active (lit), min
+-- (the least width of one sized to its words: 64) }, ... }. One past the page's edge goes on a new line.
+-- opts (for a line of small chips: the strips' list pair and profession tags, Shop.lua):
+-- height (24), gap (6: between two buttons, and under the line), pad (a button sized to its words
+-- is that much wider than them; without it, DaylightUI's own fit: 32).
+function D:Buttons(list, indent, opts)
 	local child = self.child
 	local left = self.pad + (indent or 0)
 	local x = left
-	local tall = 24          -- the tallest button on this line
+	local high = opts and opts.height or 24
+	local gap = opts and opts.gap or 6
+	local pad = opts and opts.pad or nil
+	local tall = high          -- the tallest button on this line
 	for _, spec in ipairs(list) do
 		local b = self:Take("button", function() return API.Button(child, "", 24) end)
-		b:SetHeight(24)
+		b:SetHeight(high)
 		b.text:SetWidth(0)
 		b.text:SetWordWrap(false)
 		b.text:SetText(spec.text or "")
-		if spec.width then b:SetWidth(spec.width) else b.FitWidth(64) end
+		if spec.width then
+			b:SetWidth(spec.width)
+		elseif pad then
+			b:SetWidth(math.max(spec.min or 0, math.ceil(b.text:GetStringWidth() or 0) + pad))
+		else
+			b.FitWidth(spec.min or 64)
+		end
 		-- (Words wider than the page: the button as wide as the page, its words on two lines or more.)
 		local most = self.width - self.pad - left
 		if most > 40 and b:GetWidth() > most then
 			b:SetWidth(most)
 			b.text:SetWidth(most - 16)
 			b.text:SetWordWrap(true)
-			b:SetHeight(math.max(24, math.ceil(b.text:GetStringHeight()) + 10))
+			b:SetHeight(math.max(high, math.ceil(b.text:GetStringHeight()) + 10))
 		end
 		-- (Past the page's edge: on to a new line.)
 		if x > left and x + b:GetWidth() > self.width - self.pad then
 			x = left
-			self.y = self.y + tall + 6
-			tall = 24
+			self.y = self.y + tall + gap
+			tall = high
 		end
 		tall = math.max(tall, b:GetHeight())
 		b:SetPoint("TOPLEFT", child, "TOPLEFT", x, -self.y)
 		b:SetScript("OnClick", function() if spec.onClick then spec.onClick() end end)
 		b.SetOff(spec.off == true)
 		if b.SetActive then b.SetActive(spec.active == true) end
-		x = x + b:GetWidth() + 6
+		x = x + b:GetWidth() + gap
+	end
+	self.y = self.y + tall + gap
+end
+
+-- A small arrow pointing down, drawn from three bars (ours: no art of the game's or DaylightUI's),
+-- for a button that opens a menu.
+function Doc.Chevron(parent)
+	local holder = CreateFrame("Frame", nil, parent)
+	holder:SetSize(7, 6)
+	holder.bars = {}
+	for i = 1, 3 do
+		local bar = holder:CreateTexture(nil, "OVERLAY")
+		bar:SetSize(9 - i * 2, 2)
+		bar:SetPoint("TOP", holder, "TOP", 0, -(i - 1) * 2)
+		holder.bars[i] = bar
+	end
+	function holder.Paint(ink)
+		local r, g, b = Color(ink or "LABEL")
+		for _, bar in ipairs(holder.bars) do bar:SetColorTexture(r, g, b, 1) end
+	end
+	holder.Paint()
+	return holder
+end
+
+local function MakePicker(child)
+	local p = CreateFrame("Frame", nil, child)
+	p.label = Doc.Text(p, "small")
+	p.label:SetJustifyH("LEFT")
+	p.label:SetWordWrap(false)
+	p.button = API.Button(p, "", 24)
+	p.button.text:ClearAllPoints()
+	p.button.text:SetPoint("LEFT", p.button, "LEFT", 12, 0)
+	p.button.text:SetJustifyH("LEFT")
+	p.chevron = Doc.Chevron(p.button)
+	p.chevron:SetPoint("RIGHT", p.button, "RIGHT", -10, 0)
+	return p
+end
+
+-- A line of pickers, left to right: a label and a button showing the choice, which opens
+-- DaylightUI's own menu under it (API.Menu: DaylightUI/API.md, "Look like Daylight UI").
+-- list: { { label, keys, values, current, onPick(key) }, ... } (keys, values as API.Menu takes).
+-- Each button is as wide as its choice's words; a picker that doesn't fit beside the last goes on
+-- a new line, and one wider than the page puts its label above its button; a choice whose words
+-- are wider than the page even then wraps inside its button, which grows as tall as they need
+-- (the button's look is anchored to its edges and follows: DaylightUI/Options/Widgets.lua:420-436).
+-- Nothing is cut.
+function D:Pickers(list, indent)
+	local child = self.child
+	local left = self.pad + (indent or 0)
+	local most = self.width - self.pad
+	local x, tall = left, 24
+	for _, spec in ipairs(list) do
+		local p = self:Take("picker", function() return MakePicker(child) end)
+		p.label:SetText(spec.label or "")
+		p.label:SetTextColor(Color("LABEL"))
+		p.button.text:SetWidth(0)
+		p.button.text:SetWordWrap(false)
+		p.button:SetHeight(24)
+		p.button.text:SetText(spec.values[spec.current] or "")
+		-- (The button: 12 before its words, 8 between them and the arrow, the arrow's 7, 10 after.)
+		local bw = math.max(56, math.ceil(p.button.text:GetStringWidth()) + 12 + 8 + 7 + 10)
+		local lw = math.ceil(p.label:GetStringWidth())
+		local w, h = lw + 6 + bw, 24
+		local stacked = w > most - left
+		p.label:ClearAllPoints()
+		p.button:ClearAllPoints()
+		if stacked then
+			-- (Wider than the page: the label above, the button under it, as wide as the page at most.)
+			local bh = 24
+			if bw > most - left then
+				bw = most - left
+				-- (Its words in the room the button has for them, on as many lines as they need.)
+				p.button.text:SetWidth(math.max(20, bw - (12 + 8 + 7 + 10)))
+				p.button.text:SetWordWrap(true)
+				bh = math.max(24, math.ceil(p.button.text:GetStringHeight()) + 10)
+				p.button:SetHeight(bh)
+			end
+			w, h = math.max(lw, bw), bh + 16
+			p.label:SetPoint("TOPLEFT", p, "TOPLEFT", 0, 0)
+			p.button:SetPoint("BOTTOMLEFT", p, "BOTTOMLEFT", 0, 0)
+		else
+			p.label:SetPoint("LEFT", p, "LEFT", 0, 0)
+			p.button:SetPoint("LEFT", p.label, "RIGHT", 6, 0)
+		end
+		p.button:SetWidth(bw)
+		if x > left and x + w > most then
+			x = left
+			self.y = self.y + tall + 6
+			tall = 24
+		end
+		tall = math.max(tall, h)
+		p:SetSize(w, h)
+		p:SetPoint("TOPLEFT", child, "TOPLEFT", x, -self.y)
+		p.button:SetScript("OnClick", function(owner)
+			API.Menu(owner, spec.keys, spec.values, spec.current, function(key)
+				if spec.onPick then spec.onPick(key) end
+			end)
+		end)
+		x = x + w + 14
 	end
 	self.y = self.y + tall + 6
 end

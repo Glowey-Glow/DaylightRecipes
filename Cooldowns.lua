@@ -1,6 +1,7 @@
 -- Craft cooldowns: the recipes you know that can only be made once in a while (Alchemy's
 -- transmutes, Tailoring's Mooncloth, Leatherworking's Cured Rugged Hide, and any other the game
--- reports a cooldown on), shown in a box at the foot of the professions list (Window.lua).
+-- reports a cooldown on), shown as tiles at the foot of the professions menu, and as a dot on the
+-- window's header icon while one is ready (WindowMenu.lua, Window.lua).
 --
 -- The recipe data carries no cooldowns, so they come from the game:
 --  * which recipes have one: the names above, plus any recipe the game ever reports a cooldown for
@@ -10,7 +11,7 @@
 --    per character, so it carries across logouts.
 -- Transmutes that are ready, or ready at the same moment (a shared cooldown), make one tile.
 -- Nothing runs on a timer here: the profession opening or changing, and a cooldown recipe cast,
--- read it again; the box's own countdown ticks only while it shows (Window.lua).
+-- read it again; the tiles' own countdown ticks only while the menu shows (WindowMenu.lua).
 -- A value the game hands over as secret is never compared or counted: it's as if it said nothing.
 
 local _, ns = ...

@@ -145,7 +145,7 @@ end)
 
 -- Between sessions the game's window goes back: on Forever it is the professions book too (K and
 -- the micro menu open it with no trade skill), which must show. Put off a frame, so another
--- profession picked on the left (a close and an open at once) keeps it held.
+-- profession picked in the window's menu (a close and an open at once) keeps it held.
 local function ReleaseAfter()
 	C_Timer.After(0, function()
 		local f = Game()

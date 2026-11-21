@@ -1,7 +1,8 @@
 -- The crafting queue: recipes to make and how many, kept per character (any of its professions).
 -- Added from the Recipes tab and from the Leveling Guide's steps; "Craft next" in the Queue tab
 -- makes the first one of the open profession. Every cast of a queued recipe takes one off it,
--- however it was started. What the queue needs is on the buy list at vendors and the Auction House.
+-- however it was started. What the queue needs is on the strips at vendors and the Auction House.
+-- Its count is on the window's Queue tab ("Queue (3)") and, rolled up, on its craft bar.
 local _, ns = ...
 if not ns.ok then return end
 
@@ -107,19 +108,17 @@ function Queue.NextHere()
 	end
 end
 
--- What the queue takes for each profession, by its queued recipes' own (the recipe data's, else
--- the profession it was queued from): line -> { itemID -> count }. For the buy list's profession
--- tags; Queue.Needs is the total.
+-- What the queue takes, profession by profession: line -> { itemID -> count } (the profession of
+-- each queued recipe; for the strips' profession tags, Shop.lua). Together they are Queue.Needs().
 function Queue.NeedsByLine()
 	local out = {}
 	for _, e in ipairs(Queue.List()) do
 		local data = ns.Recipes and ns.Recipes[e.spell]
 		local line = data and data[1] or e.line
 		if line then
-			local items = out[line] or {}
-			out[line] = items
+			out[line] = out[line] or {}
 			for _, m in ipairs(ns.Calc.Materials(e.spell)) do
-				items[m[1]] = (items[m[1]] or 0) + m[2] * e.count
+				out[line][m[1]] = (out[line][m[1]] or 0) + m[2] * e.count
 			end
 		end
 	end

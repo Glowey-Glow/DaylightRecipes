@@ -174,12 +174,17 @@ local function ItemLines(lines, data)
 	local used = UsedText(itemID)
 	if used then lines.Line(L["Used In"], used) end
 	-- Guides: this character's own, for the professions it has learned (alts' guides aren't shown).
+	-- Not for a profession whose guide line is handed to Professionally Lost (its own tooltip block
+	-- says what its guide needs), or whose plan of ours is no longer kept up (ProfLost.lua), or was
+	-- not kept up and has not been worked out since (plan.rested: ProfLost.RestPlan).
 	local mine = ns.Store.Char()
 	if type(mine) == "table" and type(mine.plans) == "table" then
 		local have = Learned()
+		local P = ns.ProfLost
 		for line, plan in pairs(mine.plans) do
 			local n = type(plan) == "table" and plan.need and plan.need[itemID]
-			if n and n > 0 and have[line] then
+			local theirs = P ~= nil and (P.Handed("tooltip", line) or P.PlanQuiet(line))
+			if n and n > 0 and have[line] and not theirs and not plan.rested then
 				lines.Line(L["Your %s Guide"]:format(LineName(line) or ""), L["%d (to %d)"]:format(n, plan.target or 0))
 			end
 		end

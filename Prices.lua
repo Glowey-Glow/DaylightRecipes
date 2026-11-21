@@ -31,7 +31,15 @@ end
 -- This character's price book: its rules key's (Store.PriceBook: one Auction House for a set of
 -- rules, both factions). What's read goes there.
 local function Book()
-	return ns.Store.PriceBook()
+	if ns.Store.PriceBook then return ns.Store.PriceBook() end
+	local db = ns.Store.DB()
+	local key = ns.Store.RealmKey()
+	local book = db.prices[key]
+	if not book then
+		book = { items = {} }
+		db.prices[key] = book
+	end
+	return book
 end
 
 -- An item's row for reading: the book's, or the one in an old "Realm-Faction" book of this
@@ -44,19 +52,39 @@ local function Row(itemID)
 	return row
 end
 
--- The lowest buyout you've seen for one item, or nil (none, or too old).
-function Prices.Get(itemID)
-	local row = Row(itemID)
-	if not row or not row.p then return nil end
-	if time() - (row.t or 0) > STALE then return nil end
-	return row.p
+-- Professionally Lost's own scanned price for an item, while "Scanned Prices" is handed over
+-- (ProfLost.lua: a guarded read of its Scan.Price; nothing of its is written): copper and how old
+-- it is, or nil. Its prices have no age limit of their own, so ours (two weeks) is applied here.
+local function Theirs(itemID)
+	local P = ns.ProfLost
+	if not (P and P.Handed("prices")) then return nil end
+	local copper, age = P.Price(itemID)
+	if not copper or not age or age > STALE then return nil end
+	return copper, age
 end
 
--- Whether any price of ours is known (for the "no Auction House prices" note).
+-- The lowest buyout seen for one item, or nil (none, or too old): ours (what you browsed or
+-- scanned), or Professionally Lost's when it was seen later than ours.
+function Prices.Get(itemID)
+	local row = Row(itemID)
+	local mine, age
+	if row and row.p then
+		age = time() - (row.t or 0)
+		if age <= STALE then mine = row.p end
+	end
+	local theirs, theirAge = Theirs(itemID)
+	if theirs and (not mine or theirAge < age) then return theirs end
+	return mine
+end
+
+-- Whether any price is known (for the "no Auction House prices" note): ours, or Professionally
+-- Lost's while its prices are used.
 function Prices.Has()
 	if next(Book().items) ~= nil then return true end
 	local old = ns.Store.OldPriceBook and ns.Store.OldPriceBook()
-	return old ~= nil and next(old.items) ~= nil
+	if old and next(old.items) ~= nil then return true end
+	local P = ns.ProfLost
+	return P ~= nil and P.Handed("prices") and P.HasPrices() or false
 end
 
 -- When the last full scan finished, or nil.
@@ -409,6 +437,10 @@ end
 
 -- Whether something is being bought right now: nothing is asked of the Auction House then.
 local function Buying()
+	-- (Ours: the purchase Store.lua heard confirmed and not answered yet, Store.Confirming; a
+	-- vendor's buy run, Shop.Buying, which can't be under way at the Auction House but costs nothing
+	-- to ask.)
+	if ns.Store and ns.Store.Confirming and ns.Store.Confirming() then return true end
 	if ns.Shop and ns.Shop.Buying and ns.Shop.Buying() then return true end
 	local m = DaylightHouse()
 	if m and type(m.Buy) == "table" and type(m.Buy.Pending) == "function" then

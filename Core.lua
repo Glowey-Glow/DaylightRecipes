@@ -1,6 +1,7 @@
 -- Glowey's Recipes: a DaylightUI plugin.
 -- A profession window of its own in place of the game's and DaylightUI's (Window.lua, Take.lua):
--- your professions and alts on the left; Recipes, Plan, Materials and Missing tabs. Or, by choice
+-- your professions and alts in the menu on the profession's name; Recipes, Leveling Guide,
+-- Materials, Queue and Missing tabs. Or, by choice
 -- (and always while DaylightMogul runs the professions), a pane on the right of the profession
 -- window: DaylightUI's own (docked through me.AttachCraftPane), or DaylightMogul's. Its pages:
 --   Recipe:  the picked recipe's skill-up chance, what its materials cost (each one priced from
@@ -31,6 +32,9 @@ ns.me = me
 local DEFAULTS = {
 	window = "recipes",
 	winScale = 1,
+	winHeight = 560,
+	detailsDefault = false,
+	altProfs = true,
 	paneWidth = 300,
 	useAH = true,
 	priceSource = "market",
@@ -46,6 +50,16 @@ local DEFAULTS = {
 	duiProfit = true,
 	duiOpacity = true,
 	opacity = 0.85,
+	-- Buy All Needed at a vendor asks first (Shop.lua).
+	askBuyAll = true,
+	-- What Professionally Lost does in our place, when it is loaded (ProfLost.lua). All off until
+	-- the player answers its first-load window: nothing changes for anyone who has not.
+	plGuide = false,
+	plShop = false,
+	plTrainer = false,
+	plTips = false,
+	plPrices = false,
+	plStep = false,
 }
 ns.DEFAULTS = DEFAULTS
 
@@ -235,10 +249,23 @@ function ns.ReadProfession()
 	-- Your own profession (not someone's linked recipes): kept for the plan and your alts' view.
 	if line and not linked and changed and ns.Store then ns.Store.SaveProfession(line, skill, max) end
 	-- (The plan is kept with the character: the buy list and the trainer's list read it away from
-	-- the profession window. Worked out a moment later, once the known recipes are read.)
-	if line and not linked and changed and ns.Plan then
+	-- the profession window. Worked out a moment later, once the known recipes are read. Not for a
+	-- profession whose guide, buy list and trainer piece are all handed to Professionally Lost:
+	-- nothing reads its plan then. The one saved is kept, marked as resting (ProfLost.RestPlan), so
+	-- that after a put-back nothing counts from it before it is worked out again; and a resting
+	-- plan is worked out here the first time its profession is read with it no longer handed off,
+	-- whether or not anything else changed.)
+	local resting = false
+	if line and not linked and not changed and ns.Store then
+		local c = ns.Store.Char()
+		local plan = type(c) == "table" and type(c.plans) == "table" and c.plans[line]
+		resting = type(plan) == "table" and plan.rested == true
+			and not (ns.ProfLost and ns.ProfLost.PlanQuiet(line))
+	end
+	if line and not linked and (changed or resting) and ns.Plan then
 		C_Timer.After(0, function()
-			if S.line == line and not S.linked and S.mode then pcall(ns.Plan.Get) end
+			local rests = ns.ProfLost and ns.ProfLost.RestPlan(line)
+			if S.line == line and not S.linked and S.mode and not rests then pcall(ns.Plan.Get) end
 			if ns.Shop then ns.Shop.Refresh() end
 		end)
 	end
@@ -414,6 +441,12 @@ local function PaneOff(get) return get("window") == "recipes" end
 local function WindowOff(get) return get("window") ~= "recipes" end
 local function FollowOpacity(get) return get("duiOpacity") ~= false end
 
+-- Professionally Lost's group: there only while it is loaded; three of its switches mean nothing
+-- while the Leveling Guide is not handed off. (Each row is hidden by itself: a group with no row
+-- on show is not drawn, DaylightUI/Options/Widgets.lua:3778-3786.)
+local function NoProfLost() return not (ns.ProfLost and ns.ProfLost.Loaded()) end
+local function NoGuideHandOff(get) return get("plGuide") ~= true end
+
 local WINDOWS = {
 	recipes = L["Recipes Window"],
 	game = L["The Game's Window"],
@@ -429,6 +462,12 @@ local pages = {
 			  desc = L["Recipes Window: Glowey's Recipes' own (Daylight UI's profession window is switched off for it). The Game's Window: Blizzard's own, as the swap button beside the X picks. Docked Pane: Daylight UI's or DaylightMogul's window with a pane beside it (Daylight UI's comes back after a reload)."] },
 			{ type = "slider", key = "winScale", label = L["Window Size"], min = 0.7, max = 1.2, step = 0.05,
 			  desc = L["How large Glowey's Recipes' window is."], disabled = WindowOff },
+			{ type = "slider", key = "winHeight", label = L["Window Height"], min = 400, max = 720, step = 20,
+			  desc = L["How tall Glowey's Recipes' window is. Dragging its bottom edge sets it too."], disabled = WindowOff },
+			{ type = "toggle", key = "detailsDefault", label = L["Open Details by Default"],
+			  desc = L["Recipe details start open on every tab until you close them there."], disabled = WindowOff },
+			{ type = "toggle", key = "altProfs", label = L["Show Your Alts' Professions"],
+			  desc = L["Your other characters' professions, under Your Alts in the professions menu."], disabled = WindowOff },
 			{ type = "slider", key = "paneWidth", label = L["Pane Width"], min = 260, max = 400, step = 10,
 			  desc = L["How wide the pane beside Daylight UI's or DaylightMogul's profession window is."], disabled = PaneOff },
 			{ type = "toggle", key = "duiProfit", label = L["Leave Cost and Profit to Daylight UI"],
@@ -454,6 +493,8 @@ local pages = {
 			  desc = L["What uses a material, what your plans need of it, and who knows or can learn a recipe item."] },
 			{ type = "toggle", key = "vendorMarks", label = L["Mark Recipes at Vendors"],
 			  desc = L["A small square on a recipe at a vendor that you or an alt can learn: bright if you can now."] },
+			{ type = "toggle", key = "askBuyAll", label = L["Ask Before Buying All"],
+			  desc = L["Buy All Needed at a vendor shows the total and asks first. A single item on the list never asks."] },
 			{ type = "toggle", key = "mastercraftTips", label = L["Hide Mastercraft's Recipe Lines"],
 			  hidden = function() return not (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("Mastercraft")) end,
 			  disabled = function(get) return get("tooltips") == false end,
@@ -471,6 +512,33 @@ local pages = {
 			  desc = L["List only the recipes your skill is high enough to learn now."] },
 			{ type = "toggle", key = "tomtom", label = L["Waypoints with TomTom"],
 			  desc = L["Clicking a place sets a TomTom waypoint when TomTom is installed. Off, or without it, the game's own map pin is used."] },
+		} },
+		-- The same six switches as the first-load window (ProfLost.lua): on = Professionally Lost
+		-- does it. Nothing of Professionally Lost's is changed by any of them.
+		{ label = L["Professionally Lost"], items = {
+			{ type = "toggle", key = "plGuide", label = L["Leveling Guide"], hidden = NoProfLost,
+			  desc = L["Professionally Lost guides your leveling, and Glowey's Recipes hides its Leveling Guide and Materials tabs for the professions it covers."] },
+			{ type = "toggle", key = "plShop", label = L["Buy Lists"], hidden = NoProfLost, disabled = NoGuideHandOff,
+			  desc = L["Professionally Lost's Buy for Guide button covers your guide at vendors, and Glowey's Recipes lists only what your crafting queue needs."] },
+			{ type = "toggle", key = "plTrainer", label = L["Trainer Panel"], hidden = NoProfLost, disabled = NoGuideHandOff,
+			  desc = L["Professionally Lost's guide names the recipes to train, and Glowey's Recipes' trainer strip shows only your next rank."] },
+			{ type = "toggle", key = "plTips", label = L["Guide Line in Item Tooltips"], hidden = NoProfLost,
+			  desc = L["Professionally Lost's tooltip says what your guides need, and Glowey's Recipes drops its own guide line."] },
+			{ type = "toggle", key = "plPrices", label = L["Scanned Prices"], hidden = NoProfLost,
+			  desc = L["Glowey's Recipes also uses the auction prices Professionally Lost scanned, so one scan serves both."] },
+			{ type = "toggle", key = "plStep", label = L["Light Up Its Step"], hidden = NoProfLost, disabled = NoGuideHandOff,
+			  desc = L["Glowey's Recipes lights the recipe Professionally Lost's guide is on in your recipe list."] },
+			{ type = "button", label = L["Open Professionally Lost"], text = L["Open"],
+			  hidden = function() return not (ns.ProfLost and ns.ProfLost.CanOpenGuide()) end,
+			  desc = L["Brings up Professionally Lost's guide window."],
+			  func = function() ns.ProfLost.OpenGuide(S.line) end },
+			{ type = "button", label = L["Professionally Lost Settings"], text = L["Open"],
+			  hidden = function() return not (ns.ProfLost and ns.ProfLost.CanOpenSettings()) end,
+			  desc = L["Opens Professionally Lost's own options page."],
+			  func = function() ns.ProfLost.OpenSettings() end },
+			{ type = "button", label = L["Put Everything Back"], text = L["Put Back"], confirm = true, hidden = NoProfLost,
+			  desc = L["Turns all six off, so Glowey's Recipes does everything itself again."],
+			  func = function() ns.ProfLost.PutBack() end },
 		} },
 	  } },
 }
@@ -491,6 +559,8 @@ pcall(function()
 	})
 	DUI:RegisterModule(ADDON, { plugin = ADDON, label = L["Recipes"], defaults = DEFAULTS, options = { pages = pages } })
 end)
+
+local PL_KEYS = { plGuide = true, plShop = true, plTrainer = true, plTips = true, plPrices = true, plStep = true }
 
 me.On("SettingChanged", function(scope, path)
 	-- DaylightUI's main button glow style is the guide's too.
@@ -538,6 +608,13 @@ me.On("SettingChanged", function(scope, path)
 		ns.ReskinWindows()
 		return
 	end
+	-- One of Professionally Lost's hand-offs (the window's Apply sets all six, then tells once).
+	if PL_KEYS[path] then
+		if ns.ProfLost and not ns.ProfLost.applying then ns.ProfLost.Changed() end
+		return
+	end
+	-- (Read where they're used: nothing is drawn from these.)
+	if path == "askBuyAll" or path == "winHeight" or path == "detailsDefault" then return end
 	if ns.Calc then ns.Calc.Forget() end
 	if PaneShown() then ns.Changed() end
 end)

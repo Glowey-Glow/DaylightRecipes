@@ -7,7 +7,10 @@
 --                                  stacked (Auto-replace on a line of its own under the item, for
 --                                  a narrow pane), onChange() (the item or Auto-replace changed:
 --                                  draw again)
---   row:Update(spell)              filled for this enchant; returns its item (or nil)
+--   row:Update(spell, width)       filled for this enchant; returns its item (or nil). width: how
+--                                  wide the row is (the window's column, the pane): the item's name
+--                                  and the hint wrap inside it rather than being cut, and the row
+--                                  is as tall as they need (row:GetHeight(); 46 for a line each)
 --   row.target                     the item shown, row.spell the enchant
 local _, ns = ...
 if not ns.ok then return end
@@ -45,7 +48,23 @@ local function PickTarget(row, owner)
 	end, 240)
 end
 
-local function Update(row, spell)
+-- The name and the hint as wide as the row leaves them (beside the Auto-replace label, or to the
+-- row's edge when that is stacked under them), and the row as tall as they wrap to.
+local function Fit(row, width)
+	if not width or width <= 0 then width = row:GetWidth() end
+	if not width or width <= 0 then return end
+	local room = width - row.pad - 34 - 10 - row.pad
+	if not row.stacked then
+		room = room - 12 - math.ceil(row.autoLabel:GetStringWidth()) - 8 - row.auto:GetWidth()
+	end
+	room = math.max(60, room)
+	row.name:SetWidth(room)
+	row.hint:SetWidth(room)
+	local h = math.max(EnchantRow.HEIGHT, 6 + math.ceil(row.name:GetStringHeight()) + 3 + math.ceil(row.hint:GetStringHeight()) + 6)
+	row:SetHeight(h + (row.stacked and EnchantRow.AUTO or 0))
+end
+
+local function Update(row, spell, width)
 	row.spell = spell
 	local t = spell and Craft.EnchantTarget(spell) or nil
 	row.icon:SetTexture(t and t.icon or EMPTY_SLOT)
@@ -56,6 +75,7 @@ local function Update(row, spell)
 	row.hint:SetTextColor(Color("OFF"))
 	row.auto.SetOn(Craft.AutoReplace())
 	row.target = t
+	Fit(row, width)
 	return t
 end
 
@@ -67,6 +87,7 @@ function EnchantRow.New(parent, opts)
 	row:Hide()
 	row.onChange = opts.onChange or function() end
 	row.Update = Update
+	row.pad, row.stacked = pad, opts.stacked == true
 
 	local slot = CreateFrame("Button", nil, row)
 	slot:SetSize(34, 34)
@@ -118,22 +139,24 @@ function EnchantRow.New(parent, opts)
 		if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
 	end)
 	row.slot = slot
-	-- (The name and hint run up to the Auto-replace label, or to the row's edge when it's stacked.)
+	-- (The name and hint run up to the Auto-replace label, or to the row's edge when it's stacked:
+	-- Fit gives them that width, and they wrap inside it.)
 	row.name = Text(row, "body")
 	row.name:SetPoint("TOPLEFT", slot, "TOPRIGHT", 10, -2)
 	row.name:SetJustifyH("LEFT")
-	row.name:SetWordWrap(false)
+	row.name:SetWordWrap(true)
+	row.name:SetWidth(150)
 	row.hint = Text(row, "small")
 	row.hint:SetPoint("TOPLEFT", row.name, "BOTTOMLEFT", 0, -3)
 	row.hint:SetJustifyH("LEFT")
 	row.hint:SetWordWrap(true)
-	row.hint:SetMaxLines(2)
+	row.hint:SetWidth(150)
 
 	row.auto = API.Switch(row)
 	if opts.stacked then
 		row.auto:SetPoint("RIGHT", row, "BOTTOMRIGHT", -pad, EnchantRow.AUTO / 2)
 	else
-		row.auto:SetPoint("RIGHT", row, "RIGHT", -pad, -2)
+		row.auto:SetPoint("RIGHT", row, "TOPRIGHT", -pad, -EnchantRow.HEIGHT / 2 - 2)
 	end
 	row.auto:SetScript("OnClick", function()
 		Craft.SetAutoReplace(not Craft.AutoReplace())
@@ -153,12 +176,5 @@ function EnchantRow.New(parent, opts)
 	row.autoLabel:SetPoint("RIGHT", row.auto, "LEFT", -8, 0)
 	row.autoLabel:SetText(L["Auto-replace"])
 	row.autoLabel:SetTextColor(Color("LABEL"))
-	if opts.stacked then
-		row.name:SetPoint("RIGHT", row, "RIGHT", -pad, 0)
-		row.hint:SetPoint("RIGHT", row, "RIGHT", -pad, 0)
-	else
-		row.name:SetPoint("RIGHT", row.autoLabel, "LEFT", -12, 0)
-		row.hint:SetPoint("RIGHT", row.autoLabel, "LEFT", -12, 0)
-	end
 	return row
 end

@@ -1,4 +1,4 @@
--- Making things from Glowey's Recipes' window: Create, Create All, enchanting onto an item, and
+-- Making things from Glowey's Recipes' window: Create (as many as the count says), enchanting onto an item, and
 -- following the casts until they're done or stopped. The docked pane's enchant section (Pane.lua)
 -- enchants through the same calls.
 -- The game's own Create buttons are plain buttons calling C_TradeSkillUI.CraftRecipe (and
@@ -6,7 +6,8 @@
 -- protected thing (SpellStopCasting): Stop is a secure /stopcasting button of the game's own
 -- template, laid over the window's Stop button while something is being made. It's a child of
 -- UIParent placed at the same spot on screen, never anchored to the window, so the window stays an
--- ordinary frame you can move and close in a fight.
+-- ordinary frame you can move, resize, roll up and close in a fight (the rules, with their source,
+-- are at "Stop" below).
 -- Enchanting for skill: the item an enchant goes on is kept (the last few, per character), so one
 -- cheap item can take enchant after enchant; a run of several casts on it is one call, as the game's
 -- own Create does for a stack; and, with "Auto-replace" on, the game's "replace the enchant?" question
@@ -18,7 +19,7 @@ if not ns.ok then return end
 local Craft = {}
 ns.Craft = Craft
 
-local making      -- { spell, count, done } while casts are under way
+local making      -- { spell, count, done, castStart, castEnd } while casts are under way
 
 local function TS(name, ...)
 	local fn = C_TradeSkillUI and C_TradeSkillUI[name]
@@ -258,12 +259,16 @@ events:SetScript("OnEvent", function(_, event, _, _, spellID)
 	if event == "UNIT_SPELLCAST_SUCCEEDED" and ns.Queue and type(spellID) == "number" then ns.Queue.Made(spellID) end
 	if not making then return end
 	if event == "UNIT_SPELLCAST_START" then
-		if spellID == making.spell then making.started = true end
+		if spellID == making.spell then
+			making.started = true
+			Craft.NoteCast(making)
+		end
 	elseif event == "UNIT_SPELLCAST_SUCCEEDED" then
 		if spellID ~= making.spell then return end
 		local run = making
 		run.started = true
 		run.done = run.done + 1
+		run.castStart, run.castEnd = nil, nil
 		if run.done >= run.count then
 			Stopped()
 			return
@@ -296,8 +301,73 @@ events:SetScript("OnEvent", function(_, event, _, _, spellID)
 end)
 
 -- ---------------------------------------------------------------------------------------------
+-- Progress
+-- ---------------------------------------------------------------------------------------------
+-- How far a run is, for the window's own 2 px progress line (no cast-bar art): the casts done plus
+-- how far the one under way is. The cast's start and end come from UnitCastingInfo("player") as it
+-- starts (returns name, displayName, textureID, startTimeMs, endTimeMs: Blizzard_APIDocumentation
+-- Generated/UnitDocumentation.lua:828-851). That call is SecretWhenUnitSpellCastRestricted (:830):
+-- under the client's restrictions its numbers are secret and can't be compared or used in sums, so
+-- they are kept only when issecretvalue says they are plain; else the line moves a cast at a time.
+-- issecretvalue is asked BEFORE anything else looks at them, a comparison with nil included: the
+-- game's own code tests a value that may be secret before it compares it (Blizzard_DamageMeter/
+-- DamageMeterEntry.lua:54: issecretvalue(texture) or ... or texture ~= self.iconTexture; Blizzard_
+-- SharedXMLBase/Pools.lua:274).
+
+local secret = type(issecretvalue) == "function" and issecretvalue or nil
+
+function Craft.NoteCast(run)
+	run.castStart, run.castEnd = nil, nil
+	if type(UnitCastingInfo) ~= "function" then return end
+	local ok, _, _, _, from, to = pcall(UnitCastingInfo, "player")
+	if not ok then return end
+	if secret and (secret(from) or secret(to)) then return end
+	if type(from) ~= "number" or type(to) ~= "number" or to <= from then return end
+	run.castStart, run.castEnd = from / 1000, to / 1000
+end
+
+-- 0 to 1 for the run under way, nil when nothing is being made.
+function Craft.Progress()
+	local run = making
+	if not run or (run.count or 0) < 1 then return nil end
+	local part = 0
+	if run.castStart and run.castEnd and not run.paused then
+		part = math.max(0, math.min(1, (GetTime() - run.castStart) / (run.castEnd - run.castStart)))
+	end
+	return math.max(0, math.min(1, (run.done + part) / run.count))
+end
+
+-- ---------------------------------------------------------------------------------------------
 -- Stop
 -- ---------------------------------------------------------------------------------------------
+-- What the game's source settles about this button (the client's own UI source, wow-ui-source
+-- branch "forever", version 1.60.1):
+--   - SecureActionButtonTemplate inherits SecureFrameTemplate and runs SecureActionButton_OnClick
+--     (Blizzard_FrameXML/SecureTemplates.xml:4-10); its "macro" action with a "macrotext" attribute
+--     runs C_Macro.RunMacroText(text, button) (Blizzard_FrameXML/SecureTemplates.lua:449-463).
+--   - On a protected frame SetPoint, ClearAllPoints, SetSize, SetParent, SetFrameStrata,
+--     SetFrameLevel, Raise and StartMoving are protected functions (IsProtectedFunction = true:
+--     Blizzard_APIDocumentationGenerated/SimpleScriptRegionResizingAPIDocumentation.lua:22-24,
+--     135-139, 163-165, SimpleScriptRegionAPIDocumentation.lua:653-657, SimpleFrameAPIDocumentation
+--     .lua:1000-1002, 1281-1297, 1548-1551): in a fight they are refused. Show and Hide carry no
+--     such flag in that documentation (:357, :751); they are treated as protected here all the same
+--     (the careful reading). So the secure Stop is moved, sized, shown and hidden out of a fight
+--     only: PlaceStop returns at once in one.
+--   - A region can be protected without being so explicitly (IsProtected returns isProtected,
+--     isProtectedExplicitly: SimpleScriptRegionAPIDocumentation.lua:540-553), and a region can have
+--     its anchoring restricted (IsAnchoringRestricted, :400-412; the restricted environment refuses
+--     GetRect and GetPoint of such a frame: Blizzard_RestrictedAddOnEnvironment/RestrictedFrames.lua:
+--     136-143, 375-380). The Lua source names those two states but not what causes them: that a
+--     protected frame's parent and anchor targets are the ones that get them is the engine's rule,
+--     not in the Lua source. So nothing of ours is ever the secure Stop's parent or anchor target:
+--     it is a child of UIParent, anchored to UIParent only, at coordinates read from the window's
+--     own Stop. The window is never touched by it and stays free in every state.
+--   - Its face (below) is a plain child of it: a child depends on its parent, not the other way,
+--     and showing or hiding a plain frame is not protected. DaylightUI gives plugins the same thing
+--     on its secure unit frames (API.Attach: "a plain child, so drawing on it is fine",
+--     DaylightUI/API.md, "The game's rules still apply").
+-- What only the game can show is listed in design/in-game-check.md under "Window".
+
 
 local stop
 local function StopButton()
@@ -307,11 +377,57 @@ local function StopButton()
 	stop:SetAttribute("macrotext", "/stopcasting")
 	stop:RegisterForClicks("AnyUp", "AnyDown")
 	stop:Hide()
+	-- Its own face: Daylight UI's button look, a plain child filling it, shown only while the window's
+	-- Stop is not under it (Craft.StopFace). It takes no clicks (the secure button under it does) and
+	-- a controller's cursor never stops on it.
+	local face = ns.API.Button(stop, ns.L["Stop"], 24)
+	face:SetAllPoints(stop)
+	face:EnableMouse(false)
+	face:Hide()
+	if ns.Pad then ns.Pad.Skip(face) end
+	stop.face = face
 	return stop
 end
 
 -- Whether the secure Stop is out (it can't be put away in a fight).
 function Craft.StopShown() return stop ~= nil and stop:IsShown() end
+
+-- Where the secure Stop is: { left, bottom, width, height } in the screen's units, or nil while
+-- it's away. (Reading a frame's rectangle is not protected.)
+-- (GetRect may return nothing, and secret numbers for a region whose anchoring is secret:
+-- SimpleScriptRegionAPIDocumentation.lua:193-196. Ours is anchored to the screen alone; checked
+-- all the same, since a secret number can't be compared.)
+function Craft.StopRect()
+	if not (stop and stop:IsShown()) then return nil end
+	local left, bottom, w, h = stop:GetRect()
+	-- (Secret first, then plain numbers: NoteCast, above.)
+	if secret and (secret(left) or secret(bottom) or secret(w) or secret(h)) then return nil end
+	if type(left) ~= "number" or type(bottom) ~= "number" or type(w) ~= "number" or type(h) ~= "number" then return nil end
+	return { left, bottom, w, h }
+end
+
+-- Where `visual` is, in the same units (what PlaceStop would give the secure Stop).
+function Craft.RectOf(visual)
+	if not visual or not visual:IsVisible() then return nil end
+	local scale = visual:GetEffectiveScale() / UIParent:GetEffectiveScale()
+	local left, bottom = visual:GetLeft(), visual:GetBottom()
+	if not left or not bottom then return nil end
+	return { left * scale, bottom * scale, visual:GetWidth() * scale, visual:GetHeight() * scale }
+end
+
+-- The secure Stop's own face on or off: on while it is out and the window draws no Stop under it
+-- (a fight kept it where it was while the window moved, changed state or closed), so a Stop that
+-- takes a click is always one you can see.
+function Craft.StopFace(on)
+	if not (stop and stop.face) then return end
+	local face = stop.face
+	if on and stop:IsShown() then
+		face.text:SetText(ns.L["Stop"])
+		face:Show()
+	else
+		face:Hide()
+	end
+end
 
 -- The secure Stop over `visual` (the window's own Stop button, which shows the look and hover),
 -- or put away (visual nil). Out of combat only; in a fight it stays as it is.
@@ -319,6 +435,7 @@ function Craft.PlaceStop(visual)
 	if InCombatLockdown() then return end
 	local b = StopButton()
 	if not b then return end
+	if b.face then b.face:Hide() end
 	if not visual or not visual:IsVisible() then
 		b:Hide()
 		return

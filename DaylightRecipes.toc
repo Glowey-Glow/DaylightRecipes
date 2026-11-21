@@ -1,7 +1,7 @@
 ## Interface: 16001
 ## Title: Glowey's |cffa335eeRecipes|r (DaylightUI Plugin)
 ## IconTexture: Interface\AddOns\DaylightRecipes\Media\icon.png
-## Notes: A plugin for Daylight UI: a pane beside the profession window with the picked recipe's material costs, skill-up chance, sale and disenchant value, and every recipe you don't know yet with where to get it. Uses DaylightMogul's prices when it's loaded.
+## Notes: A plugin for Daylight UI: a compact profession window with your recipes, their material costs, skill-up chance and sale value, a Leveling Guide, a crafting queue and every recipe you don't know yet with where to get it, and a thin strip at vendors, trainers and the Auction House with what to buy or learn. Uses DaylightMogul's prices when it's loaded.
 ## Author: Glowey
 ## X-License: GPL-3.0-or-later
 ## X-Curse-Project-ID: 1801403
@@ -29,6 +29,7 @@ Update.lua
 Guide.lua
 RecipesGuide.lua
 Core.lua
+ProfLost.lua
 Calc.lua
 Store.lua
 Prices.lua
@@ -44,6 +45,9 @@ Camp.lua
 Craft.lua
 EnchantRow.lua
 Pane.lua
+WindowState.lua
+WindowList.lua
+WindowMenu.lua
 Window.lua
 Cooldowns.lua
 Take.lua

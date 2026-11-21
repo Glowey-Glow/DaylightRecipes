@@ -1,0 +1,1086 @@
+-- The professions menu: what was the window's sidebar, now a menu on the profession's name in
+-- the header (design\facelift.md 3.1, "Where every feature goes"). It opens over the window, under
+-- the header and inside the window's bounds, so it adds no area:
+--   your professions (a press opens one; a gathering one shows its own page), Camping, your alts'
+--   professions on this realm, and at its foot your craft cooldowns and the tracking spells.
+--   Each of your professions has a "more" button (and a right-click, and a controller's Y) with
+--   Link to Chat and Unlearn, so neither is said only in a tooltip.
+-- It is built the way DaylightUI builds its own dropdown (DaylightUI/Options/Widgets.lua:2652-2666:
+-- a click-catcher over the screen with the menu its child, told to the controller as a popup with
+-- Pad.Popup), so a press anywhere else, B or picking a row closes it. Its catcher is one strata
+-- under that dropdown's (Build), so the "more" menu, which is that dropdown, opens wholly over it.
+-- Also here: the pages the menu opens that aren't a tab (an alt's recipes, a gathering profession,
+-- the camping page), and unlearning a profession.
+local _, ns = ...
+if not ns.ok then return end
+
+local API = ns.API
+local Doc, Calc = ns.Doc, ns.Calc
+local State = ns.WinState
+local S = ns.state
+local L, Plural = ns.L, ns.Plural
+local Color, Text, DiffColor = Doc.Color, Doc.Text, Doc.DiffColor
+local Pad = ns.Pad
+local W = ns.Win
+local Wash = W.Wash
+
+local Menu = {}
+ns.WinMenu = Menu
+
+local ENTRY = 34          -- a two-line row (the grid's)
+local TILE, TILE_GAP = 32, 8
+local CAMP_ICON = 279981  -- the Basic Campfire Kit's icon, for the camping page
+Menu.CAMP_ICON = CAMP_ICON
+
+local catcher, menu, list, track, cool, thumb
+local rows = {}
+local used, y = 0, 0
+local scroll, tall = 0, 0       -- how far the list is scrolled, how tall it is in all
+local widest = 0                -- the longest line drawn, for the menu's width
+local menuPad                   -- its stand-in scroll frame for a controller's right stick
+local stickMoving = false
+local Paint, PaintTrack, PaintCooldowns, PlaceFoot
+
+-- ---------------------------------------------------------------------------------------------
+-- Your professions
+-- ---------------------------------------------------------------------------------------------
+
+-- Your professions now: { name, icon, skill, max, line, game, crafts }, those with recipes first.
+-- line: the data's skill line (the game's own when the data doesn't cover it); game: the game's
+-- line, the one OpenTradeSkill takes; crafts: the data has recipes for it. The rest (Herbalism,
+-- Skinning, Fishing) have no trade skill window: a press on one shows its own page (GatherPage).
+function W.MyProfessions()
+	local out = {}
+	if type(GetProfessions) ~= "function" or type(GetProfessionInfo) ~= "function" then return out end
+	local all = { GetProfessions() }
+	for i = 1, 7 do
+		local index = all[i]
+		if index then
+			local ok, name, icon, skill, max, _, spellOffset, line = pcall(GetProfessionInfo, index)
+			if ok and name then
+				local data = ns.DataLine(line, name)
+				out[#out + 1] = { name = name, icon = icon, skill = skill or 0, max = max or 0, line = data or line,
+					game = line, crafts = data ~= nil, offset = spellOffset, index = index, primary = i <= 2 }
+			end
+		end
+	end
+	table.sort(out, function(a, b)
+		if a.crafts ~= b.crafts then return a.crafts end
+		return a.name < b.name
+	end)
+	return out
+end
+local MyProfessions = W.MyProfessions
+
+-- ---------------------------------------------------------------------------------------------
+-- Unlearning a primary profession
+-- ---------------------------------------------------------------------------------------------
+-- As the game's professions book does it (its Unlearn button: StaticPopup "UNLEARN_SKILL", whose
+-- yes calls AbandonSkill(skillLine)), from the profession's "more" menu, behind our "Are you
+-- sure?" box. Only the two primary professions: the book offers none for Cooking, First Aid and
+-- Fishing. Once the game drops it, what we kept of it goes too (Forgotten).
+
+local unlearning        -- the profession just unlearned, until the game says it's gone
+
+local function Abandon() return (C_SkillInfo and C_SkillInfo.AbandonSkill) or _G.AbandonSkill end
+
+-- The profession is gone from your list: its saved skill, recipes, Leveling Guide, queue entries
+-- and reminders are forgotten, and the window shows another page.
+local function Forgotten(p)
+	if ns.Store then ns.Store.ForgetProfession(p.line) end
+	if ns.Queue then ns.Queue.ForgetLine(p.line) end
+	if ns.Tips and ns.Tips.ForgetLine then ns.Tips.ForgetLine(p.line) end
+	if W.gather == p.game then W.gather = nil end
+	if S.line == p.line then
+		S.recipe = nil
+		if ns.Where then ns.Where.ForgetKnown() end
+	end
+	if DaylightRecipesDB and DaylightRecipesDB.lastLine == p.line then DaylightRecipesDB.lastLine = nil end
+	if ns.Shop then ns.Shop.Refresh() end
+	ns.Changed()
+end
+
+function Menu.Unlearn(p)
+	local abandon = Abandon()
+	if not p or type(abandon) ~= "function" then return end
+	local function Go()
+		-- (Its trade skill open: closed first, as the game's book is when it unlearns.)
+		if S.mode == "win" and S.line == p.line and ns.Take then ns.Take.Close() end
+		unlearning = p
+		local ok = pcall(abandon, p.game)
+		if not ok then unlearning = nil end
+	end
+	local text = L["Unlearn %s? Your skill in it and every %s recipe you know are lost. Learning it again starts over at skill 1."]:format(p.name, p.name)
+	local owner = W.win and W.win:IsShown() and W.win or nil
+	if ns.Shop and type(ns.Shop.Confirm) == "function" then
+		ns.Shop.Confirm(owner, text, nil, Go, { title = L["Unlearn %s"]:format(p.name), yes = L["Unlearn"], warn = true })
+		return
+	end
+	-- (No confirm box of ours: the game's own, as Swap.lua asks its questions.)
+	StaticPopupDialogs.DAYLIGHTRECIPES_UNLEARN = {
+		text = text, button1 = L["Unlearn"], button2 = L["No"], OnAccept = Go,
+		timeout = 0, whileDead = true, hideOnEscape = true, preferredIndex = 3, showAlert = true,
+	}
+	StaticPopup_Show("DAYLIGHTRECIPES_UNLEARN")
+end
+
+-- A profession's "more" menu: Link to Chat (one with recipes), Unlearn (a primary one).
+local function MoreMenu(owner, p)
+	local keys, words = {}, { link = L["Link to Chat"], unlearn = L["Unlearn"] }
+	if p.crafts then keys[#keys + 1] = "link" end
+	if p.primary then keys[#keys + 1] = "unlearn" end
+	if #keys == 0 then return end
+	API.Menu(owner, keys, words, nil, function(key)
+		if key == "link" then
+			Menu.Close()
+			ns.Window.LinkProfession(p.line, p.game)
+		elseif key == "unlearn" then
+			Menu.Close()
+			Menu.Unlearn(p)
+		end
+	end, nil, { atCursor = true })
+end
+
+-- The game took it off your professions: forgotten here too, and the window stays up on what's
+-- left (it closes with a trade skill otherwise).
+local unlearnEvents = CreateFrame("Frame")
+unlearnEvents:RegisterEvent("SKILL_LINES_CHANGED")
+unlearnEvents:SetScript("OnEvent", function()
+	local p = unlearning
+	if not p then return end
+	for _, q in ipairs(MyProfessions()) do
+		if q.game == p.game then return end
+	end
+	unlearning = nil
+	Forgotten(p)
+	C_Timer.After(0.1, function()
+		if W.win and not W.win:IsShown() then W.win:Show() end
+		ns.Window.Render()
+	end)
+end)
+
+-- ---------------------------------------------------------------------------------------------
+-- The menu's rows
+-- ---------------------------------------------------------------------------------------------
+
+-- A controller's cursor on a row scrolled out of the list's sight: the list scrolls to it.
+local function IntoView(r)
+	if not Pad.On() then return end
+	local top, bottom = r:GetTop(), r:GetBottom()
+	local listTop, listBottom = list:GetTop(), list:GetBottom()
+	if not (top and bottom and listTop and listBottom) then return end
+	local by = 0
+	if bottom < listBottom then by = listBottom - bottom + 4 elseif top > listTop then by = listTop - top - 4 end
+	if by == 0 then return end
+	local most = math.max(0, tall - list:GetHeight() + 8)
+	local to = math.max(0, math.min(most, scroll + by))
+	if to ~= scroll then
+		scroll = to
+		Paint()
+	end
+end
+
+local function Row()
+	used = used + 1
+	local r = rows[used]
+	if not r then
+		r = CreateFrame("Button", nil, list)
+		r.ground = r:CreateTexture(nil, "BACKGROUND")
+		r.ground:SetAllPoints()
+		r.edge = r:CreateTexture(nil, "ARTWORK")
+		r.edge:SetWidth(2)
+		r.edge:SetPoint("TOPLEFT")
+		r.edge:SetPoint("BOTTOMLEFT")
+		r.wash = Wash(r, "BORDER", 0.05)
+		r.wash:SetAllPoints()
+		r.wash:Hide()
+		r.icon = r:CreateTexture(nil, "ARTWORK")
+		r.icon:SetSize(20, 20)
+		r.icon:SetPoint("LEFT", r, "LEFT", 12, 0)
+		r.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+		r.name = Text(r, "body")
+		r.name:SetJustifyH("LEFT")
+		r.name:SetWordWrap(false)
+		r.sub = Text(r, "small")
+		r.sub:SetJustifyH("LEFT")
+		r.sub:SetWordWrap(false)
+		r.bar = r:CreateTexture(nil, "ARTWORK")
+		r.bar:SetHeight(2)
+		r.barBack = r:CreateTexture(nil, "BORDER")
+		r.barBack:SetHeight(2)
+		-- "More": three dots, for the mouse what Y is for a controller and a right-click is for both.
+		r.more = CreateFrame("Button", nil, r)
+		r.more:SetSize(22, 22)
+		r.more:SetPoint("RIGHT", r, "RIGHT", -6, 0)
+		r.more.dots = {}
+		for i = 1, 3 do
+			local dot = r.more:CreateTexture(nil, "ARTWORK")
+			dot:SetSize(2, 2)
+			dot:SetPoint("CENTER", r.more, "CENTER", (i - 2) * 5, 0)
+			r.more.dots[i] = dot
+		end
+		function r.more.Paint(over)
+			local cr, cg, cb
+			if over then cr, cg, cb = API.Accent() else cr, cg, cb = Color("LABEL") end
+			for _, dot in ipairs(r.more.dots) do dot:SetColorTexture(cr, cg, cb, 1) end
+		end
+		r.more.Paint(false)
+		r.more:SetScript("OnEnter", function(self) self.Paint(true) end)
+		r.more:SetScript("OnLeave", function(self) self.Paint(false) end)
+		r.more:SetScript("OnClick", function(self)
+			if r.onRight then r.onRight(self) end
+		end)
+		-- (A controller reaches the same menu with Y on the row: no stop of its own.)
+		Pad.Skip(r.more)
+		r:SetScript("OnEnter", function(self)
+			if self.onClick then self.wash:Show() end
+			Pad.Into(self, menuPad)
+			IntoView(self)
+			if self.tip then
+				GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+				pcall(self.tip, GameTooltip)
+				GameTooltip:Show()
+			end
+		end)
+		r:SetScript("OnLeave", function(self)
+			self.wash:Hide()
+			if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+		end)
+		r:RegisterForClicks("LeftButtonUp", "RightButtonUp")
+		r:SetScript("OnClick", function(self, button)
+			if button == "RightButton" then
+				if self.onRight then self.onRight(self) end
+				return
+			end
+			if self.onClick then self.onClick() end
+		end)
+		-- A controller's Y: what a right-click does (Link to Chat, Unlearn).
+		r.padMore = function(self) return self.onRight end
+		rows[used] = r
+	end
+	r:ClearAllPoints()
+	r:Show()
+	return r
+end
+
+local function Note(fs)
+	local w = fs:GetUnboundedStringWidth()
+	if type(w) == "number" and w > widest then widest = w end
+end
+
+local function Heading(text)
+	y = y + 8
+	local r = Row()
+	r:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -y)
+	r:SetPoint("RIGHT", list, "RIGHT", 0, 0)
+	r.icon:Hide()
+	r.bar:Hide()
+	r.barBack:Hide()
+	r.sub:Hide()
+	r.ground:Hide()
+	r.edge:Hide()
+	r.more:Hide()
+	r.onClick, r.tip, r.onRight = nil, nil, nil
+	-- (A heading wraps onto more lines rather than being cut off, its row as tall as it.)
+	r.name:ClearAllPoints()
+	r.name:SetPoint("TOPLEFT", r, "TOPLEFT", 14, -2)
+	r.name:SetWidth(math.max(60, list:GetWidth() - 24))
+	r.name:SetWordWrap(true)
+	r.name:SetText(text)
+	r.name:SetTextColor(Color("LABEL"))
+	local h = math.max(18, math.ceil(r.name:GetStringHeight()) + 4)
+	r:SetHeight(h)
+	y = y + h + 2
+end
+
+-- o: icon, name, nameColor {r,g,b}, sub, value (0-1 for the bar), picked, onClick, onRight, tip
+local function Entry(o)
+	local r = Row()
+	r:SetHeight(ENTRY)
+	r:SetPoint("TOPLEFT", list, "TOPLEFT", 0, -y)
+	r:SetPoint("RIGHT", list, "RIGHT", 0, 0)
+	r.onClick, r.tip, r.onRight = o.onClick, o.tip, o.onRight
+	r.more:SetShown(o.onRight ~= nil)
+	local x = 12
+	if o.icon then
+		r.icon:SetTexture(o.icon)
+		r.icon:Show()
+		x = 40
+	else
+		r.icon:Hide()
+	end
+	local right = o.onRight and -30 or -10
+	r.name:ClearAllPoints()
+	r.name:SetWidth(0)
+	r.name:SetWordWrap(false)
+	r.name:SetPoint("TOPLEFT", r, "TOPLEFT", x, -3)
+	r.name:SetPoint("RIGHT", r, "RIGHT", right, 0)
+	r.name:SetText(o.name)
+	if o.nameColor then r.name:SetTextColor(o.nameColor[1], o.nameColor[2], o.nameColor[3])
+	else r.name:SetTextColor(Color(o.off and "OFF" or "VALUE")) end
+	r.sub:ClearAllPoints()
+	r.sub:SetPoint("TOPLEFT", r.name, "BOTTOMLEFT", 0, -1)
+	r.sub:SetPoint("RIGHT", r, "RIGHT", right, 0)
+	r.sub:SetText(o.sub or "")
+	r.sub:SetTextColor(Color("LABEL"))
+	r.sub:Show()
+	-- (The menu is made as wide as its longest line: WindowState.MenuWidth.)
+	Note(r.name)
+	Note(r.sub)
+	local ar, ag, ab = API.Accent()
+	if o.value then
+		r.barBack:ClearAllPoints()
+		r.barBack:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", x, 1)
+		r.barBack:SetPoint("RIGHT", r, "RIGHT", -12, 0)
+		r.barBack:SetColorTexture(1, 1, 1, 0.08)
+		r.barBack:Show()
+		local full = (list:GetWidth() > 0 and list:GetWidth() or 210) - x - 12
+		r.bar:ClearAllPoints()
+		r.bar:SetPoint("BOTTOMLEFT", r, "BOTTOMLEFT", x, 1)
+		r.bar:SetWidth(math.max(1, full * math.min(1, o.value)))
+		r.bar:SetColorTexture(ar, ag, ab, 0.8)
+		r.bar:Show()
+	else
+		r.bar:Hide()
+		r.barBack:Hide()
+	end
+	if o.picked then
+		r.ground:SetColorTexture(ar, ag, ab, 0.12)
+		r.ground:Show()
+		r.edge:SetColorTexture(ar, ag, ab, 1)
+		r.edge:Show()
+	else
+		r.ground:Hide()
+		r.edge:Hide()
+	end
+	y = y + ENTRY + 2
+end
+
+-- ---------------------------------------------------------------------------------------------
+-- Tracking: the professions' minimap tracking, at the foot of the menu
+-- ---------------------------------------------------------------------------------------------
+-- The tracking spells of your professions (Find Minerals, Find Herbs, Find Fish), as the game's
+-- minimap tracking menu lists them (C_Minimap.GetTrackingInfo: only the ones you know). Click one
+-- to turn it on or off (C_Minimap.SetTracking, as that menu does). The one on has an accent ring
+-- and DaylightUI's glow, in the style the player picked for its main buttons.
+
+local TRACK_SPELLS = { [2580] = true, [2383] = true, [43308] = true }
+local trackTiles = {}
+
+-- Their names in the game's language, so one Forever lists under another spell ID still counts.
+local trackNames
+local function TrackName(name)
+	if not trackNames then
+		trackNames = {}
+		for spell in pairs(TRACK_SPELLS) do
+			local n = ns.SpellName(spell)
+			if type(n) == "string" and n ~= "" then trackNames[n] = true end
+		end
+		if not next(trackNames) then
+			trackNames = nil     -- (the spell names weren't in yet: asked again next time)
+			return false
+		end
+	end
+	return type(name) == "string" and trackNames[name] == true
+end
+
+local function TrackingList()
+	local out = {}
+	local M = C_Minimap
+	if not (M and M.GetNumTrackingTypes and M.GetTrackingInfo and M.SetTracking) then return out end
+	local ok, n = pcall(M.GetNumTrackingTypes)
+	if not ok or type(n) ~= "number" then return out end
+	for i = 1, n do
+		local got, info = pcall(M.GetTrackingInfo, i)
+		if got and type(info) == "table" and ((info.spellID and TRACK_SPELLS[info.spellID]) or TrackName(info.name)) then
+			out[#out + 1] = { index = i, name = info.name, icon = info.texture, on = info.active == true,
+				spell = info.spellID }
+		end
+	end
+	return out
+end
+
+-- The glow style for a tile that's on: the player's main-button style, none when that's None or
+-- this DaylightUI has no GlowAround (the ring still shows it's on).
+local function TrackGlowStyle()
+	if type(API.GlowAround) ~= "function" then return false end
+	local ok, style = pcall(API.GetSetting, "general", "buttonGlow")
+	if not ok or style == "none" then return false end
+	return type(style) == "string" and style or "circle"
+end
+
+-- A tile of the two strips: a ring, the icon, a wash under the mouse.
+local function Tile(parent)
+	local b = CreateFrame("Button", nil, parent)
+	b:SetSize(TILE, TILE)
+	b.ring = b:CreateTexture(nil, "BACKGROUND")
+	b.ring:SetPoint("TOPLEFT", -2, 2)
+	b.ring:SetPoint("BOTTOMRIGHT", 2, -2)
+	b.icon = b:CreateTexture(nil, "ARTWORK")
+	b.icon:SetAllPoints()
+	b.icon:SetTexCoord(0.08, 0.92, 0.08, 0.92)
+	b.wash = Wash(b, "OVERLAY", 0.12)
+	b.wash:SetAllPoints()
+	b.wash:Hide()
+	return b
+end
+
+local function TrackTile(i)
+	local b = trackTiles[i]
+	if b then return b end
+	b = Tile(track)
+	b:SetScript("OnEnter", function(self)
+		self.wash:Show()
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		if not (self.spell and pcall(GameTooltip.SetSpellByID, GameTooltip, self.spell)) then
+			GameTooltip:SetText(self.name or "")
+		end
+		GameTooltip:AddLine(self.on and L["Click: turn off"] or L["Click: turn on"], Color("LABEL"))
+		GameTooltip:Show()
+	end)
+	b:SetScript("OnLeave", function(self)
+		self.wash:Hide()
+		if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+	end)
+	b:SetScript("OnClick", function(self)
+		if not self.index then return end
+		pcall(C_Minimap.SetTracking, self.index, not self.on)
+	end)
+	trackTiles[i] = b
+	return b
+end
+
+-- A strip's title and the line over it, made once.
+local function StripTitle(strip, text)
+	if not strip.title then
+		strip.title = Text(strip, "small")
+		strip.title:SetJustifyH("LEFT")
+		strip.title:SetPoint("TOPLEFT", strip, "TOPLEFT", 14, -8)
+		strip.line = strip:CreateTexture(nil, "ARTWORK")
+		strip.line:SetHeight(1)
+		strip.line:SetPoint("TOPLEFT", strip, "TOPLEFT", 12, 0)
+		strip.line:SetPoint("TOPRIGHT", strip, "TOPRIGHT", -12, 0)
+		strip.line:SetColorTexture(1, 1, 1, 0.06)
+	end
+	strip.title:SetText(text)
+	strip.title:SetTextColor(Color("LABEL"))
+	Note(strip.title)
+	return 8 + math.ceil(strip.title:GetStringHeight()) + 6
+end
+
+local function Across()
+	local w = menu and menu:GetWidth() or 210
+	return math.max(1, math.floor((w - 28 + TILE_GAP) / (TILE + TILE_GAP)))
+end
+
+PaintTrack = function()
+	if not track then return end
+	local all = TrackingList()
+	for i = #all + 1, #trackTiles do
+		local b = trackTiles[i]
+		b:Hide()
+		if b.glow then API.GlowAround(b, false); b.glow = nil end
+	end
+	if #all == 0 then
+		track:Hide()
+		PlaceFoot()
+		return
+	end
+	local top = StripTitle(track, L["Tracking"])
+	-- (Tiles in rows across the strip, as many as fit.)
+	local across = Across()
+	local ar, ag, ab = API.Accent()
+	local style = TrackGlowStyle()
+	for i, t in ipairs(all) do
+		local b = TrackTile(i)
+		local col, row = (i - 1) % across, math.floor((i - 1) / across)
+		b:ClearAllPoints()
+		b:SetPoint("TOPLEFT", track, "TOPLEFT", 14 + col * (TILE + TILE_GAP), -(top + row * (TILE + TILE_GAP)))
+		b.index, b.name, b.spell, b.on = t.index, t.name, t.spell, t.on
+		b.icon:SetTexture(t.icon)
+		b.icon:SetDesaturated(not t.on)
+		b.icon:SetAlpha(t.on and 1 or 0.6)
+		if t.on then b.ring:SetColorTexture(ar, ag, ab, 1) else b.ring:SetColorTexture(1, 1, 1, 0.08) end
+		-- (Started again only when it changes, so a repaint doesn't start its light over.)
+		local want = t.on and style or false
+		if (b.glow or false) ~= want then
+			if b.glow then API.GlowAround(b, false) end
+			if want then API.GlowAround(b, true, { style = want, inset = -2 }) end
+			b.glow = want or nil
+		end
+		b:Show()
+	end
+	local n = math.ceil(#all / across)
+	track:SetHeight(top + n * TILE + (n - 1) * TILE_GAP + 12)
+	track:Show()
+	PlaceFoot()
+end
+
+-- ---------------------------------------------------------------------------------------------
+-- Craft cooldowns: above the tracking strip
+-- ---------------------------------------------------------------------------------------------
+-- Your recipes that can only be made once in a while (Cooldowns.lua), one tile each: the item
+-- gray with the time left on it while it's cooling down, in full color with a green ring once it's
+-- ready. Hover for which recipes and when; click to open the recipe. While a tile is cooling down
+-- and the menu shows, it's drawn again every half minute (nothing runs while it's hidden).
+-- A ready one also shows as a dot on the header's icon (Menu.CooldownReady), so it's seen with the
+-- menu shut.
+
+local coolTiles = {}
+local coolTicker
+local COOL_TICK = 30
+
+local function StopCoolTicker()
+	if coolTicker then
+		coolTicker:Cancel()
+		coolTicker = nil
+	end
+end
+Menu.StopTicker = StopCoolTicker
+
+local function CoolTile(index)
+	local b = coolTiles[index]
+	if b then return b end
+	b = Tile(cool)
+	b.time = Text(b, "tiny")
+	b.time:SetPoint("BOTTOM", b, "BOTTOM", 0, 1)
+	b:SetScript("OnEnter", function(self)
+		self.wash:Show()
+		local t = self.tile
+		if not t then return end
+		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+		for i, name in ipairs(t.names) do GameTooltip:AddLine(name, Color(i == 1 and "VALUE" or "TEXT")) end
+		if t.readyAt == 0 then
+			GameTooltip:AddLine(L["Ready to craft"], Color("GOOD"))
+		else
+			GameTooltip:AddLine(L["Ready in %s"]:format(ns.Cooldowns.Left(t.readyAt)), Color("WARN"))
+		end
+		GameTooltip:AddLine(L["Click: show the recipe"], Color("LABEL"))
+		GameTooltip:Show()
+	end)
+	b:SetScript("OnLeave", function(self)
+		self.wash:Hide()
+		if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
+	end)
+	b:SetScript("OnClick", function(self)
+		local t = self.tile
+		if t and t.line and t.spells[1] then
+			Menu.Close()
+			ns.Window.OpenRecipe(t.line, t.spells[1])
+		end
+	end)
+	coolTiles[index] = b
+	return b
+end
+
+PaintCooldowns = function()
+	if not cool then return end
+	local all = ns.Cooldowns and ns.Cooldowns.List() or {}
+	for i = #all + 1, #coolTiles do coolTiles[i]:Hide() end
+	if #all == 0 then
+		StopCoolTicker()
+		cool:Hide()
+		PlaceFoot()
+		return
+	end
+	local top = StripTitle(cool, L["Cooldowns"])
+	local across = Across()
+	local gr, gg, gb = Color("GOOD")
+	local cooling = false
+	for i, t in ipairs(all) do
+		local b = CoolTile(i)
+		local col, row = (i - 1) % across, math.floor((i - 1) / across)
+		b:ClearAllPoints()
+		b:SetPoint("TOPLEFT", cool, "TOPLEFT", 14 + col * (TILE + TILE_GAP), -(top + row * (TILE + TILE_GAP)))
+		b.tile = t
+		b.icon:SetTexture(t.icon or 134400)
+		local ready = t.readyAt == 0
+		b.icon:SetDesaturated(not ready)
+		b.icon:SetAlpha(ready and 1 or 0.55)
+		if ready then
+			b.ring:SetColorTexture(gr, gg, gb, 1)
+			b.time:SetText("")
+		else
+			cooling = true
+			b.ring:SetColorTexture(1, 1, 1, 0.08)
+			-- (One unit on the tile, so it fits its width; the tooltip has the whole time.)
+			b.time:SetText(ns.Cooldowns.Short(t.readyAt))
+			b.time:SetTextColor(Color("VALUE"))
+		end
+		b:Show()
+	end
+	local n = math.ceil(#all / across)
+	cool:SetHeight(top + n * TILE + (n - 1) * TILE_GAP + 12)
+	cool:Show()
+	PlaceFoot()
+	-- The countdown: only while something is cooling down and the menu is on screen.
+	if not cooling then
+		StopCoolTicker()
+	elseif not coolTicker then
+		coolTicker = C_Timer.NewTicker(COOL_TICK, function()
+			if cool and cool:IsVisible() then Menu.Paint() else StopCoolTicker() end
+		end)
+	end
+end
+
+-- Whether one of your cooldown recipes is ready to make now (the dot on the header's icon).
+function Menu.CooldownReady()
+	local all = ns.Cooldowns and ns.Cooldowns.List() or {}
+	for _, t in ipairs(all) do
+		if t.readyAt == 0 then return true end
+	end
+	return false
+end
+
+-- The foot of the menu, bottom up: tracking, then cooldowns, then the list above them.
+PlaceFoot = function()
+	local below, point = menu, "BOTTOM"
+	if track and track:IsShown() then
+		track:ClearAllPoints()
+		track:SetPoint("BOTTOMLEFT", menu, "BOTTOMLEFT", 0, 0)
+		track:SetPoint("RIGHT", menu, "RIGHT", 0, 0)
+		below, point = track, "TOP"
+	end
+	if cool and cool:IsShown() then
+		cool:ClearAllPoints()
+		cool:SetPoint("BOTTOMLEFT", below, point == "TOP" and "TOPLEFT" or "BOTTOMLEFT", 0, 0)
+		cool:SetPoint("RIGHT", menu, "RIGHT", 0, 0)
+		below, point = cool, "TOP"
+	end
+	list:SetPoint("BOTTOM", below, point, 0, 0)
+end
+
+local function FootHeight()
+	local h = 0
+	if track and track:IsShown() then h = h + track:GetHeight() end
+	if cool and cool:IsShown() then h = h + cool:GetHeight() end
+	return h
+end
+
+-- ---------------------------------------------------------------------------------------------
+-- The menu
+-- ---------------------------------------------------------------------------------------------
+
+local function PaintRows()
+	for i = 1, #rows do rows[i]:Hide() end
+	used, y = 0, 6 - scroll
+	Heading(L["Professions"])
+	local mine = MyProfessions()
+	if #mine == 0 then
+		Heading(L["You have no profession yet."])
+	end
+	local alt, gather = W.alt, W.gather
+	for _, p in ipairs(mine) do
+		local picked
+		if gather then
+			picked = not alt and gather == p.game
+		else
+			picked = not alt and S.mode == "win" and not W.Linked() and p.line == S.line
+		end
+		-- (One with recipes opens its trade skill; a gathering one shows its own page.)
+		Entry({ icon = p.icon, name = p.name,
+			sub = p.max > 0 and ("%d / %d"):format(p.skill, p.max) or "",
+			value = p.max > 0 and p.skill / p.max or nil, picked = picked,
+			onClick = function()
+				Menu.Close()
+				if p.crafts and IsModifiedClick("CHATLINK") then
+					ns.Window.LinkProfession(p.line, p.game)
+				elseif p.crafts then
+					ns.Window.OpenProfession(p.line, p.game)
+				else
+					ns.Window.ShowGather(p.game)
+				end
+			end,
+			-- (Link to Chat for one with recipes, Unlearn for a primary one, as in the game's
+			-- professions book: the row's "more" button, a right-click, a controller's Y.)
+			onRight = (p.crafts or p.primary) and function(owner) MoreMenu(owner, p) end or nil })
+	end
+	-- Every profession's camping items (Camp.lua).
+	if ns.Camp and ns.Camping and #ns.Camping > 0 then
+		Entry({ icon = C_Item and C_Item.GetItemIconByID and C_Item.GetItemIconByID(CAMP_ICON) or nil,
+			name = L["Camping"], sub = L["All professions"],
+			picked = not alt and gather == W.CAMP, onClick = function()
+				Menu.Close()
+				ns.Window.ShowGather(W.CAMP)
+			end })
+	end
+	-- Your alts' professions on this server, from the last time each opened them (the "Show Your
+	-- Alts' Professions" option; off: none are listed).
+	local alts = {}
+	for guid, c in pairs(ns.Get("altProfs") ~= false and ns.Store and ns.Store.Alts() or {}) do
+		if type(c.prof) == "table" then
+			for line, p in pairs(c.prof) do
+				if type(p) == "table" and ns.LINES[line] then
+					alts[#alts + 1] = { guid = guid, c = c, line = line, skill = p.skill or 0, max = p.max or 0 }
+				end
+			end
+		end
+	end
+	if #alts > 0 then
+		table.sort(alts, function(a, b)
+			if (a.c.name or "") ~= (b.c.name or "") then return (a.c.name or "") < (b.c.name or "") end
+			return a.line < b.line
+		end)
+		Heading(L["Your Alts"])
+		for _, a in ipairs(alts) do
+			local color
+			if a.c.class and API.ClassColor then
+				local ok, r, g, b = pcall(API.ClassColor, a.c.class)
+				if ok and r then color = { r, g, b } end
+			end
+			Entry({ name = a.c.name or "?", nameColor = color,
+				sub = ("%s %d"):format(ns.Tips and ns.Tips.LineName(a.line) or "", a.skill),
+				value = a.max > 0 and a.skill / a.max or nil,
+				picked = alt and alt.guid == a.guid and alt.line == a.line,
+				onClick = function()
+					Menu.Close()
+					ns.Window.ShowAlt(a.guid, a.line)
+				end })
+		end
+	end
+	tall = y + scroll
+end
+
+-- The menu drawn: its rows and strips measured first, then the menu sized to its longest line
+-- (never cut: WindowState.MenuWidth) and to the window's height, then drawn at that size.
+Paint = function()
+	if not (menu and menu:IsShown() and W.win) then return end
+	local win = W.win
+	menu:SetScale(win:GetScale())
+	local room = math.max(120, win:GetHeight() - State.HEADER - 4)
+	for _ = 1, 2 do
+		widest = 0
+		PaintTrack()
+		PaintCooldowns()
+		PaintRows()
+		-- (22 more than the longest words: a row's "more" button takes that off its name's room.)
+		local w = State.MenuWidth(widest + 22, W.col)
+		local h = math.min(room, tall + 8 + FootHeight())
+		local same = math.abs(menu:GetWidth() - w) < 1 and math.abs(menu:GetHeight() - h) < 1
+		menu:SetSize(w, h)
+		-- (Drawn at another size than it now has: once more at this one.)
+		if same then break end
+	end
+	menu:ClearAllPoints()
+	menu:SetPoint("TOPLEFT", win, "TOPLEFT", 2, -(State.HEADER + 2))
+	-- (Fewer rows than before, scrolled past the end: back to the end.)
+	local most = math.max(0, tall - list:GetHeight() + 8)
+	if scroll > most then
+		scroll = most
+		PaintRows()
+	end
+	-- More rows than fit (many alts): a thumb on the list's right edge says so and where you are,
+	-- as the recipe list's does (WindowState.Thumb has the sums).
+	local view = list:GetHeight()
+	local size, down = State.Thumb(view, view + most, scroll)
+	if size then
+		thumb.bar:SetColorTexture(API.Accent())
+		thumb.bar:SetAlpha(0.5)
+		thumb:SetSize(3, size)
+		thumb:ClearAllPoints()
+		thumb:SetPoint("TOPRIGHT", list, "TOPRIGHT", -2, -down)
+		thumb:Show()
+	else
+		thumb:Hide()
+	end
+	if menuPad and not stickMoving then menuPad.Sync() end
+end
+Menu.Paint = function() Paint() end
+
+local function Build()
+	-- (DaylightUI's own dropdown: a catcher over the screen, the menu its child, a press anywhere
+	-- else closes it. DaylightUI/Options/Widgets.lua:2652-2666.)
+	-- That dropdown is also what opens over this menu: a profession's "more" (API.Menu). Its
+	-- catcher is UIParent's child in FULLSCREEN_DIALOG with its list 5 levels up (:2657-2665). In
+	-- the same strata our catcher would have the same level as its catcher, our rows (two frames
+	-- deeper than our menu) would lie between its catcher and its list: drawn over its background,
+	-- and taking the clicks beside it, so a press beside the "more" box would open a profession
+	-- and leave the box up. So ours lives one strata lower, DIALOG: over the window (MEDIUM), and
+	-- all of it under everything of that dropdown, whatever the levels (strata come before levels;
+	-- their order is Blizzard_SharedXML/UI.xsd:18-29, and Craft.lua's Stop relies on DIALOG over
+	-- MEDIUM the same way). Menu.Open sets it, since a tour raises the window to FULLSCREEN.
+	catcher = CreateFrame("Button", nil, UIParent)
+	catcher:SetAllPoints(UIParent)
+	catcher:SetFrameStrata("DIALOG")
+	catcher:RegisterForClicks("AnyUp")
+	catcher:SetScript("OnClick", function() Menu.Close() end)
+	catcher:Hide()
+	menu = CreateFrame("Frame", "DaylightRecipesMenu", catcher)
+	menu:SetFrameLevel(catcher:GetFrameLevel() + 5)
+	menu:SetSize(210, 300)
+	menu:EnableMouse(true)
+	menu:SetClipsChildren(true)
+	menu:EnableMouseWheel(true)
+	menu:SetScript("OnMouseWheel", function(_, delta)
+		local most = math.max(0, tall - list:GetHeight() + 8)
+		local to = math.max(0, math.min(most, scroll - delta * (ENTRY + 2)))
+		if to ~= scroll then
+			scroll = to
+			Paint()
+		end
+	end)
+	-- (Solid, whatever the window's opacity: it lies over the page.)
+	API.Skin(menu, { bgAlpha = 0.97, noBevel = true })
+	list = CreateFrame("Frame", nil, menu)
+	list:SetPoint("TOPLEFT", menu, "TOPLEFT", 0, 0)
+	list:SetPoint("RIGHT", menu, "RIGHT", 0, 0)
+	list:SetPoint("BOTTOM", menu, "BOTTOM", 0, 0)
+	list:SetClipsChildren(true)
+	track = CreateFrame("Frame", nil, menu)
+	track:Hide()
+	cool = CreateFrame("Frame", nil, menu)
+	cool:Hide()
+	-- The list's thumb: a frame of its own above the rows (they are frames, and would cover a
+	-- texture of the list's), taking no clicks.
+	thumb = CreateFrame("Frame", nil, menu)
+	thumb:SetFrameLevel(list:GetFrameLevel() + 10)
+	thumb:EnableMouse(false)
+	thumb.bar = thumb:CreateTexture(nil, "OVERLAY")
+	thumb.bar:SetAllPoints(thumb)
+	thumb:Hide()
+	-- (For the tests: the list whose height decides whether the thumb shows, and the thumb.)
+	W.menuList, W.menuThumb = list, thumb
+	-- A controller: the menu takes the cursor as DaylightUI's dropdown does, B closes it, the right
+	-- stick scrolls its rows through a stand-in (they are drawn from an offset).
+	Pad.Popup(menu, function() Menu.Close() end)
+	menuPad = Pad.Scroller({
+		range = function() return math.max(0, tall - list:GetHeight() + 8) end,
+		at = function() return scroll end,
+		set = function(v)
+			v = math.floor(v + 0.5)
+			if v == scroll then return end
+			scroll = v
+			stickMoving = true
+			Paint()
+			stickMoving = false
+		end })
+	W.menu = menu
+end
+
+function Menu.Shown() return menu ~= nil and catcher:IsShown() end
+
+function Menu.Open()
+	if not W.win or not W.win:IsShown() then return end
+	-- (Rolled up there is no room under the header for it: the window unrolls first.)
+	if W.Rolled() then ns.Window.SetRolled(false) end
+	if not menu then Build() end
+	scroll = 0
+	-- (Over the window, under Daylight UI's dropdown: Build. A tour holds the window in FULLSCREEN,
+	-- where the menu has to go one higher to be seen at all.)
+	catcher:SetFrameStrata(W.win:GetFrameStrata() == "FULLSCREEN" and "FULLSCREEN_DIALOG" or "DIALOG")
+	catcher:Show()
+	menu:Show()
+	Paint()
+	-- (A controller starts on the open profession's row, else the first.)
+	if Pad.On() then
+		local first
+		for i = 1, used do
+			local r = rows[i]
+			if r:IsShown() and r.onClick then
+				first = first or r
+				if r.ground:IsShown() then first = r break end
+			end
+		end
+		Pad.Settle(first)
+	end
+end
+
+function Menu.Close()
+	if not Menu.Shown() then return end
+	StopCoolTicker()
+	GameTooltip:Hide()
+	catcher:Hide()
+	if W.win and W.win:IsShown() and Pad.On() then Pad.Settle(W.nameButton) end
+end
+
+function Menu.Toggle()
+	if Menu.Shown() then Menu.Close() else Menu.Open() end
+end
+
+function Menu.Restyle()
+	if menu then API.Skin(menu, { bgAlpha = 0.97, noBevel = true }) end
+	if Menu.Shown() then Paint() end
+end
+
+-- Tracking turned on or off (here or from the minimap), a tracking spell learned, or the
+-- cooldowns read again: the menu while it's open, and the header's dot.
+local trackEvents = CreateFrame("Frame")
+trackEvents:RegisterEvent("MINIMAP_UPDATE_TRACKING")
+trackEvents:RegisterEvent("SPELLS_CHANGED")
+trackEvents:SetScript("OnEvent", function()
+	if Menu.Shown() then Paint() end
+end)
+
+-- ---------------------------------------------------------------------------------------------
+-- An alt's profession
+-- ---------------------------------------------------------------------------------------------
+
+Menu.altFilter = ""
+
+function Menu.AltPage(d)
+	local alt = W.alt
+	local c = ns.Store and ns.Store.Alts()[alt.guid]
+	if type(c) ~= "table" then
+		d:Line(L["That character isn't on this realm and faction."], "small", "OFF")
+		return
+	end
+	local p = type(c.prof) == "table" and c.prof[alt.line] or {}
+	local known = type(c.known) == "table" and c.known[alt.line] or nil
+	if type(known) ~= "table" then
+		d:Line(L["Open this profession on %s once to see what they know."]:format(c.name or L["them"]), "small", "OFF")
+		return
+	end
+	local skill = p.skill or 0
+	local all = {}
+	local filter = Menu.altFilter
+	for spell in pairs(known) do
+		local name = ns.SpellName(spell) or Doc.RecipeName(spell)
+		if filter == "" or ns.Fold(name):find(filter, 1, true) then
+			all[#all + 1] = { spell = spell, name = name }
+		end
+	end
+	table.sort(all, function(a, b) return ns.NameLess(a.name, b.name) end)
+	d:Line(Plural(#all, "%d recipe known", "%d recipes known"):format(#all), "small", "LABEL")
+	d:Line(L["As of their last visit"], "tiny", "OFF")
+	d:Gap(2)
+	for _, e in ipairs(all) do
+		local t = Calc.Thresholds(e.spell)
+		local step = 4
+		if t then for i = 1, 3 do if skill < t[i + 1] then step = i break end end end
+		local row = d:Row({ left = e.name, tip = Doc.SpellTip(e.spell) })
+		row.left:SetTextColor(DiffColor(step))
+	end
+end
+
+-- ---------------------------------------------------------------------------------------------
+-- A gathering profession of yours
+-- ---------------------------------------------------------------------------------------------
+-- Herbalism, Skinning and Fishing have no trade skill window, and the recipe data has nothing for
+-- them: their page shows the skill, the rank and when the next one is trained. A profession the
+-- data covers whose trade skill the game wouldn't open (OpenProfession) shows here too, with how
+-- to open it.
+
+local SMELTING = 2656
+
+-- Fishing's Expert rank is a book, sold in Booty Bay, and its Artisan rank a quest from Nat Pagle in
+-- Dustwallow Marsh (the fishing trainers of the capitals send you), by the cap they lift.
+local FISHING = 356
+local FISHING_RANKS = {
+	[150] = { item = 16083, npc = 2626, skill = 125, level = 20, rank = 225 },
+	[225] = { quest = 6607, npc = 12919, skill = 225, level = 35, rank = 300 },
+}
+
+-- Where Fishing's next rank comes from, with a click to set a waypoint to who has it.
+local function FishingRank(d, r, now)
+	local Plan = ns.Plan
+	local name = Plan and Plan.RankName(r.rank) or L["the next rank"]
+	local text
+	if r.item then
+		text = L["%s is a book, not a trainer rank: buy %s and read it (skill %d, level %d)."]:format(name,
+			Doc.ItemName(r.item, d), r.skill, r.level)
+	else
+		local title = C_QuestLog and C_QuestLog.GetTitleForQuestID and C_QuestLog.GetTitleForQuestID(r.quest)
+		if type(title) ~= "string" or title == "" then
+			title = ns.PolestarNames and ns.PolestarNames.quest[r.quest] or L["Quest %d"]:format(r.quest)
+		end
+		text = L["%s comes from a quest, not a trainer: \"%s\" (skill %d, level %d); the fishing trainer in your capital sends you."]:format(
+			name, title, r.skill, r.level)
+	end
+	d:Line(text, now and "body" or "small", now and "WARN" or "TEXT")
+	local who, place
+	if ns.Where then who, place = ns.Where.Npc(r.npc) end
+	if who then
+		local located = place and place.mapID
+		d:Row({ left = who, leftInk = "TEXT", sub = place and (located and ("%s (%d, %d)"):format(place.zone, place.x + 0.5, place.y + 0.5)
+			or place.zone) or nil, subInk = located and "ACCENT" or "OFF",
+			tip = located and function(tip)
+				tip:SetText(who)
+				tip:AddLine(L["Click for a waypoint."], Color("LABEL"))
+			end or nil,
+			onClick = located and function() ns.Where.Go(who, place) end or nil })
+	end
+end
+
+function Menu.GatherEntry()
+	for _, p in ipairs(MyProfessions()) do
+		if p.game == W.gather then return p end
+	end
+end
+
+function Menu.GatherPage(d)
+	local p = Menu.GatherEntry()
+	if not p then
+		d:Line(L["You don't have that profession any more."], "body", "OFF")
+		return
+	end
+	local Plan = ns.Plan
+	local skill, cap = p.skill or 0, p.max or 0
+	d:Heading(L["Skill"])
+	local rank = cap > 0 and Plan and Plan.RankName(cap)
+	if rank then
+		d:Line(L["%s: skill %d of %d."]:format(rank, skill, cap), "body", "VALUE")
+	elseif cap > 0 then
+		d:Line(L["Skill %d of %d."]:format(skill, cap), "body", "VALUE")
+	else
+		d:Line(L["Skill %d."]:format(skill), "body", "VALUE")
+	end
+	d:Bar(cap > 0 and skill / cap or 0)
+	-- The next rank: trained at the cap, from a trainer of this profession. Fishing's Expert is a book
+	-- and its Artisan a quest (FISHING_RANKS).
+	local book = p.game == FISHING and FISHING_RANKS[cap]
+	if book and cap < 300 then
+		FishingRank(d, book, skill >= cap)
+		if skill >= cap then d:Line(L["You're capped at %d until you do."]:format(cap), "small", "TEXT") end
+	elseif cap > 0 and cap < 300 then
+		local nextCap = cap + 75
+		local name = Plan and Plan.RankName(nextCap) or L["the next rank"]
+		local level = Plan and Plan.RankLevel(nextCap)
+		if skill >= cap then
+			d:Line(level and L["Train %s at a %s trainer (it asks level %d)."]:format(name, p.name, level)
+				or L["Train %s at a %s trainer."]:format(name, p.name), "body", "WARN")
+			d:Line(L["You're capped at %d until you do."]:format(cap), "small", "TEXT")
+		else
+			d:Line(level and L["At %d: train %s (level %d)."]:format(cap, name, level)
+				or L["At %d: train %s."]:format(cap, name), "small", "TEXT")
+		end
+	elseif cap >= 300 and skill >= cap then
+		d:Line(L["%s is at its top skill."]:format(p.name), "small", "GOOD")
+	end
+	-- Professionally Lost's guide window and its gathering panel, while its Leveling Guide stands
+	-- in for ours on any profession (the hand-off study, section 5: "on the gathering profession
+	-- pages"; ProfLost.lua: Handed("guide") with no profession asks "any it covers"). Each button
+	-- only while the function behind it is there (CanOpenGuide, CanOpenGathering).
+	local PL = ns.ProfLost
+	if PL and PL.Handed and PL.Handed("guide") then
+		local buttons = {}
+		if PL.OpenGuide and (not PL.CanOpenGuide or PL.CanOpenGuide()) then
+			buttons[#buttons + 1] = { text = L["Open Professionally Lost"], onClick = function() PL.OpenGuide(p.game) end }
+		end
+		if PL.OpenGathering and PL.CanOpenGathering and PL.CanOpenGathering() then
+			buttons[#buttons + 1] = { text = L["Gathering Panel"], onClick = function() PL.OpenGathering() end }
+		end
+		if #buttons > 0 then
+			d:Gap(4)
+			d:Buttons(buttons)
+		end
+	end
+	if p.crafts then
+		d:Heading(L["Recipes"])
+		-- (The game wouldn't open it from here: its own spell does.)
+		local spell = p.line == 186 and ns.SpellName(SMELTING) or p.name
+		d:Line(L["Cast %s from your spellbook to open its recipes here."]:format(spell or p.name), "small", "TEXT")
+	elseif ns.Camp and ns.Camp.Has(p.game) then
+		-- (Its only recipes are its camping items: no recipe list, Leveling Guide or Missing tab.)
+		d:Line(L["%s's skill rises as you gather; its only recipes are its camping items, below."]:format(p.name), "small", "TEXT")
+		ns.Camp.Section(d, p.game, ns.Window.Render)
+	else
+		d:Heading(L["Recipes"])
+		d:Line(L["%s has no recipes: its skill rises as you gather, so there's no recipe list, Leveling Guide or missing recipes for it."]:format(p.name),
+			"small", "TEXT")
+	end
+end
+
+-- Every profession's camping items, in place of a profession's page.
+function Menu.CampPage(d)
+	if ns.Camp then ns.Camp.Page(d, ns.Window.Render) end
+end

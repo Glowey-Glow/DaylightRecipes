@@ -36,22 +36,16 @@ end
 local function Get(key) return ns.Get and ns.Get(key) end
 local function Parts() return ns.Window and ns.Window.TourParts and ns.Window.TourParts() or {} end
 
+-- Newest first. An entry is keyed by the release it ships in (CHANGELOG.md's heading), and its
+-- lines are in all six language files. A player updating sees every entry above the one they
+-- read last (Guide.News), so 3.0.0's is what says why the window is suddenly small.
 local NEWS = {
-	{ version = "2.8.0", lines = {
-		L["Leveling Guide: steps only use recipes that are orange or yellow at that skill, whatever the goal. No more crafts that give no points."],
-		L["424 recipes added, Runecloth Bandage among them: the guide reaches 300 on recipes that give points in every crafting profession."],
-		L["Prices and your other characters are found again after the game stopped giving realm names. Nothing was lost."],
-		L["With Daylight UI 2.1.2: the Docked Pane can leave materials cost and profit to its profession window (asked once)."],
-	} },
-	{ version = "2.7.0", lines = {
-		L["Buy List: Check Prices at the Auction House reads how many are for sale at each price, so a row shows what the amount you need really costs."],
-		L["Buy List: when a vendor also sells an item, the Auction House row asks only for the cheaper units and the vendor's list for the rest."],
-	} },
-	{ version = "2.6.0", lines = {
-		L["Buy List: two lists, Queue List and Guide List, picked with the tabs under its title, and profession tags when it covers more than one profession."],
-		L["Buy List: each place shows only what is cheapest there. A line under the list brings the rest back."],
-		L["Buy List: hold Shift over a row and Shift-click to remove it. What you buy on the Auction House comes off the list right away."],
-		L["Prices: with Daylight UI's Auction House, the prices it has already collected are used, so fewer materials say \"No price\"."],
+	{ version = "3.0.0", lines = {
+		L["A compact window: one column at the left of the screen. Details slide out from the Details button (Y on a controller), Roll Up folds it to one bar that says what it will make, and your professions, alts, Cooldowns and Tracking are in the menu on the profession's name."],
+		L["Vendors, trainers and the auction house: the panels are now a thin strip under the window, only where there is something for you. List shows the items, a press on one buys or learns it, and Buy All Needed asks first."],
+		L["The strips carry everything the Buy List gained in 2.6 to 2.8: Queue List and Guide List, profession tags, Remove with a Shift-click, and Check Prices at the auction house."],
+		L["Tours no longer start by themselves. Retake Tour, Shop Strip Tour and Enchanting Runs Tour are in Plugins > Recipes > Help."],
+		L["With Professionally Lost installed, a window asks once which of the two addons does each job. Nothing changes until you press Apply, and Put Everything Back in the options undoes it."],
 	} },
 	{ version = "2.5.0", lines = {
 		L["Enchanting in the Docked Pane: the item slot, Auto-replace and enchant runs beside Daylight UI's or DaylightMogul's profession window, as in the Recipes window."],
@@ -90,7 +84,7 @@ Guide.Setup({
 	takes = function()
 		local list = {
 			string.format(L["Your profession window: Glowey's Recipes' own opens in place of %s. The swap button beside its X opens the game's window any time."], (Theirs())),
-			L["Vendors, the auction house and trainers: a panel beside them with what to buy or learn for your plan."],
+			L["Vendors, trainers and the auction house: a thin strip under their window with what to buy or learn, only where there is something for you."],
 			L["Recipe tooltips: who knows the recipe and who can still learn it."],
 		}
 		if DaylightHasCraft() and not Loaded("DaylightMogul") then
@@ -99,9 +93,26 @@ Guide.Setup({
 		if Loaded("Mastercraft") then
 			list[#list + 1] = L["Mastercraft's list of your characters on recipe items is hidden while ours shows."]
 		end
+		-- (Nothing is handed over before the player answers that window: ProfLost.lua.)
+		if ns.ProfLost and ns.ProfLost.Loaded() then
+			list[#list + 1] = L["Professionally Lost is installed too: a window asks you which of the two does each job."]
+		end
 		return list
 	end,
 	tour = "window",
+	-- Tours are never started for the player: the first time a place shows, a toast names the Help
+	-- card, which starts each of them.
+	help = L["Plugins > Recipes > Help"],
+	offerTour = function(id)
+		if id == "shop" or id == "enchant" then return id end
+		return "window"
+	end,
+	moreTours = {
+		{ id = "shop", label = L["Shop Strip Tour"],
+		  desc = L["What the strip under a vendor, a trainer and the auction house does."] },
+		{ id = "enchant", label = L["Enchanting Runs Tour"],
+		  desc = L["How a run of enchants goes, one click at a time."] },
+	},
 	accept = function()
 		if Get("window") == "recipes" then
 			if ns.Swap then ns.Swap.Picked("recipes") end
@@ -123,6 +134,13 @@ Guide.Setup({
 	},
 })
 
+-- The Leveling Guide and Materials tabs are not there for a profession whose guide is handed to
+-- Professionally Lost (ProfLost.lua): their steps are left out of a run.
+local function OwnGuide()
+	local P, S = ns.ProfLost, ns.state
+	return not (P and S and P.Handed("guide", S.line))
+end
+
 local function Settings()
 	return string.format(L["Everything is in Daylight UI's options: %s. %s there shows this tour again."], Pop(L["Plugins > Recipes"]), Pop(L["Retake Tour"]))
 end
@@ -142,22 +160,24 @@ end
 
 Guide.AddTour("window", {
 	start = function() if Get("window") == "recipes" and ns.Window then ns.Window.ShowForTour() end end,
-	finished = function(how)
+	-- (The window goes back to the tab and the rolled-up state it was left in: Window.TourDone.)
+	finished = function()
 		if ns.Window and ns.Window.TourDone then ns.Window.TourDone() end
-		-- (The tabs' own first-visit tours say what this one just showed.)
-		if how then Guide.MarkSeen("tab-guide", "tab-missing", "tab-queue") end
-		if ns.Window and ns.Window.SetTab then ns.Window.SetTab("recipes") end
 	end,
 	steps = {
+		-- (The window's parts are Window.TourParts(), as its own comment in Window.lua lists them: `menu`
+		-- is the profession's name in the header, whose menu took the old sidebar's place; `summary`
+		-- the picked recipe's line above the craft bar; `details` and `roll` the header's two buttons.
+		-- The window is always unrolled for a tour: Window.ShowForTour.)
 		{ title = L["Your Professions"],
-		  text = L["Click one to open it. Shift-click links it to chat; right-click a main profession to unlearn it. Your alts' professions are listed below, as of their last visit."],
-		  part = function() return Parts().side end },
-		{ title = L["Tabs"],
-		  text = L["Recipes, the Leveling Guide, Materials, your Queue and Missing recipes: everything for this profession in one window. Next shows each one."],
-		  part = function() return Parts().tabs end },
+		  text = string.format(L["Press the profession's name for its menu: your professions, Camping, your alts' professions as of their last visit, your cooldowns and tracking. The three dots beside each of your professions (a right-click, or Y on a controller) have %s and %s. %s in the options hides your alts' professions."], Pop(L["Link to Chat"]), Pop(L["Unlearn"]), Pop(L["Show Your Alts' Professions"])),
+		  part = function()
+			local p = Parts()
+			return p.menu or p.side
+		  end },
 		-- Recipes
 		{ title = L["Recipes"],
-		  text = L["Every recipe you know, sorted by skill-up color. The small mark is the cheapest recipe to skill up with now. Click one to see its materials, cost and chance to skill up; Shift-click links it."],
+		  text = L["Every recipe you know, sorted by skill-up color. The small mark is the cheapest recipe to skill up with now. Pick one: its chance to skill up, material cost and sale value show in one line above the craft bar. Shift-click links it."],
 		  enter = OnTab("recipes"),
 		  part = function()
 			local p = Parts()
@@ -165,79 +185,96 @@ Guide.AddTour("window", {
 			return { b, p.list }
 		  end },
 		{ title = L["Crafting"],
-		  text = L["Make one, make all, or add it to the queue. The queue builds a buy list for vendors and the auction house."],
+		  text = string.format(L["Set how many (%s fills in all you can make), then Create, or add it to the queue. What the queue needs shows on the strips at vendors and the auction house."], Pop(L["Max"])),
 		  enter = OnTab("recipes"),
 		  part = function() return Parts().craft end },
+		{ title = L["Details"],
+		  text = string.format(L["The picked recipe's chance, cost and sale value are in one line above the craft bar. Press that line, or %s (Y on a controller), for its full page beside the list. Open or closed is remembered for each tab."], Pop(L["Details"])),
+		  enter = OnTab("recipes"),
+		  part = function()
+			local p = Parts()
+			return { p.summary, p.details }
+		  end },
+		-- (The window is shown unrolled for a tour, so the step lights the button; what the rolled-up
+		-- bar says is told in words.)
+		{ title = L["Roll Up"],
+		  text = string.format(L["Folds the window to its header and one bar while you craft. Rolled up, the bar says what it will make: the next craft in your queue, with %s, or else the picked recipe. Press it again to unroll."], Pop(L["Craft Next"])),
+		  enter = OnTab("recipes"),
+		  part = function() return Parts().roll end },
 		-- Leveling Guide
 		{ title = L["Leveling Guide"],
-		  text = L["The cheapest way from your skill to the next goal, step by step, with trainer visits and what to buy. The step you're on is lit."],
-		  enter = OnTab("guide"), part = TabPage("guide") },
+		  text = string.format(L["The cheapest way from your skill to the next goal, step by step, with trainer visits and what to buy. Every step uses a recipe that still gives skill points at that skill (orange or yellow). %s and %s at the top set where it leads and what it saves on. The step you're on is lit."], Pop(L["Goal"]), Pop(L["Cheapest Route"])),
+		  enter = OnTab("guide"), part = TabPage("guide"), when = OwnGuide },
 		{ title = L["Each Step"],
-		  text = string.format(L["%s crafts it, %s adds it to your queue, and %s picks the recipe in the list."], Pop(L["Make"]), Pop(L["Queue"]), Pop(L["Show Recipe"])),
-		  enter = OnTab("guide"), part = TabPage("guide") },
+		  text = string.format(L["%s crafts it, %s adds it to your queue, and %s picks the recipe in the list. %s lists other recipes that give points right now."], Pop(L["Make"]), Pop(L["Queue"]), Pop(L["Show Recipe"]), Pop(L["Or Instead"])),
+		  enter = OnTab("guide"), part = TabPage("guide"), when = OwnGuide },
 		-- Materials
 		{ title = L["Materials"],
 		  text = L["Everything the Leveling Guide's route needs, what you already have of it, and what's left to get, with its price."],
-		  enter = OnTab("materials"), part = TabPage("materials") },
+		  enter = OnTab("materials"), part = TabPage("materials"), when = OwnGuide },
 		-- Queue
 		{ title = L["Queue"],
-		  text = L["What you plan to craft, for this character. Its materials go on the buy list at vendors and the auction house, and you can make the next one from here."],
+		  text = L["What you plan to craft, for this character. Its materials are the Queue List on the strips at vendors and the auction house, and you can make the next one from here or from the rolled-up window."],
 		  enter = OnTab("queue"), part = TabPage("queue") },
 		-- Missing
 		{ title = L["Missing Recipes"],
-		  text = L["Every recipe you don't know yet, with where it comes from: trainers, vendors, drops and quests."],
-		  enter = OnTab("missing"), part = TabPage("missing") },
-		{ title = L["Find It"],
-		  text = L["Click a place to put a pin on your map (a TomTom waypoint when TomTom is installed). The search box above narrows the list."],
+		  text = L["Every recipe you don't know yet, with where it comes from: trainers, vendors, drops and quests. Click a place to put a pin on your map (a TomTom waypoint when TomTom is installed). The search box above narrows the list."],
 		  enter = OnTab("missing"), part = TabPage("missing") },
 		{ title = L["The Swap Button"],
 		  text = L["Opens the game's profession window instead. On that window, the same button brings this one back."],
 		  enter = OnTab("recipes"),
 		  part = function() return Parts().swap end },
+		-- Only where they apply: Professionally Lost installed; the Docked Pane in use beside a
+		-- Daylight UI window that shows cost and profit itself (Pane.ProfitCould).
+		{ title = L["Professionally Lost"],
+		  text = string.format(L["Professionally Lost is installed too. Which of the two addons does each job (the Leveling Guide, buy lists, the trainer strip, tooltips, prices) is set by the switches under Professionally Lost in the options. %s there gives everything back to Glowey's Recipes."], Pop(L["Put Everything Back"])),
+		  when = function() return ns.ProfLost ~= nil and ns.ProfLost.Loaded() == true end },
+		{ title = L["Cost and Profit"],
+		  text = string.format(L["Beside Daylight UI's profession window, the Docked Pane leaves a recipe's materials total and Auction House profit to that window, which shows them itself. %s in the options decides it."], Pop(L["Leave Cost and Profit to Daylight UI"])),
+		  when = function()
+			return Get("window") ~= "recipes" and ns.Pane ~= nil and ns.Pane.ProfitCould ~= nil and ns.Pane.ProfitCould() == true
+		  end },
 		{ title = L["Settings"], text = Settings },
 	},
 })
 
-Guide.AddTour("tab-guide", { steps = {
-	{ title = L["Leveling Guide"],
-	  text = L["The cheapest way from your skill to the next goal, step by step, with trainer visits and what to buy. The step you're on is lit."],
-	  part = function() return Parts().body end },
-	{ title = L["Each Step"],
-	  text = string.format(L["%s crafts it, %s adds it to your queue, and %s picks the recipe in the list."], Pop(L["Make"]), Pop(L["Queue"]), Pop(L["Show Recipe"])),
-	  part = function() return Parts().body end },
-} })
+-- The strips at vendors, trainers and the auction house (Shop.lua): the one on show is lit; away
+-- from all three the card stands alone.
+local function Strip() return ns.Shop and ns.Shop.TourPart and ns.Shop.TourPart() or nil end
 
-Guide.AddTour("tab-missing", { steps = {
-	{ title = L["Missing Recipes"],
-	  text = L["Every recipe you don't know yet, with where it comes from: trainers, vendors, drops and quests."],
-	  part = function() return Parts().body end },
-	{ title = L["Find It"],
-	  text = L["Click a place to put a pin on your map (a TomTom waypoint when TomTom is installed). The search box above narrows the list."],
-	  part = function() return Parts().body end },
-} })
+-- (A step about the list lights the strip and its list when the list is open, else the strip; with
+-- no strip up at all, part() answers nothing and the card stands alone: the same rule for every step.)
+local function StripAndList()
+	local strip = Strip()
+	if strip and strip.list and strip.list:IsShown() then return { strip, strip.list } end
+	return strip
+end
 
-Guide.AddTour("tab-queue", { steps = {
-	{ title = L["Queue"],
-	  text = L["What you plan to craft, for this character. Its materials go on the buy list at vendors and the auction house."],
-	  part = function() return Parts().body end },
-} })
-
-Guide.AddTour("shop-vendor", { steps = {
-	{ title = L["Buy List"],
-	  text = string.format(L["What this vendor sells for your queue and Leveling Guide, counted against your bags, bank and mail. %s buys the lot; anything the vendor doesn't have is grayed out."], Pop(L["Buy All Here"])),
-	  part = function() return _G.DaylightRecipesBuyList end },
-} })
-
-Guide.AddTour("shop-auction", { steps = {
-	{ title = L["Buy List"],
-	  text = L["What your queue and Leveling Guide still need, with auction and vendor prices. Click an item to search for it."],
-	  part = function() return _G.DaylightRecipesAHList end },
-} })
-
-Guide.AddTour("shop-trainer", { steps = {
-	{ title = L["Recommended"],
-	  text = L["Only the recipes your Leveling Guide uses next. Learn them here; the rest can wait."],
-	  part = function() return _G.DaylightRecipesTrainer end },
+Guide.AddTour("shop", { steps = {
+	{ title = L["The Strip"],
+	  text = L["Where a vendor, a trainer or the auction house has something for your queue or Leveling Guide, a thin strip docks under its window (at the auction house, under its bottom right corner): how many items there are for you and what they cost. Where there is nothing for you, nothing shows."],
+	  part = Strip },
+	{ title = L["Buying and Learning"],
+	  text = string.format(L["At a vendor, %s buys everything on the list that the vendor sells, after asking once with the total; short of gold, it reads %s and buys what your gold reaches. At a trainer, %s learns the recipes your Leveling Guide uses."], Pop(L["Buy All Needed"]), Pop(L["Buy What I Can Afford"]), Pop(L["Learn All Recommended"])),
+	  part = Strip },
+	{ title = L["The List"],
+	  text = string.format(L["%s opens the list at the strip's right end. A press on a row buys or learns that one at once, exactly what you need. At the auction house a press searches for the item: the row reads %s under the mouse."], Pop(L["List"]), Pop(L["Left Click to Search"])),
+	  part = StripAndList },
+	{ title = L["Two Lists"],
+	  text = string.format(L["%s is what your crafting queue needs and %s what your Leveling Guides need, each with its count. When a list covers more than one profession, tags under them (%s first) narrow it to one."], Pop(L["Queue List"]), Pop(L["Guide List"]), Pop(L["All"])),
+	  part = StripAndList },
+	{ title = L["The Cheapest Place"],
+	  text = string.format(L["Each place lists only what is cheapest there: a vendor leaves out what the auction house sells for less, and the other way round. A line at the end of the list says how many were left out, and %s brings them back for that visit."], Pop(L["Show"])),
+	  part = StripAndList },
+	{ title = L["Remove"],
+	  text = string.format(L["Hold Shift over a row and Shift-click to take it off that list (the Menu button on the left of a controller): the row reads %s while Shift is held. The last line of the list puts removed items back."], Pop(L["Remove"])),
+	  part = StripAndList },
+	{ title = L["Check Prices"],
+	  text = string.format(L["At the auction house, %s reads how many are for sale at each price, so a row shows what the number you need really costs. A cost that says \"about\" is an estimate from the lowest price, and \"only 40 for sale\" means there are fewer than you need."], Pop(L["Check Prices"])),
+	  part = Strip },
+	{ title = L["What You Buy"],
+	  text = L["What you buy comes off the lists at once: at the vendor, and at the auction house too, where purchases arrive by mail and are counted before you visit a mailbox."],
+	  part = StripAndList },
 } })
 
 Guide.AddTour("enchant", { steps = {

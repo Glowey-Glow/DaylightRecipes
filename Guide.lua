@@ -1,9 +1,17 @@
 -- The guide: a first-launch welcome, a "what's new" note after an update, and short tours that
 -- light one part of the screen, dim the rest and explain it on a small card (Back, Next, Skip
--- tour; Escape skips; a fight ends it at once). The look and the rules follow DaylightUI's own tour
+-- tour; Escape skips; a fight ends it at once). A tour never starts by itself: the welcome's Start
+-- Tour and the options' Help card start one, and the first time a place with a tour shows, a small
+-- toast says where that is (Guide.Offer); nothing dims the screen unasked.
+-- The look and the rules follow DaylightUI's own tour
 -- (light, dim, card, a toast saying where to find it again), but this is our own code, built only
 -- from DaylightUI.API, so nothing of DaylightUI's inside can change under it.
--- The same file in each Daylight plugin that has tours; each plugin describes itself once with
+-- This file began as the one Glowey's Fishing has too (its own Guide.lua, in its own repository),
+-- and the two still share their saved keys, the _G.DaylightGuides flag and the shapes below, but
+-- they are no longer the same file: here a tour never starts by itself (Guide.Offer), and
+-- Guide.Busy / Guide.Hold are new; Fishing's copy still starts its tours itself. Port a change
+-- from one to the other by hand, never by copying the file over (and never this GPL file into
+-- Fishing, which is All Rights Reserved: AGENTS.md). Each plugin describes itself once with
 -- ns.Guide.Setup(spec) and adds its tours with ns.Guide.AddTour(id, def).
 --
 -- spec: name (shown in titles), db() (the plugin's saved variables), existing() (true for a
@@ -17,7 +25,10 @@
 --   saved, the welcome and every tour show again once, for everyone, players from before included;
 --   change it in a release to show them all again), revert = { label (the row), text (the button:
 --   a string, or a function asked each time it's drawn), fn, desc, available() } or nil (the
---   options' Revert button, hidden while available() says there's nothing to go back to).
+--   options' Revert button, hidden while available() says there's nothing to go back to),
+--   help (where the Help card is, for the toast: "Plugins > Recipes > Help"), offerTour(id) (the
+--   tour the Help card starts for the place Guide.Offer(id) names; the id itself when left out),
+--   moreTours = { { id, label, desc } ... } (more tours on the Help card, under Retake Tour).
 -- Every tour closes DaylightUI's options while it runs (Retake Tour is clicked there, and the window
 -- would sit over what the tour shows) and opens them again on the same page when it ends, through
 -- DaylightUI's own "/dui" command (which opens and closes them).
@@ -26,7 +37,8 @@
 -- A tour: { steps = { { title, text (string or function), part() (regions to light; none shown:
 --   the card sits in the middle), enter(), leave(), through (the mouse reaches what's under it;
 --   true, or a function asked as the step shows),
---   done() (it moves on once true) } ... }, start() (opens what the tour shows) }.
+--   done() (it moves on once true), when() (false: left out of this run) } ... },
+--   start() (opens what the tour shows) }.
 -- Seen tours, the welcome and the last notes read are kept in db().guide (per account).
 -- On a controller (the game's controller interface on), the card, the welcome and "what's new" take
 -- the D-pad (ns.Pad, below): it starts on Next (or the main button), A presses, B skips the tour
@@ -49,6 +61,8 @@ local ADDON, ns = ...
 --   Pad.Settle(aim)            a window changed: the game finds its buttons again, the cursor goes
 --                              to aim (a button) or off one that's gone
 --   Pad.Front(frame)           the cursor back on frame when another window took it
+--   Pad.Back(frame)            the cursor off a second window (frame.padSecond), back to the
+--                              window it stands beside
 --   Pad.KeepOff(frame)         a game window held out of sight under ours stays off the game's
 --                              list (the game puts it back on with each page it opens);
 --                              Pad.Remember(frame) puts it back once it's handed back
@@ -138,6 +152,15 @@ function Pad.Front(frame)
 	local ok, active = pcall(m.GetActiveFrame, m)
 	-- (Only with another window listed: one taken off a list it leaves empty is refused.)
 	if not ok or active == nil or active == frame then return end
+	KitCall("Leaving", frame)
+	KitCall("Returning", frame)
+end
+
+-- A second window (frame.padSecond) told to the game again: the kit lists it without the focus
+-- while another window is the active one (DaylightUI/Pad.lua:1039-1057: sync, FrameShown(frame,
+-- nil, false)), so the cursor goes back to that one.
+function Pad.Back(frame)
+	if not (padFollowed[frame] and frame.padSecond and frame:IsVisible() and Pad.On()) or InCombatLockdown() then return end
 	KitCall("Leaving", frame)
 	KitCall("Returning", frame)
 end
@@ -269,10 +292,13 @@ local function Button(parent, text, main)
 	return b
 end
 
--- Ours busy (a note or a tour up), for the other Daylight plugins' guides.
+-- Ours busy (a note or a tour up, or a window of the plugin's own that asked for the same
+-- courtesy: Guide.Hold), for the other Daylight plugins' guides. Mark (below, once the note and
+-- the tour exist) sets it from what is up now.
 local Busy = type(_G.DaylightGuides) == "table" and _G.DaylightGuides or {}
 _G.DaylightGuides = Busy
-local function SetBusy(on) Busy[ADDON] = on or nil end
+local holds = {}
+local Mark
 
 -- DaylightUI's own setup guide or tour, or another Daylight plugin's welcome or tour, is up: ours
 -- waits.
@@ -293,6 +319,31 @@ end
 
 local layer, card, toast
 local note
+local greeted = false   -- the login's welcome / What's New has had its turn (Greet)
+
+Mark = function()
+	Busy[ADDON] = (S ~= nil or (note ~= nil and note:IsShown()) or next(holds) ~= nil) or nil
+end
+
+-- A window of the plugin's own that should not be covered by another Daylight plugin's welcome or
+-- tour, nor cover one (ProfLost.lua's first-load window): Hold(key, true) while it is up.
+function Guide.Hold(key, on)
+	holds[key] = on and true or nil
+	Mark()
+end
+
+-- Whether anything is up, or still to come at this login, that a window of the plugin's own must
+-- wait for: the welcome or the What's New note not yet decided (Greet runs 4 s after login and
+-- waits for a fight and for Daylight UI's own guides), the welcome unanswered, a note showing, a
+-- tour running, Daylight UI's installer, welcome or tour, or another Daylight plugin's guide.
+function Guide.Busy()
+	if not greeted or S ~= nil or (note ~= nil and note:IsShown()) then return true end
+	-- (A window of ours that is up and said so, Guide.Hold: Professionally Lost's first-load window,
+	-- the Docked Pane's question about Daylight UI's profit. One of them waits for the other.)
+	if next(holds) ~= nil then return true end
+	if Guide.Welcoming() then return true end
+	return DaylightBusy()
+end
 
 local function Box(regions)
 	local ui = UIParent:GetEffectiveScale()
@@ -585,7 +636,7 @@ local function Finish(how)
 	S = nil
 	layer.pulse:Stop()
 	layer:Hide()
-	SetBusy(false)
+	Mark()
 	if how then G().tours[id] = true end
 	-- (The options it closed, back on the page they were on.)
 	if def.reopenOptions then
@@ -639,8 +690,18 @@ function Guide.Run(id, quiet)
 		ToggleOptions()
 	end
 	if def.start then pcall(def.start) end
+	-- (A step whose when() says no is left out of this run: a tab that isn't there now. Asked once
+	-- start() has opened what the tour shows. The run goes over its own list; the tour is untouched.)
+	local steps = {}
+	for _, step in ipairs(def.steps) do
+		local ok, yes = true, true
+		if step.when then ok, yes = pcall(step.when) end
+		if not ok or yes then steps[#steps + 1] = step end
+	end
+	if #steps == 0 then steps = def.steps end
+	def = setmetatable({ steps = steps, reopenOptions = def.reopenOptions }, { __index = def })
 	S = { id = id, def = def, i = 1 }
-	SetBusy(true)
+	Mark()
 	card:Hide()
 	layer:SetAlpha(1)
 	layer:Show()
@@ -651,21 +712,41 @@ function Guide.Run(id, quiet)
 	return true
 end
 
--- A first-time tour: runs once per account, the first time its screen shows.
+-- The first time a place with a tour shows, on this account: one toast saying where the tour is
+-- (the options' Help card), never the tour itself. Once per tour; not for a tour already taken.
+-- id names the place ("window", "tab-guide", "shop" ...); spec.offerTour(id) is its tour.
 function Guide.Offer(id)
-	if not tours[id] or G().tours[id] then return end
+	if not spec then return end
+	local tour = id
+	if spec.offerTour then
+		local ok, got = pcall(spec.offerTour, id)
+		if ok and type(got) == "string" then tour = got end
+	end
+	local function Told()
+		local g = G()
+		g.offered = type(g.offered) == "table" and g.offered or {}
+		return g.offered
+	end
+	if not tours[tour] or G().tours[tour] or G().tours[id] or Told()[tour] then return end
 	local tries = 0
 	local function try()
 		tries = tries + 1
-		if not tours[id] or G().tours[id] or S then return end
-		if Guide.Run(id, true) then return end
-		-- (Something else is up for now: a note, another tour, a fight. A while longer.)
-		if tries < 30 then C_Timer.After(2, try) end
+		if not tours[tour] or G().tours[tour] or Told()[tour] then return end
+		-- (Something else is up for now: a note, a tour, a fight, the welcome not answered yet. A
+		-- while longer.)
+		if S or InCombatLockdown() or DaylightBusy() or (note and note:IsShown()) or next(holds) or not G().welcomed then
+			if tries < 30 then C_Timer.After(2, try) end
+			return
+		end
+		Told()[tour] = true
+		Toast(string.format(L["Take the Tour: %s"], Guide.Pop(spec.help or (spec.name or ""))))
 	end
 	C_Timer.After(0.5, try)
 end
 
 function Guide.AddTour(id, def) tours[id] = def end
+-- A tour as it was added (its steps: title, text, part, enter, when), or nil. For the tests.
+function Guide.Tour(id) return tours[id] end
 
 -- Marks tours as seen (a bigger tour that already showed what they would).
 function Guide.MarkSeen(...)
@@ -700,7 +781,7 @@ local function BuildNote()
 		note:Hide()
 		if note.onClose then note.onClose() end
 	end)
-	note:SetScript("OnHide", function() SetBusy(S ~= nil) end)
+	note:SetScript("OnHide", function() Mark() end)
 	note.close:SetPoint("TOPRIGHT", -10, -10)
 	note.body = API.Text(note, "body", "LEFT")
 	note.body:SetPoint("TOPLEFT", note.title, "BOTTOMLEFT", 0, -10)
@@ -738,10 +819,10 @@ local function ShowNote(title, body, main, other, onClose)
 	local h = 18 + (note.title:GetStringHeight() or 22) + 10 + (note.body:GetStringHeight() or 40) + 18 + BTN_H + 18
 	note:SetHeight(math.ceil(h))
 	API.Skin(note, { window = true })
-	SetBusy(true)
 	-- (Already up with other words: a controller's cursor goes to the main button again.)
 	if note:IsShown() then Pad.Settle(note.main) end
 	note:Show()
+	Mark()
 end
 
 local BULLET = "|cff%02x%02x%02x•|r  "
@@ -828,6 +909,8 @@ local function Greet()
 		C_Timer.After(5, Greet)
 		return
 	end
+	-- (From here on Guide.Busy answers by what is up: a note shown below counts until it is closed.)
+	greeted = true
 	local g = G()
 	local latest = spec.news and spec.news[1] and spec.news[1].version
 	if not g.welcomed then
@@ -867,11 +950,14 @@ function Guide.Setup(s)
 					g.reset = spec.reset
 					g.welcomed = nil
 					g.tours = {}
+					g.offered = nil
 					spec.wasExisting = false
 				end
 				f:UnregisterEvent("ADDON_LOADED")
 			end
 		elseif event == "PLAYER_LOGIN" then
+			-- (This login's welcome or What's New has not had its turn yet: Guide.Busy.)
+			greeted = false
 			C_Timer.After(4, Greet)
 		elseif S then
 			Finish(nil)   -- (a fight: put everything back at once, the tour runs again another time)
@@ -879,7 +965,8 @@ function Guide.Setup(s)
 	end)
 end
 
--- The options card: Retake Tour, What's new, and Revert (when there's something to go back to).
+-- The options card: Retake Tour, the plugin's other tours, What's New, and Revert (when there's
+-- something to go back to).
 function Guide.HelpGroup()
 	local items = {
 		{ type = "button", label = L["Retake Tour"], text = L["Start"],
@@ -889,6 +976,11 @@ function Guide.HelpGroup()
 		  desc = L["The changes in the latest versions."],
 		  func = function() Guide.News(true) end },
 	}
+	for _, t in ipairs(spec and type(spec.moreTours) == "table" and spec.moreTours or {}) do
+		local id = t.id
+		table.insert(items, #items, { type = "button", label = t.label, text = L["Start"], desc = t.desc,
+			func = function() Guide.Run(id, false) end })
+	end
 	-- (Hidden while there's nothing to go back to: an addon that isn't loaded.)
 	local r = spec and spec.revert
 	if type(r) == "table" and type(r.label) == "string" and type(r.fn) == "function" then

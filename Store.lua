@@ -1,5 +1,6 @@
 -- What Glowey's Recipes keeps between sessions, for every character on the account: professions and
--- their skill, the recipes each knows, and what each holds (bags, bank, mail), plus the bank tabs
+-- their skill, the recipes each knows, and what each holds (bags, bank, mail, and what was bought
+-- at the Auction House since the mailbox was last read), plus the bank tabs
 -- the whole account shares and what vendors you've visited sell. Everything is read when the game
 -- says it changed (a bag change settled, the bank or mailbox open, a merchant open), a moment
 -- later and once, never on a timer. Nothing needs another addon.
@@ -576,9 +577,6 @@ local function ReadBags()
 	local last = (Enum and Enum.BagIndex and Enum.BagIndex.ReagentBag) or NUM_BAG_SLOTS or 4
 	for bag = 0, math.max(NUM_BAG_SLOTS or 4, last) do ReadBag(bag, bags) end
 	c.bagsAt = time()
-	-- (The buy lists settle what was bought at a vendor a moment ago against every read, changed
-	-- or not: Shop.lua.)
-	if ns.Shop and ns.Shop.BagsRead then ns.Shop.BagsRead(bags) end
 	if Same(c.bags, bags) then return false end
 	c.bags = bags
 	return true
@@ -653,12 +651,107 @@ function ReadBank()
 	return changed
 end
 
+-- BOUGHT AT THE AUCTION HOUSE, NOT SEEN IN THE MAILBOX YET. What is bought there comes by mail
+-- (the buyer's letter is an invoice of its own in the game's mail window: Blizzard_MailFrame/
+-- MailFrame.lua:789-803, GetInboxInvoiceInfo's "buyer"; Daylight UI's mail ledger books such
+-- letters as won auctions, DaylightUI/Mail/Ledger.lua:371-377; Professionally Lost and Polestar
+-- count purchases apart for the same reason), and the mailbox is only read while it is open. So
+-- every purchase is counted here the moment the game reports it: c.won[itemID] = { n, at }, kept
+-- with the character (it is still in the mail after a relog), and Store.Count adds it to the
+-- mail's number. It ends when the mailbox is next read with its whole inbox listed: that reading
+-- holds those letters, so from then on they are counted there and nowhere else (never twice).
+-- One the mailbox never shows (taken on another machine, say) is dropped after WON_DAYS, the life
+-- of an auction's letter.
+local WON_DAYS = 30
+
+local function Won(c)
+	if type(c.won) ~= "table" then return nil end
+	local now = time()
+	for itemID, w in pairs(c.won) do
+		if type(w) ~= "table" or (w.n or 0) <= 0 or now - (w.at or 0) > WON_DAYS * 86400 then c.won[itemID] = nil end
+	end
+	return c.won
+end
+
+-- How many of an item were bought at the Auction House since the mailbox was last read.
+function Store.Won(itemID)
+	local c = Store.Char()
+	local won = c and Won(c)
+	local w = won and won[itemID]
+	return w and w.n or 0
+end
+
+-- `count` of an item bought at the Auction House just now.
+function Store.NoteWon(itemID, count)
+	if type(itemID) ~= "number" or type(count) ~= "number" or count <= 0 then return end
+	local c = Store.Char()
+	if not c then return end
+	c.won = type(c.won) == "table" and c.won or {}
+	local w = c.won[itemID]
+	c.won[itemID] = { n = (type(w) == "table" and w.n or 0) + count, at = time() }
+	-- (And gone from the item's price steps: what's left for sale starts at the next price.
+	-- Prices.lua; as 2.7.0's Shop.NoteAuction.)
+	if ns.Prices and ns.Prices.Took then ns.Prices.Took(itemID, count) end
+	Store.version = Store.version + 1
+	if ns.Changed and ns.ShowingPlan and ns.ShowingPlan() then ns.Changed() end
+	if ns.Shop then ns.Shop.Refresh() end
+end
+
+-- The purchases, as the game reports them (Blizzard_APIDocumentationGenerated/
+-- AuctionHouseDocumentation.lua): COMMODITY_PURCHASED(itemID, quantity) :1386-1394 for stackable
+-- goods, ITEM_PURCHASED(itemID) :1443-1450 for single items. Daylight UI's own Auction House
+-- found that COMMODITY_PURCHASED "didn't always come" (DaylightUI_AuctionHouse/Buy.lua:194) and
+-- counts what it confirmed when COMMODITY_PURCHASE_SUCCEEDED (:1380, no payload) answers. The same
+-- here, for any window: what was last confirmed (C_AuctionHouse.ConfirmCommoditiesPurchase(itemID,
+-- quantity) :83-91, heard through hooksecurefunc, which leaves the game's own call as it was) is
+-- counted when SUCCEEDED comes, unless COMMODITY_PURCHASED already counted that item; and a
+-- COMMODITY_PURCHASED that comes after such a count is that same purchase and is not counted again.
+local confirmed            -- { itemID, qty, at, seen (PURCHASED came), counted (SUCCEEDED counted it) }
+local function CommodityConfirmed(itemID, quantity)
+	if type(itemID) == "number" and type(quantity) == "number" and quantity > 0 then
+		confirmed = { itemID = itemID, qty = quantity, at = GetTime() }
+	end
+end
+-- Whether a purchase on the Auction House is being confirmed right now (asked of the game and not
+-- answered yet): Prices' check of prices sends nothing meanwhile.
+function Store.Confirming()
+	local p = confirmed
+	return p ~= nil and not p.counted and not p.seen and GetTime() - p.at < 60
+end
+
+local function CommodityPurchased(itemID, quantity)
+	local p = confirmed
+	if p and p.itemID == itemID and GetTime() - p.at < 30 then
+		if p.counted then
+			confirmed = nil
+			return
+		end
+		p.seen = true
+	end
+	Store.NoteWon(itemID, quantity)
+end
+local function CommoditySucceeded()
+	local p = confirmed
+	if not p or GetTime() - p.at >= 30 then
+		confirmed = nil
+		return
+	end
+	if p.seen then
+		confirmed = nil
+	elseif not p.counted then
+		p.counted = true
+		Store.NoteWon(p.itemID, p.qty)
+	end
+end
+
 -- The mailbox: every item waiting, except cash-on-delivery ones (not yours until you pay).
+local inboxListed = false     -- MAIL_INBOX_UPDATE came since the mailbox opened: its list is in
 local function ReadMail()
 	local c = Store.Char()
 	if not c or not GetInboxNumItems or not GetInboxItem then return false end
 	local mail = {}
-	local n = GetInboxNumItems() or 0
+	local n, total = GetInboxNumItems()
+	n = n or 0
 	for i = 1, n do
 		local cod = GetInboxHeaderInfo and select(6, GetInboxHeaderInfo(i))
 		if not cod or cod == 0 then
@@ -669,10 +762,15 @@ local function ReadMail()
 		end
 	end
 	c.mailAt = time()
-	-- (What was bought on the Auction House is in this read now, or out of the mailbox: the buy
-	-- lists stop counting it apart. Shop.lua)
-	if ns.Shop and ns.Shop.MailRead then ns.Shop.MailRead() end
-	if Same(c.mail, mail) then return false end
+	-- (What was bought at the Auction House is in this reading now: counted here from now on. Not
+	-- while the inbox is not all listed: GetInboxNumItems' second number, the letters there are
+	-- in all, MailFrame.lua:317.)
+	local settled = false
+	if inboxListed and (type(total) ~= "number" or total <= n) and type(c.won) == "table" and next(c.won) then
+		c.won = nil
+		settled = true
+	end
+	if Same(c.mail, mail) then return settled end
 	c.mail = mail
 	return true
 end
@@ -688,7 +786,10 @@ function Store.Count(itemID)
 	out.bank = (c.bank and c.bank[itemID]) or 0
 	local shared = DB().account.bank
 	out.bank = out.bank + ((shared and shared[itemID]) or 0)
-	out.mail = (c.mail and c.mail[itemID]) or 0
+	-- (won: bought at the Auction House and not seen in the mailbox yet. It is in the mail.)
+	local won = Won(c)
+	out.won = won and won[itemID] and won[itemID].n or 0
+	out.mail = ((c.mail and c.mail[itemID]) or 0) + out.won
 	for _, alt in pairs(Store.Alts()) do
 		local held = ((alt.bags and alt.bags[itemID]) or 0) + ((alt.bank and alt.bank[itemID]) or 0)
 		local n = held + ((alt.mail and alt.mail[itemID]) or 0)
@@ -796,10 +897,28 @@ end
 
 local f = CreateFrame("Frame")
 for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "GAME_RULES_CHANGED", "BAG_UPDATE_DELAYED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
-	"PLAYERBANKSLOTS_CHANGED", "MAIL_SHOW", "MAIL_INBOX_UPDATE", "MERCHANT_SHOW" }) do
+	"PLAYERBANKSLOTS_CHANGED", "MAIL_SHOW", "MAIL_INBOX_UPDATE", "MERCHANT_SHOW",
+	"COMMODITY_PURCHASED", "COMMODITY_PURCHASE_SUCCEEDED", "COMMODITY_PURCHASE_FAILED", "ITEM_PURCHASED" }) do
 	pcall(f.RegisterEvent, f, e)
 end
-f:SetScript("OnEvent", function(_, event)
+if type(hooksecurefunc) == "function" and type(C_AuctionHouse) == "table"
+	and type(C_AuctionHouse.ConfirmCommoditiesPurchase) == "function" then
+	pcall(hooksecurefunc, C_AuctionHouse, "ConfirmCommoditiesPurchase", CommodityConfirmed)
+end
+f:SetScript("OnEvent", function(_, event, a, b)
+	if event == "COMMODITY_PURCHASED" then
+		CommodityPurchased(a, b)
+		return
+	elseif event == "COMMODITY_PURCHASE_SUCCEEDED" then
+		CommoditySucceeded()
+		return
+	elseif event == "COMMODITY_PURCHASE_FAILED" then
+		confirmed = nil
+		return
+	elseif event == "ITEM_PURCHASED" then
+		Store.NoteWon(a, 1)
+		return
+	end
 	if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" or event == "GAME_RULES_CHANGED" then
 		-- (The game's rules for this character can come in after login: its key is saved when
 		-- they do, and what hangs on it worked out again.)
@@ -822,6 +941,7 @@ f:SetScript("OnEvent", function(_, event)
 	elseif event == "PLAYERBANKSLOTS_CHANGED" then
 		if bankOpen then Soon("bank", ReadBank) end
 	elseif event == "MAIL_SHOW" or event == "MAIL_INBOX_UPDATE" then
+		inboxListed = event == "MAIL_INBOX_UPDATE"
 		Soon("mail", ReadMail)
 	elseif event == "MERCHANT_SHOW" then
 		-- (Forever can show the merchant's window a moment after the event.)

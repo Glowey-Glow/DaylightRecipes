@@ -1,5 +1,53 @@
 # Glowey's Recipes (DaylightUI Plugin)
 
+## 3.0.0
+
+### Window
+- The Recipes window is one compact column now, 420 x 560 by default at the left of the screen (it was 1000 x 640 across the middle). Drag its bottom edge to make it 400 to 720 tall, or set Window Height in the options. Drag it by its header; right-click the header to put it back. In a language with longer words the column is a little wider (520 at most), so no tab is cut and the craft bar stays on one row.
+- Three states, and it opens the way you left it (on the tab and in the place you left it too). Compact: the list, with the picked recipe's chance, cost and sale value in one line above the craft bar. With details: the Details button, a press on that line, or Y on a controller slides the recipe's full page out beside the list; open or closed is remembered for each tab. Rolled up: Roll Up folds the window to its header and one bar while you craft.
+- Rolled up, the bar says what it acts on. While something is being made: what, how far, and Stop. With something queued for the open profession: "Queue: Silk Headband x 3 · and 1 more" and one button, Craft Next, which makes it exactly as the Queue tab's Craft Next does; short of materials for it, the bar says so and a press on the line opens the Queue tab. Otherwise: the picked recipe's name above Queue, the count, Max and Create.
+- Your professions, Camping, your alts, Cooldowns and Tracking are in a menu on the profession's name. Link to Chat and Unlearn are on each profession's More button there (a right-click, or Y on a controller). With more alts than fit, the menu scrolls.
+- Create All is now Max beside the count: Max fills in all you can make, Create makes them. While something is being made, the craft bar with Stop shows on every tab.
+- Someone's linked profession always says whose recipes they are, after the profession's name.
+- Docked Pane (for those who keep Daylight UI's or DaylightMogul's own profession window): its fold tab sits at the pane's top corner, and on DaylightMogul's window the pane sits flush against the window's edge.
+- If you had the old window, it starts once at the new compact size.
+
+### Shopping strips
+- The Buy List and Recommended panels are gone. In their place a thin strip docks flush to the window you are at (Daylight UI's, DaylightMogul's or the game's), and only where there is something for you: at a vendor that sells nothing you need, nothing of Glowey's Recipes shows.
+- Vendor: under the vendor window, as wide as it: how many of the items you need this vendor sells, what they cost, List, and Buy All Needed. Buy All Needed asks once, with the total (the option Ask Before Buying All switches the question off), and buys what your gold, the vendor's stock and your bag space allow; short of gold it reads Buy What I Can Afford. Anything left out is named in chat with the reason.
+- Trainer: under the trainer window: how many of your Leveling Guide's recipes you can learn here now, their cost, and Learn All Recommended.
+- Auction House: a compact strip at the window's bottom right corner: how many items are still to buy, what they cost there, List, and Check Prices (with Auctionator on the game's own window, Auctionator List too). Buying on the Auction House stays your own action.
+- List opens the list at the strip's right end: under it, beside the window's right edge when there is no room under, or over the window's lower right corner when there is none there either. It is as tall as all its items where there is room (sixteen at most, then it scrolls) and always ends on a whole line. A press on a line buys or learns that one at once, exactly the number you need, with no question; at the Auction House a press searches for the item, and the line reads "Left Click to Search" under the mouse.
+- The strips carry everything the Buy List gained in 2.6 to 2.8, in less room: Queue List and Guide List as two small buttons at the top of the list, profession tags under them, the lines that say what is cheaper elsewhere (with Show), Remove with a Shift-click and the line that puts removed items back, Check Prices with "about" and "only 40 for sale", and purchases that come off the lists at once, the Auction House's too.
+- Goods sold in lots are bought by the whole lot, and a line shows the number it will buy. A purchase of 150 gold or more is asked about, as the game's own vendor window does.
+- Buying can't run away from you: every purchase is worked out anew just before it is made, so fast or repeated presses buy once; a run buys only at the vendor it was started at and stops for good when that vendor closes; and what you just bought counts as held until your bags show it.
+- Controller: LT / RT reach a strip from the window it hangs on; X is its main button, Y opens the list, A presses a line, the Menu button on the right switches between Queue List and Guide List, the Menu button on the left removes the line the cursor is on, B goes back.
+
+### Leveling Guide
+- Goal and Cheapest Route are two pickers on one line.
+- Everything 2.8.0 brought is here unchanged: a step only uses a recipe while it is orange or yellow, the 424 recipes that were missing, and costs that follow checked Auction House prices.
+
+### Professionally Lost
+- New: with Professionally Lost installed, a window asks once which of the two addons does each job: Leveling Guide, Buy Lists, Trainer Panel, Guide Line in Item Tooltips, Scanned Prices, Light Up Its Step. On means Professionally Lost does it. Nothing changes until you press Apply, and Ask Me Later asks again at the next login. It never opens over the welcome, What's New or another question, and with a controller in use the first three start off, because Professionally Lost has no controller support yet.
+- Handing a job over only quiets Glowey's Recipes' own part: nothing in Professionally Lost is changed or switched. It applies per profession, so smelting and Poisons, which Professionally Lost has no guide for, keep Glowey's Recipes' Leveling Guide.
+- With its guide in use for a profession, the Leveling Guide and Materials tabs give way to an Open Professionally Lost button, and the recipe its guide is on is marked in the recipe list (Light Up Its Step).
+- With Scanned Prices on (and DaylightMogul not installed), Glowey's Recipes also uses the auction prices Professionally Lost scanned, whichever of the two was seen later, so one scan serves both.
+- Where its Buy for Guide or Scan Prices button hangs under the corner of the game's own vendor or Auction House window, the strip stands flush against the window's right edge instead.
+
+### Options
+- New: Window Height, Open Details by Default, Ask Before Buying All, and Show Your Alts' Professions (switch it off to leave your other characters out of the professions menu).
+- New: a Professionally Lost group with the same six switches as its window, Open Professionally Lost, Professionally Lost Settings and Put Everything Back, which gives everything back to Glowey's Recipes at once, with no reload. It shows only while Professionally Lost is installed.
+
+### Tours and What's New
+- Tours no longer start by themselves and nothing dims the screen unasked. The first time a window or strip with a tour shows, one line says where the tours are: Plugins > Recipes > Help, with Retake Tour, Shop Strip Tour and Enchanting Runs Tour.
+- Both tours are written for the new window and strips: the three window states and the rolled-up bar, the professions menu, each tab, the strip's count and buttons, the two lists and the tags, what each place leaves out, Remove, and Check Prices.
+- What's New tells you why the window is smaller and what replaced the panels.
+
+### Fixes
+- Stop is always where you see it. If the window is moved, resized, rolled up or closed during a fight, Stop stays put with its own look until the fight ends, instead of leaving an unseen button behind.
+- A long item name in the enchant row is no longer cut off (it wraps). A long recipe name in the list steps down a size and then takes the count's room before it is ever cut.
+- A Buy List line's tooltip no longer repeats what your bank holds when Daylight UI 2.1.1 or later already lists it.
+
 ## 2.8.0
 - Checked against Daylight UI 2.1.2. Searching a material from the Buy List finds it in every category, whatever category is picked on Daylight UI's Buy page.
 - Fixed: the Leveling Guide no longer sends you to make things that give no skill points, or hardly any. With Vendor, Disenchant or Auction House picked, a recipe whose craft sells for more than its materials looked better the lower its chance of a point was, so a step could run a recipe down to a 10% chance and ask for a hundred crafts or more (First Aid 83 to 122: "Make 100 x Lesser Healing Potion"). With Cheapest, a cheap recipe could be kept down to a chance of a few percent. All four now work the same way: a step only uses a recipe while the game shows it orange or yellow (a point at least every other craft), so no step asks for more than about two crafts a point.
