@@ -6,8 +6,8 @@ A plugin for Daylight UI, by Glowey (not part of Daylight UI itself: report its 
 
 ---
 
-## New in 3.0.6
-- **The right trainer for your skill:** the Leveling Guide now names the nearest trainer who teaches the recipe at your skill. Trainers of one recipe don't all ask the same skill, and the guide could send you to one who would turn you away.
+## New in 3.0.7
+- **Upgrade arrows on recipes:** with Glowey's Gear 1.0.6 or later installed, every recipe whose crafted item would be a gear upgrade for your character gets the green upgrade arrow in the recipe list.
 ---
 
 ## The window

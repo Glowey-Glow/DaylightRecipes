@@ -1,5 +1,9 @@
 # Glowey's Recipes (DaylightUI Plugin)
 
+## 3.0.7
+
+- Recipe list: an upgrade arrow (the game's green arrow, as on a bag slot) on every recipe whose item would be a gear upgrade for this character, by Glowey's Gear's advice. It needs Glowey's Gear 1.0.6 or later installed; without it nothing changes. Shown for your own profession's list, with Mark the Best Recipe on, and it follows your gear as you put things on.
+
 ## 3.0.6
 
 - Leveling Guide: the nearest trainer named for a recipe is now one who teaches it at your skill. Trainers of the same recipe don't all ask the same skill (86 of the 470 trainer-taught recipes, in Blacksmithing, Tailoring and Leatherworking: Coarse Weightstone is taught at 40 by some trainers and at 65 by others). The guide planned the recipe from the lowest of those, then named whichever trainer stood nearest, who could be one that turns you away. It now names the nearest trainer who would teach you, even when another stands closer.

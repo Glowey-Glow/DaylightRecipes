@@ -89,7 +89,7 @@ GetFrameLevel GetFrameStrata GetHeight GetLeft GetParent GetRect GetScale GetScr
 GetStringHeight GetStringWidth GetText GetTop GetUnboundedStringWidth GetVerticalScroll
 GetVerticalScrollRange GetWidth Hide HookScript IsMouseOver IsShown IsTruncated IsVisible
 RegisterEvent RegisterForClicks RegisterForDrag RegisterUnitEvent SetAllPoints SetAlpha
-SetAttribute SetClampedToScreen SetClipsChildren SetColorTexture SetDesaturated SetFrameLevel
+SetAtlas SetAttribute SetClampedToScreen SetClipsChildren SetColorTexture SetDesaturated SetFrameLevel
 SetFrameStrata SetHeight SetIgnoreParentAlpha SetJustifyH SetMinMaxValues SetMovable SetParent
 SetPoint SetScale SetScript SetScrollChild SetShown SetSize SetTexCoord SetText SetTextColor
 SetTexture SetToplevel SetUserPlaced SetValue SetVerticalScroll SetWidth SetWordWrap Show

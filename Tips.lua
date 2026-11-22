@@ -261,6 +261,30 @@ local function Best()
 end
 Tips.Best = Best
 
+-- Whether what a recipe makes would be a gear upgrade for this character, by Glowey's Gear when
+-- it is installed (its GloweyGearAPI.Upgrade: a global of its own, nothing of it is read or
+-- copied): true and its words ("+12% over your Chest"), or false. The recipe list's arrow.
+-- Gear keeps its answer for an item, so asking for every row each repaint costs a lookup.
+function Tips.GearUp(spell)
+	if not ns.Get("marks") then return false end
+	local api = rawget(_G, "GloweyGearAPI")
+	if type(api) ~= "table" or type(api.Upgrade) ~= "function" then return false end
+	local data = ns.Recipes and ns.Recipes[spell]
+	local made = data and data[4]
+	local id = type(made) == "table" and made[1]
+	if type(id) ~= "number" then return false end
+	local ok, up, text = pcall(api.Upgrade, "item:" .. id)
+	if not ok or up ~= true then return false end
+	return true, type(text) == "string" and text or nil
+end
+
+-- Gear's answers changed (gear put on, a level, item data arriving): fn runs. False without Gear.
+function Tips.GearWatch(fn)
+	local api = rawget(_G, "GloweyGearAPI")
+	if type(api) ~= "table" or type(api.Watch) ~= "function" then return false end
+	return (pcall(api.Watch, fn))
+end
+
 local marks = setmetatable({}, { __mode = "k" })
 local function Mark(frame, _, info)
 	local holder = API.Attach and API.Attach(frame)

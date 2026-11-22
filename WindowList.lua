@@ -247,6 +247,12 @@ local function MakeListRow()
 	r.nameSmall:Hide()
 	r.right = Text(r, "small", "RIGHT")
 	r.right:SetPoint("RIGHT", r, "RIGHT", -10, 0)
+	-- (What it makes would be a gear upgrade for you, by Glowey's Gear: the game's own upgrade
+	-- arrow, as on a bag slot. Atlas "bags-greenarrow": the game's ContainerFrame.xml:104.)
+	r.up = r:CreateTexture(nil, "OVERLAY")
+	r.up:SetSize(12, 12)
+	if not pcall(r.up.SetAtlas, r.up, "bags-greenarrow") then r.up:SetColorTexture(0.3, 0.9, 0.3, 1) end
+	r.up:Hide()
 	r:SetScript("OnEnter", function(self)
 		self.wash:Show()
 		Pad.Into(self, listPad)
@@ -304,6 +310,7 @@ local function StepSpell()
 end
 List.StepSpell = StepSpell
 
+local gearWatched = false
 PaintList = function()
 	if not listFrame then return end
 	if listDirty then BuildList() end
@@ -311,6 +318,15 @@ PaintList = function()
 	local shown = VisibleRows()
 	listRows = listRows or {}
 	local best = ns.Tips and ns.Tips.Best and ns.Get("marks") and ns.Tips.Best() or nil
+	-- (Glowey's Gear's word on what each recipe makes: asked only for your own profession's
+	-- list. Its answers change with your gear: the list is painted again when they do.)
+	local gearUp = W.Own() and ns.Tips and ns.Tips.GearUp or nil
+	if gearUp and not gearWatched then
+		gearWatched = true
+		ns.Tips.GearWatch(function()
+			if listFrame and listFrame:IsVisible() and not listDirty then PaintList() end
+		end)
+	end
 	-- The guide's current recipe, lit wherever its row is (rows are reused as it scrolls).
 	local step = StepSpell()
 	local glow = Doc.GlowStyle() and step or nil
@@ -349,14 +365,26 @@ PaintList = function()
 				r.ground:Show()
 				r.mark:Hide()
 				r.step:Hide()
+				r.up:Hide()
 			else
 				r.sign:Hide()
 				local right = e.count > 0 and ("[" .. e.count .. "]") or ""
 				r.right:SetText(right)
 				r.right:SetTextColor(Color("VALUE"))
 				local dr, dg, db = DiffColor(math.min(4, math.max(1, e.step)))
+				-- The upgrade arrow sits before the count; the name ends at whichever comes first.
+				local up = gearUp and gearUp(e.spell) or false
+				local edge, gap = r.right, -6
+				r.up:ClearAllPoints()
+				if up then
+					r.up:SetPoint("RIGHT", r.right, "LEFT", right ~= "" and -4 or 0, 0)
+					r.up:Show()
+					edge, gap = r.up, -4
+				else
+					r.up:Hide()
+				end
 				r.name:SetPoint("LEFT", r, "LEFT", 22, 0)
-				r.name:SetPoint("RIGHT", r.right, "LEFT", -6, 0)
+				r.name:SetPoint("RIGHT", edge, "LEFT", gap, 0)
 				r.name:SetText(e.name)
 				r.name:SetTextColor(dr, dg, db)
 				r.right:Show()
@@ -364,7 +392,7 @@ PaintList = function()
 					r.name:Hide()
 					r.nameSmall:ClearAllPoints()
 					r.nameSmall:SetPoint("LEFT", r, "LEFT", 22, 0)
-					r.nameSmall:SetPoint("RIGHT", r.right, "LEFT", -6, 0)
+					r.nameSmall:SetPoint("RIGHT", edge, "LEFT", gap, 0)
 					r.nameSmall:SetText(e.name)
 					r.nameSmall:SetTextColor(dr, dg, db)
 					r.nameSmall:Show()
@@ -374,7 +402,13 @@ PaintList = function()
 						r.right:Hide()
 						r.nameSmall:ClearAllPoints()
 						r.nameSmall:SetPoint("LEFT", r, "LEFT", 22, 0)
-						r.nameSmall:SetPoint("RIGHT", r, "RIGHT", -10, 0)
+						if up then
+							r.up:ClearAllPoints()
+							r.up:SetPoint("RIGHT", r, "RIGHT", -10, 0)
+							r.nameSmall:SetPoint("RIGHT", r.up, "LEFT", -4, 0)
+						else
+							r.nameSmall:SetPoint("RIGHT", r, "RIGHT", -10, 0)
+						end
 					end
 				end
 				if e.spell == S.recipe then
