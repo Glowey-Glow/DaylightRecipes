@@ -284,4 +284,49 @@ T.case("the first yellow point is still a sure point", function()
 	T.eq((Calc.Chance(LESSER_HEALING, 125, 0)), 0, "gray: none")
 end)
 
+-- ---- a trainer who teaches it at your skill -------------------------------------------------------
+T.case("the nearest trainer named for a recipe is one who teaches it at your skill", function()
+	local W2 = ns.Where
+	local spell
+	for id, name in pairs(ns.RecipeNames) do
+		if name == "Coarse Weightstone" and ns.Trainers[id] then spell = id end
+	end
+	T.ok(spell ~= nil, "(the data has Coarse Weightstone's trainers)")
+	local lo, hi
+	for _, rec in ipairs(ns.Trainers[spell]) do
+		if W2.Npc(rec[1]) then
+			lo = math.min(lo or rec[3], rec[3])
+			hi = math.max(hi or rec[3], rec[3])
+		end
+	end
+	T.ok(lo < hi, "(its trainers don't all ask the same skill: " .. lo .. " and " .. hi .. ")")
+	-- Every skill from the lowest any trainer asks: the one named would teach you.
+	for k = lo, hi + 5 do
+		local who = W2.NearestTrainer(spell, k)
+		T.ok(who ~= nil, "someone is named at " .. k)
+		T.ok(who.rec[3] <= k, ("at %d the trainer named asks %d: no more than you have"):format(k, who.rec[3]))
+		T.eq(who.needs, nil, "and nothing is said about a skill still to reach")
+	end
+	-- Under what any of them asks: the one who asks least, and the row is told what that is.
+	local who = W2.NearestTrainer(spell, lo - 5)
+	T.eq(who.rec[3], lo, "below every trainer's skill: one of those who ask the least")
+	T.eq(who.needs, lo, "with the skill that one asks")
+	-- With no skill given (the Missing tab's way): any trainer, as before.
+	T.ok(W2.NearestTrainer(spell) ~= nil, "no skill asked: the nearest of all")
+	-- Over the whole data: at the skill the guide plans a recipe from, a trainer of yours teaches it.
+	local checked = 0
+	for id, list in pairs(ns.Trainers) do
+		local from = W2.Required(id)
+		if from and type(list) == "table" then
+			local named = W2.NearestTrainer(id, from)
+			if named then
+				checked = checked + 1
+				T.ok(type(named.rec[3]) ~= "number" or named.rec[3] <= from,
+					("%s: planned from %d, the trainer named asks %s"):format(ns.SpellName(id), from, tostring(named.rec[3])))
+			end
+		end
+	end
+	T.ok(checked > 300, "(checked " .. checked .. " trained recipes)")
+end)
+
 return T.done()

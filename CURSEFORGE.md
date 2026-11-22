@@ -6,8 +6,8 @@ A plugin for Daylight UI, by Glowey (not part of Daylight UI itself: report its 
 
 ---
 
-## New in 3.0.5
-- **Recipe lines on any tooltip:** Known By, Can Learn, Used In and your guide's needs now show on item tooltips even with Daylight UI's tooltips switched off, or with another addon drawing your tooltips. Before, they only showed in Daylight UI's own tooltips.
+## New in 3.0.6
+- **The right trainer for your skill:** the Leveling Guide now names the nearest trainer who teaches the recipe at your skill. Trainers of one recipe don't all ask the same skill, and the guide could send you to one who would turn you away.
 ---
 
 ## The window

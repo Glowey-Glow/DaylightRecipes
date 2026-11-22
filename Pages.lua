@@ -588,7 +588,10 @@ end
 
 -- Who teaches (or sells) the recipe of a step you haven't learned, nearest to you: who, its label.
 local function LearnFrom(s)
-	if s.source == "trainer" then return Where.NearestTrainer(s.spell), L["Nearest Trainer"] end
+	-- (A trainer who teaches it at the skill you'll have by then: yours now, or the step's start.)
+	if s.source == "trainer" then
+		return Where.NearestTrainer(s.spell, math.max(S.skill or 0, s.from or s.at or 0)), L["Nearest Trainer"]
+	end
 	if s.source == "vendor" then return Where.NearestSeller(s.spell), L["Nearest Vendor"] end
 	return nil
 end
@@ -613,7 +616,11 @@ local function StepCard(d, ctx, s, n, glowTop)
 			right = s.learn > 0 and Calc.Money(s.learn) or "", rightInk = "VALUE", tip = SpellTip(s.spell) })
 		d:Line(LearnText(s), "small", "WARN")
 		local who, label = LearnFrom(s)
-		if who then NearestRow(d, label, who, who.copper and who.copper > 0 and Calc.Money(who.copper) or nil) end
+		if who then
+			NearestRow(d, label, who, who.copper and who.copper > 0 and Calc.Money(who.copper) or nil)
+			-- (No trainer of yours teaches it at your skill yet: this one's own requirement.)
+			if who.needs then d:Line(L["This trainer teaches it from skill %d."]:format(who.needs), "small", "WARN") end
+		end
 		d:Gap(4)
 	end
 	d:Row({ icon = icon, left = (s.learn and L["Then Make %d x %s"] or L["Make %d x %s"]):format(s.count, RecipeName(s.spell)),

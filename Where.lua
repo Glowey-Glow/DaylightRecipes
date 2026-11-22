@@ -603,11 +603,41 @@ local function NearestOf(list)
 	return best
 end
 
--- The nearest trainer that teaches a recipe: { name, place, copper }, or nil.
-function Where.NearestTrainer(spell)
+-- The nearest trainer that teaches a recipe: { name, place, copper, needs }, or nil.
+-- skill: the skill you'll have when you go (left out: any trainer). Trainers of one recipe don't
+-- all ask the same skill (86 of the data's 470 trained recipes: Coarse Weightstone is taught at
+-- 40 by some and at 65 by others), so only those who would teach you at that skill are looked
+-- at: the nearest of them, even when another who asks more stands closer. Where none of yours
+-- would yet, the nearest of those who ask the least, with `needs` = that skill (said on its row).
+function Where.NearestTrainer(spell, skill)
 	local list = ns.Trainers and ns.Trainers[spell]
 	if type(list) ~= "table" then return nil end
-	local line = NearestOf(list)
+	local line
+	if type(skill) == "number" then
+		local ready = {}
+		for _, rec in ipairs(list) do
+			local req = type(rec) == "table" and rec[3]
+			if type(req) ~= "number" or req <= skill then ready[#ready + 1] = rec end
+		end
+		line = NearestOf(ready)
+	end
+	if not line and type(skill) == "number" then
+		-- (None would teach you yet: of your faction's, those who ask the least.)
+		local least
+		for _, rec in ipairs(list) do
+			local req = type(rec) == "table" and rec[3]
+			if type(req) == "number" and (not least or req < least) and Where.Npc(rec[1]) then least = req end
+		end
+		if least then
+			local soonest = {}
+			for _, rec in ipairs(list) do
+				if type(rec) == "table" and rec[3] == least then soonest[#soonest + 1] = rec end
+			end
+			line = NearestOf(soonest)
+			if line and least > skill then line.needs = least end
+		end
+	end
+	if not line then line = NearestOf(list) end
 	if line then line.copper = type(line.rec) == "table" and type(line.rec[2]) == "number" and line.rec[2] or nil end
 	return line
 end

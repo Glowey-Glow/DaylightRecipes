@@ -1,5 +1,11 @@
 # Glowey's Recipes (DaylightUI Plugin)
 
+## 3.0.6
+
+- Leveling Guide: the nearest trainer named for a recipe is now one who teaches it at your skill. Trainers of the same recipe don't all ask the same skill (86 of the 470 trainer-taught recipes, in Blacksmithing, Tailoring and Leatherworking: Coarse Weightstone is taught at 40 by some trainers and at 65 by others). The guide planned the recipe from the lowest of those, then named whichever trainer stood nearest, who could be one that turns you away. It now names the nearest trainer who would teach you, even when another stands closer.
+- Where no trainer of yours teaches it at your skill yet, the row names the nearest of those who ask the least and says so: "This trainer teaches it from skill 40."
+- The steps further down the list pin a trainer by the skill you will have at that step.
+
 ## 3.0.5
 
 - Item tooltips: Known By, Can Learn, Used In and your guide's needs show without DaylightUI's tooltips too. Until now they were handed to DaylightUI's Tooltip module, which only draws plugins' lines while it draws the tooltips itself: with that module switched off, or another addon styling the tooltips in its place, they were gone. They are now written into the game's own tooltip in those cases. With DaylightUI's tooltips on, nothing changes.
