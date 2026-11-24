@@ -4,7 +4,7 @@
 -- the strip following a window that is dragged or scaled, where the strip and its list sit for the
 -- room there is, what a press on a row does on each, and that Daylight UI 1.9 (no such frame) and
 -- the game's own window behave as before. (Carried over from 2.5.3 on main.)
--- luacheck: globals GAME PRINTS ERRORS DaylightUI DaylightRecipesDB NS AuctionHouseFrame DaylightUIAuctionHouse DaylightMogulMain Auctionator UIParent C_AddOns
+-- luacheck: globals GAME PRINTS ERRORS DaylightUI DaylightRecipesDB NS AuctionHouseFrame AuctionatorAHTabsContainer GloweyGearWindow DaylightUIAuctionHouse DaylightMogulMain Auctionator UIParent C_AddOns
 -- luacheck: read globals T Fire NewObj ALL
 local ns = NS
 local Shop = ns.Shop
@@ -277,6 +277,79 @@ T.case("the strip follows Daylight UI's window when it is dragged or scaled", fu
 	T.run(2)
 	T.eq(s.host, AuctionHouseFrame, "on the game's window")
 	T.eq(s.follow, false, "which is not watched for moves")
+end)
+
+-- The game's tab row (Buy, Sell, Auctions, and Auctionator's beside them) hangs under the
+-- window's foot: the strip never lies over it. (The stand-in's frames stand where their left and
+-- bottom say, the strip at 100 from the left like the window.)
+T.case("the game's tab row under the corner: the strip moves clear of it", function()
+	local function Tab(left, w)
+		local t = NewObj("Button")
+		t.left, t.bottom, t.w, t.h, t.shown = left, 372, w, 32, true
+		return t
+	end
+	local ok, err = pcall(function()
+		fresh()
+		GameUp()
+		WithAuctionator()
+		AuctionHouseFrame.Tabs = { Tab(100, 300) }
+		Open()
+		local s = strip()
+		T.ok(s and s:IsShown(), "the strip is up")
+		local at = s.points[1]
+		T.eq(s.fit, true, "the game's tabs reach under it: beside the window's right edge instead")
+		T.ok(at[1] == "BOTTOMLEFT" and at[2] == AuctionHouseFrame and at[3] == "BOTTOMRIGHT", "at its foot")
+		-- No room on the right: under the tab row.
+		UIParent.w = 900
+		Shop.Auction()
+		at = s.points[1]
+		T.ok(s.compact == true and at[1] == "TOPRIGHT" and at[3] == "BOTTOMRIGHT" and at[5] <= -28,
+			"no room beside it: at the corner, under the tabs (" .. tostring(at[5]) .. ")")
+		UIParent.w = 1920
+		-- Tabs that stop short of it: the corner, as ever.
+		AuctionHouseFrame.Tabs = { Tab(0, 60) }
+		Shop.Auction()
+		at = s.points[1]
+		T.ok(s.compact == true and at[1] == "TOPRIGHT" and at[5] == 0, "tabs clear of it: flush at the corner")
+		-- Auctionator's tabs, made after the strip showed: seen within half a second.
+		_G.AuctionatorAHTabsContainer = { Tabs = { Tab(60, 400) } }
+		T.run(1)
+		Frame()
+		T.eq(s.fit, true, "Auctionator's tabs, come later: beside the window")
+		-- Glowey's Gear's window docked against the same right edge: the strip hangs under it.
+		local gear = NewObj("Frame", "GloweyGearWindow")
+		gear.left, gear.bottom, gear.w, gear.h, gear.shown = 900, 500, 340, 520, true
+		T.run(1)
+		Frame()
+		at = s.points[1]
+		T.ok(s.fit == true and at[1] == "TOPLEFT" and at[2] == gear and at[3] == "BOTTOMLEFT",
+			"Gear's window docked beside: flush under it, left edges one line")
+		-- No room under Gear's window: under the tab row instead.
+		gear.bottom = 10
+		Shop.Auction()
+		at = s.points[1]
+		T.ok(s.compact == true and at[1] == "TOPRIGHT" and at[2] == AuctionHouseFrame and at[5] <= -28,
+			"no room under Gear's window: at the corner, under the tabs")
+		-- Gear's window put away: beside the window again, noticed within half a second.
+		gear.shown = false
+		T.run(1)
+		Frame()
+		at = s.points[1]
+		T.ok(s.fit == true and at[1] == "BOTTOMLEFT" and at[2] == AuctionHouseFrame, "Gear's window gone: beside the window's right edge again")
+		-- Docked somewhere else (not on the right edge): no matter.
+		gear.shown, gear.left, gear.bottom = true, 1300, 500
+		Shop.Auction()
+		T.ok(s.points[1][2] == AuctionHouseFrame, "a Gear window that isn't on that edge changes nothing")
+		gear.shown = false
+		-- A hidden tab is no tab.
+		_G.AuctionatorAHTabsContainer.Tabs[1].shown = false
+		Shop.Auction()
+		T.eq(s.compact, true, "a hidden tab: the corner again")
+	end)
+	AuctionHouseFrame.Tabs = nil
+	_G.AuctionatorAHTabsContainer = nil
+	UIParent.w = 1920
+	if not ok then error(err, 0) end
 end)
 
 T.case("DaylightMogul's window comes first", function()

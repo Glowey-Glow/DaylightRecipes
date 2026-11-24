@@ -57,6 +57,22 @@ local menuPad                   -- its stand-in scroll frame for a controller's 
 local stickMoving = false
 local Paint, PaintTrack, PaintCooldowns, PlaceFoot
 
+-- (Your professions as entries, the menu's parts and the tracking list are each asked several
+-- times a draw (the chips, the side tabs, the window's size, the menu), and each asks the game
+-- again. Kept for one frame, and thrown away as a draw of the window or the menu starts
+-- (Menu.Fresh), so what a click changed is always read anew. key: the state an answer goes by.)
+local drawn, drawnAt = {}, nil
+local function Drawn(what, key, fn)
+	local now = GetTime()
+	if drawnAt ~= now then drawn, drawnAt = {}, now end
+	local e = drawn[what]
+	if e and e[1] == key then return e[2] end
+	local v = fn()
+	drawn[what] = { key, v }
+	return v
+end
+function Menu.Fresh() drawn = {} end
+
 -- ---------------------------------------------------------------------------------------------
 -- Your professions
 -- ---------------------------------------------------------------------------------------------
@@ -580,7 +596,7 @@ local function TrackName(name)
 	return type(name) == "string" and trackNames[name] == true
 end
 
-local function TrackingList()
+local function ReadTracking()
 	local out = {}
 	local M = C_Minimap
 	if not (M and M.GetNumTrackingTypes and M.GetTrackingInfo and M.SetTracking) then return out end
@@ -595,6 +611,8 @@ local function TrackingList()
 	end
 	return out
 end
+
+local function TrackingList() return Drawn("tracking", "", ReadTracking) end
 
 -- The glow style for a tile that's on: the player's main-button style, none when that's None or
 -- this DaylightUI has no GlowAround (the ring still shows it's on).
@@ -862,7 +880,7 @@ end
 -- order (those with recipes first, by name, then Camping): { key (the game's skill line, W.CAMP
 -- for Camping), prof (nil for Camping), icon, name, sub, value, picked (it is the page on show),
 -- cast (the spell that opens it: PlaceCaster), onClick, onRight (its More menu) }.
-function Menu.Entries()
+local function ReadEntries()
 	local out = {}
 	local alt, gather = W.alt, W.gather
 	for _, p in ipairs(MyProfessions()) do
@@ -913,6 +931,12 @@ function Menu.Entries()
 	return out
 end
 
+function Menu.Entries()
+	local key = table.concat({ tostring(W.alt), tostring(W.gather), tostring(S.line), tostring(S.name),
+		tostring(S.mode), tostring(W.Linked()) }, ":")
+	return Drawn("entries", key, ReadEntries)
+end
+
 -- Your alts' professions on this server (the "Show Your Alts' Professions" option; off: none).
 local function AltRows()
 	local alts = {}
@@ -939,7 +963,7 @@ end
 -- The menu's parts one at a time, for the Blizzard Layout's side tabs (one tab each): the ones
 -- with something in them, in the menu's order, each { kind, icon, count }. Its icon is the first
 -- entry's own (a tracking spell's, a cooldown recipe's), the alts' a group's.
-function Menu.Parts()
+local function ReadParts()
 	local out = {}
 	local alts = AltRows()
 	if #alts > 0 then
@@ -957,6 +981,7 @@ function Menu.Parts()
 	end
 	return out
 end
+function Menu.Parts() return Drawn("parts", "", ReadParts) end
 
 -- The part the open menu shows alone (Menu.Parts' kind), or nil.
 function Menu.Only() return Menu.Shown() and only or nil end
@@ -1013,6 +1038,7 @@ end
 -- (never cut: WindowState.MenuWidth) and to the window's height, then drawn at that size.
 Paint = function()
 	if not (menu and menu:IsShown() and W.win) then return end
+	Menu.Fresh()
 	local win = W.win
 	-- (The rows are drawn anew, maybe elsewhere: the secure button comes back with the next row
 	-- the mouse is on.)
@@ -1439,8 +1465,18 @@ local function AltsPage(d)
 end
 
 -- Your craft cooldowns: a row each, ready or how long until it is; a click opens the recipe. While
--- one is cooling down the page is drawn again each half minute, only while it shows.
-local coolSerial = 0
+-- one is cooling down the page is drawn again each half minute, only while it shows. (One timer:
+-- a draw meanwhile puts the next one off again rather than adding another.)
+local coolDue, coolPending
+local function CoolDue()
+	local left = (coolDue or 0) - GetTime()
+	if left > 0.01 then
+		C_Timer.After(left, CoolDue)
+		return
+	end
+	coolPending = false
+	if W.gather == W.COOLS and W.win and W.win:IsVisible() then ns.Window.Render() end
+end
 local function CooldownsPage(d)
 	local all = ns.Cooldowns and ns.Cooldowns.List() or {}
 	if #all == 0 then
@@ -1464,11 +1500,11 @@ local function CooldownsPage(d)
 			end })
 	end
 	if cooling then
-		coolSerial = coolSerial + 1
-		local serial = coolSerial
-		C_Timer.After(COOL_TICK, function()
-			if serial == coolSerial and W.gather == W.COOLS and W.win and W.win:IsVisible() then ns.Window.Render() end
-		end)
+		coolDue = GetTime() + COOL_TICK
+		if not coolPending then
+			coolPending = true
+			C_Timer.After(COOL_TICK, CoolDue)
+		end
 	end
 end
 

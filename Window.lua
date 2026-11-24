@@ -304,12 +304,15 @@ local function Slide(open)
 		if t >= 1 then
 			self:SetScript("OnUpdate", nil)
 			slideW = nil
+			-- (The shell is dressed once, at the size it ends at: Size dresses it with no size kept.)
+			sizedW = nil
 			Window.Render()
 			return
 		end
+		-- (The shell's on the window's edges and follows them through the slide: its corners only
+		-- hang on the size for a window narrower than twice their curve, and this one never is.)
 		sizedW = slideW
 		win:SetWidth(slideW)
-		ns.SkinWindow(win)
 	end)
 	return true
 end
@@ -1032,6 +1035,8 @@ function Window.Relayout()
 end
 
 Render = function()
+	-- (What the menu's entries and parts said is read anew for each draw: WindowMenu.lua's Drawn.)
+	Menu.Fresh()
 	-- (A profession just opened with the window rolled up or on another tab: its first recipe is
 	-- picked all the same, as the game does, so the craft bar has one.)
 	if S.mode == "win" and not S.recipe then List.Count() end
@@ -1496,12 +1501,15 @@ function Window.SessionEnded()
 end
 
 -- The list's counts follow your bags (the game updates the trade skill on every bag change), and
--- a recipe learned joins it.
+-- a recipe learned joins it. (The game sends these in bursts: drawn once a burst, ns.ChangedSoon.)
 local listEvents = CreateFrame("Frame")
 listEvents:RegisterEvent("TRADE_SKILL_LIST_UPDATE")
 listEvents:RegisterEvent("NEW_RECIPE_LEARNED")
 listEvents:SetScript("OnEvent", function()
-	if S.mode == "win" and Window.Shown() then Window.Dirty() end
+	if S.mode == "win" and Window.Shown() then
+		List.Dirty()
+		ns.ChangedSoon()
+	end
 end)
 
 local function Ensure()

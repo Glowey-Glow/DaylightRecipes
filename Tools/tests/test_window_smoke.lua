@@ -528,6 +528,7 @@ ns.Calc = {
 	HasAH = function() return true end,
 	Vendor = function() return nil end,
 	AH = function() return 100 end,
+	Stale = function() return false end,
 }
 local MISSING = {
 	{ spell = 8791, name = "Crimson Silk Vest", required = 185, reachable = true, summary = "Trainer",

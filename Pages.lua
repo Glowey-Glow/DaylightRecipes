@@ -86,6 +86,11 @@ function Pages.AltAlert(have)
 	return L["[%s Has %d]"]:format(first.name, first.count)
 end
 
+-- "Stale, seen 3 days ago": an Auction House price older than Calc.STALE (age in seconds).
+function Pages.StaleText(age)
+	return L["Stale, seen %s"]:format(Doc.Ago(time() - (age or 0)))
+end
+
 -- opts.have: each material says what you hold of it (the window's recipe page).
 -- opts.handed: the total is Daylight UI's window's to show (the pane docked to it, Pane.lua's
 -- ProfitHanded): the materials with their prices and the cost per skill point stay, the Total row
@@ -95,14 +100,21 @@ end
 -- Layout's reagent slots' line (WindowLayout.lua).
 function Pages.MaterialSub(m, have)
 	local sub
+	local stale
 	if m.kind == "ah" then
 		sub = L["Auction House, %s each"]:format(Calc.Money(m.unit))
+		-- (Seen over a day ago: said, with how long ago, in the warning ink. Calc.Stale.)
+		local old, age = Calc.Stale(m.itemID)
+		if old == true then
+			sub = sub .. " · " .. Pages.StaleText(age)
+			stale = true
+		end
 	elseif m.kind == "vendor" then
 		sub = L["%s, %s each"]:format(m.who or L["Vendor"], Calc.Money(m.unit))
 	else
 		sub = L["No price known"]
 	end
-	local subInk = m.unit and "TEXT" or "OFF"
+	local subInk = stale and "WARN" or m.unit and "TEXT" or "OFF"
 	if have then
 		local text, held = HaveText(m.itemID)
 		local bags = held and held.bags or 0
@@ -138,9 +150,15 @@ end
 function Pages.CostFoot(d, spell, cost, chance, opts)
 	local handed = opts and opts.handed
 	if not handed then d:Row({ left = L["Total"], leftInk = "LABEL", right = Calc.Money(cost.total) }) end
-	if not cost.complete then
-		if not handed then d:Line(L["Scan Auction House to Update Price"], "small", "WARN") end
-	elseif chance and chance > 0 then
+	-- (Short, or some material's price stale: Calc.Stale.)
+	local stale = false
+	for _, m in ipairs(cost.rows or {}) do
+		if m.kind == "ah" and Calc.Stale(m.itemID) == true then stale = true break end
+	end
+	if (not cost.complete or stale) and not handed then
+		d:Line(L["Scan Auction House to Update Price"], "small", "WARN")
+	end
+	if cost.complete and chance and chance > 0 then
 		-- (Expected points per craft: the chance times the points one gives.)
 		local points = chance * Calc.SkillUps(spell)
 		if points ~= 1 then d:Row({ left = L["Per Skill Point"], leftInk = "LABEL", right = Calc.Money(cost.total / points) }) end
@@ -185,6 +203,14 @@ function Pages.Worth(d, spell, handed)
 				sub, ink = (ah and L["%s profit, after the 5%% cut"] or L["%s profit"]):format(Calc.Money(route.profit)), "GOOD"
 			else
 				sub, ink = (ah and L["%s loss, after the 5%% cut"] or L["%s loss"]):format(Calc.Money(-route.profit)), "BAD"
+			end
+		end
+		-- (The Auction House's value from a price seen over a day ago: said. Calc.Stale.)
+		if route.label == "Auction House" then
+			local old, age = Calc.Stale(worth.itemID)
+			if old == true then
+				sub = (sub and (sub .. " · ") or "") .. Pages.StaleText(age)
+				ink = "WARN"
 			end
 		end
 		d:Row({ left = route.text or route.label, leftInk = "TEXT", right = Calc.Money(route.value), sub = sub, subInk = ink })
@@ -395,14 +421,15 @@ end
 -- Plan
 -- ---------------------------------------------------------------------------------------------
 
-local STALE = 12 * 3600      -- s before the last Auction House scan is called old
 
 function Pages.Prices(d)
 	local P = ns.Prices
 	if not P or P.Mogul() or not ns.Get("useAH") then return end
 	if P.Daylight and P.Daylight() and not P.Scanning() then
 		local at = P.DaylightAt()
-		if at then d:Line(L["Auction House prices from Daylight UI, read %s."]:format(Doc.Ago(at)), "tiny", "OFF") end
+		-- (Over a day old, Calc.STALE: in the warning ink, as our own scan's line below.)
+		local old = at and time() - at > Calc.STALE
+		if at then d:Line(L["Auction House prices from Daylight UI, read %s."]:format(Doc.Ago(at)), old and "small" or "tiny", old and "WARN" or "OFF") end
 		if at and not P.CanScan() then return end
 	end
 	if P.Scanning() then
@@ -414,8 +441,8 @@ function Pages.Prices(d)
 	elseif not P.Has() then
 		d:Line(L["No Auction House prices yet: open the Auction House and scan from here, or browse it."], "small", "OFF")
 	elseif P.LastScan() then
-		-- (Prices move: a scan over half a day old is said to be, in the warning ink.)
-		local old = time() - P.LastScan() > STALE
+		-- (Prices move: a scan over a day old, Calc.STALE, is said to be, in the warning ink.)
+		local old = time() - P.LastScan() > Calc.STALE
 		d:Line((old and L["Auction House prices from your scan %s: scan again at the Auction House for today's."]
 			or L["Auction House prices from your scan %s."]):format(Doc.Ago(P.LastScan())), old and "small" or "tiny", old and "WARN" or "OFF")
 	end

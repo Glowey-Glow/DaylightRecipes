@@ -77,6 +77,19 @@ function Prices.Get(itemID)
 	return mine
 end
 
+-- How long ago the price Prices.Get gives (of these two) was seen, in seconds, or nil.
+local function OwnAge(itemID)
+	local row = Row(itemID)
+	local age
+	if row and row.p then
+		age = time() - (row.t or 0)
+		if age > STALE then age = nil end
+	end
+	local theirs, theirAge = Theirs(itemID)
+	if theirs and (not age or theirAge < age) then return theirAge end
+	return age
+end
+
 -- Whether any price is known (for the "no Auction House prices" note): ours, or Professionally
 -- Lost's while its prices are used.
 function Prices.Has()
@@ -209,6 +222,16 @@ local OwnGet, OwnQuantity, OwnHas = Prices.Get, Prices.Quantity, Prices.Has
 
 function Prices.Get(itemID)
 	return DaylightWins(itemID) or OwnGet(itemID)
+end
+
+-- How long ago the price Prices.Get gives was seen, in seconds, or nil (no price). For the
+-- "Stale" mark (Calc.Stale).
+function Prices.Age(itemID)
+	if DaylightWins(itemID) then
+		local _, age = Daylight(itemID)
+		return age
+	end
+	return OwnAge(itemID)
 end
 
 function Prices.Quantity(itemID)

@@ -6,13 +6,10 @@ By Glowey. A standalone addon that **integrates with Daylight UI** when it's ins
 
 ---
 
-## New in 3.1.0
-- **Works without Daylight UI:** its settings are in Glowey's settings (**/glowey**), and **Blizzard Style** dresses the window in the game's own frames, tabs, bars and scroll bars. With Daylight UI it follows its language, look and scale.
-- **Blizzard Layout** (in the options, off to start): the window laid out like the game's own profession window, with your professions as tabs down its **left** side, **Alts**, **Cooldowns** and **Tracking** as pages of their own, the recipe always on the right and its pages as tabs under it.
-- **Chance of Skill Up** takes the chance's own color, red to green. **Also Known By** lists only your other characters. **Camping** folds each profession's items.
-- **Link to Chat** posts to Guild, Party, Raid, a channel, or **whispers** someone by name.
-- **The Leveling Guide** shows its current step's recipe on the right; **Alternates** lists other recipes that give points now.
-- **Fishing** opens its recipe window (with its camping recipes) like the other professions.
+## New in 3.1.1
+- **Stale prices are marked:** an Auction House price seen more than a day ago reads **"Stale, seen 3 days ago"** in the warning color, under a material, beside an item's value and in the shopping list ("4 Stale Prices" on its strip), so you know to scan or Check Prices again.
+- **The Auction House strip stays clear** of the game's tabs and Auctionator's beside them: it stands beside the window instead, under Glowey's Gear's window when that's docked there.
+- **Faster and smoother:** the Leveling Guide, Craft Next and the lists are worked out once until something changes, and bursts of bag, recipe and reputation updates redraw once.
 ---
 
 ## The window

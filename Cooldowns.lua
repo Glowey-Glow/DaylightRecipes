@@ -187,9 +187,17 @@ end
 -- The tiles for this character, ready ones first, then the soonest:
 -- { spells = { ... }, names = { ... }, icon, readyAt (0: ready), line }.
 -- Its spells and names in the same order (by name); a click opens the first.
+-- (Asked many times a draw: kept until a cooldown is read or cast again (Cooldowns.Forget), the
+-- known recipes change (Store.version), the soonest one comes ready, or a minute has gone by.
+-- Read-only to the callers.)
+local listKept, listVersion, listChar, listUntil
+local LIST_KEEP = 60
+function Cooldowns.Forget() listKept = nil end
 function Cooldowns.List()
-	local out = {}
 	local c = ns.Store and ns.Store.Char()
+	local version = ns.Store and ns.Store.version
+	if listKept and listChar == c and listVersion == version and time() < listUntil then return listKept end
+	local out = {}
 	if not (c and type(c.known) == "table") then return out end
 	local mine = Mine() or {}
 	local now = time()
@@ -234,6 +242,11 @@ function Cooldowns.List()
 		t.spells[#t.spells + 1] = r.spell
 		t.names[#t.names + 1] = r.name
 	end
+	local soonest = now + LIST_KEEP
+	for _, r in ipairs(rows) do
+		if r.at > 0 and r.at < soonest then soonest = r.at end
+	end
+	listKept, listChar, listVersion, listUntil = out, c, version, soonest
 	return out
 end
 
@@ -270,6 +283,7 @@ local function Soon()
 	C_Timer.After(0.3, function()
 		queued = false
 		local ok, err = pcall(Cooldowns.Record)
+		Cooldowns.Forget()
 		if not ok then geterrorhandler()(err) end
 		if ns.Window and ns.Window.PaintCooldowns then ns.Window.PaintCooldowns() end
 	end)
@@ -282,6 +296,8 @@ for _, e in ipairs({ "TRADE_SKILL_SHOW", "TRADE_SKILL_CLOSE", "TRADE_SKILL_LIST_
 end
 pcall(f.RegisterUnitEvent, f, "UNIT_SPELLCAST_SUCCEEDED", "player")
 f:SetScript("OnEvent", function(_, event, _, _, spell)
+	-- (Anything here may change what the list says.)
+	if event ~= "SPELL_UPDATE_COOLDOWN" or watching then Cooldowns.Forget() end
 	if event == "SPELL_UPDATE_COOLDOWN" then
 		if not watching then return end
 		watching = false

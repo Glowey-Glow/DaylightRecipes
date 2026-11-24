@@ -200,8 +200,17 @@ local function ToolFor(spell, data, learnAt)
 	return v or nil
 end
 
+-- (Store.Count goes through your bags, bank, mail and every alt, and a route asks about the same
+-- few tools at every point for every recipe, twice over. Plan.Get starts each working-out with an
+-- empty `holding`, so each tool is counted once a working-out; nothing else asks Owns.)
+local holding = {}    -- tool -> whether you have one, for the working-out under way
 local function Owns(tool)
-	return ns.Store and ns.Store.Count(tool.item).mine > 0
+	local v = holding[tool]
+	if v == nil then
+		v = (ns.Store and ns.Store.Count(tool.item).mine > 0) or false
+		holding[tool] = v
+	end
+	return v
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -385,10 +394,21 @@ end
 -- { { spell, chance, perPoint (copper, nil when unpriced), cost, can (how many you can make now) } },
 -- best first, at most `count`. Only recipes that are orange or yellow now; when none of yours is,
 -- the green ones that come nearest the best chance there is (each with low = true).
+-- (Asked on every draw of the Leveling Guide, and for the recipe list's mark: the list is kept
+-- until the profession, skill, cap, known recipes, prices or the game's colors change; how many you
+-- can make is asked again each time. Read-only to the callers.)
+local nextKept = {}   -- count -> { key, list }
 function Plan.CraftNext(count)
 	local out = {}
 	if not S.line or S.linked then return out end
 	local known = ns.Where.KnownSet()
+	local key = table.concat({ S.line, S.skill or 0, S.max or 0, Calc.version, Calc.liveVersion,
+		ns.Store and ns.Store.version or 0, tostring(known) }, ":")
+	local kept = nextKept[count or 5]
+	if kept and kept[1] == key then
+		for _, e in ipairs(kept[2]) do e.can = Craftable(e.spell) end
+		return kept[2]
+	end
 	for spell in pairs(known) do
 		local data = ns.Recipes and ns.Recipes[spell]
 		if data and data[1] == S.line then
@@ -431,6 +451,7 @@ function Plan.CraftNext(count)
 	for i = #out, (count or 5) + 1, -1 do out[i] = nil end
 	-- (Only the ones kept are asked how many you can make.)
 	for _, e in ipairs(out) do e.can = Craftable(e.spell) end
+	nextKept[count or 5] = { key, out }
 	return out
 end
 
@@ -869,6 +890,7 @@ end
 -- { target, route, shopping } for the open profession, or nil (none open, someone else's).
 function Plan.Get()
 	if not S.line or S.linked or not ns.Recipes then return nil end
+	holding = {}
 	local target = Plan.Target()
 	local known = ns.Where.KnownSet()
 	local count = 0

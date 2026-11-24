@@ -81,7 +81,7 @@ T.case("every frame the plugin dresses is a window (follows the opacity) or a so
 	}
 	local FOLLOWS = {
 		["Shop.lua"] = { 'ns.SkinWindow(s)' },
-		["Window.lua"] = { 'ns.SkinWindow(win)', 'ns.SkinWindow(win)', 'ns.SkinWindow(win)' },
+		["Window.lua"] = { 'ns.SkinWindow(win)', 'ns.SkinWindow(win)' },
 		["Pane.lua"] = { 'ns.SkinWindow(mogulPane)', 'ns.SkinWindow(mogulPane)', 'ns.Host.Skin(foldTab, { noBevel = true })' },
 		["EnchantRow.lua"] = { 'ns.Host.Skin(slot, { noBevel = true })' },
 		-- (The tours' cards and notes: Guide.lua is shared with the other plugins, as it is.)

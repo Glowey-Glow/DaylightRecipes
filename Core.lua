@@ -309,16 +309,33 @@ end
 
 -- What changed is drawn once, on the next frame.
 local queued = false
+local soonWanted, soonTimer = false, false
 function ns.Changed()
 	if queued then return end
 	queued = true
 	C_Timer.After(0, function()
 		queued = false
+		soonWanted = false
 		if ns.Pane then ns.Pane.Render() end
 		if ns.Window then ns.Window.Render() end
 		if ns.Shop then ns.Shop.Refresh() end
 		-- (A controller: the window with its cursor finds the buttons just drawn. Guide.lua's Pad)
 		if ns.Pad then ns.Pad.Settle() end
+	end)
+end
+
+-- The same for what the game says in bursts (its trade skill list on every bag change and craft,
+-- the bags read again, item names coming in): drawn once, SOON after the first of them, however
+-- many follow. A draw for anything else meanwhile (a click is drawn on the next frame, as ever)
+-- takes this one along.
+local SOON = 0.12
+function ns.ChangedSoon()
+	soonWanted = true
+	if soonTimer then return end
+	soonTimer = true
+	C_Timer.After(SOON, function()
+		soonTimer = false
+		if soonWanted then ns.Changed() end
 	end)
 end
 
@@ -451,13 +468,22 @@ events:SetScript("OnEvent", function(_, event, itemID)
 		if ns.Where and ns.ShowingMissing() and ns.Where.Refresh() then changed = true end
 		-- A recipe learned changes the plan too, on any tab.
 		if event == "NEW_RECIPE_LEARNED" and ns.Where and ns.Where.Refresh() then changed = true end
-		if changed and PaneShown() then ns.Changed() end
+		if changed and PaneShown() then ns.ChangedSoon() end
 	elseif event == "GET_ITEM_INFO_RECEIVED" then
 		-- Any addon's item asks bring this; only one the recipe page is waiting on redraws it.
-		if ns.Waiting(itemID) then ns.Changed() end
-	elseif event == "TRAIT_CONFIG_UPDATED" or event == "UPDATE_FACTION" then
+		if ns.Waiting(itemID) then ns.ChangedSoon() end
+	elseif event == "TRAIT_CONFIG_UPDATED" then
 		if ns.Calc then ns.Calc.Forget() end
 		if PaneShown() then ns.Changed() end
+	elseif event == "UPDATE_FACTION" then
+		-- (Vendor prices are worked out again only when a vendor's discount moved, Calc.RepMoved;
+		-- the standings the pages show are drawn again either way.)
+		if ns.Calc and ns.Calc.RepMoved() then
+			ns.Calc.Forget()
+			if PaneShown() then ns.Changed() end
+		elseif PaneShown() then
+			ns.ChangedSoon()
+		end
 	end
 end)
 

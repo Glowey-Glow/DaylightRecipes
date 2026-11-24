@@ -336,6 +336,10 @@ local function Me()
 end
 
 -- This character's record (made the first time it's asked for).
+-- (Asked many times a draw: its name, realm and rules are filled in once a session, and again
+-- when the game's rules come in or change (the events below clear `filled`).)
+local filled          -- the record filled in this session
+local keptRules
 function Store.Char()
 	local guid = Me()
 	if not guid then return nil end
@@ -345,6 +349,7 @@ function Store.Char()
 		c = { prof = {}, known = {}, bags = {}, bank = {}, mail = {} }
 		chars[guid] = c
 	end
+	if filled == c then return c end
 	-- (The realm it was first seen on. The game may give none, "": then the one saved stays.)
 	local realm = GetRealmName and GetRealmName()
 	if type(realm) ~= "string" or realm == "" then realm = nil end
@@ -356,9 +361,13 @@ function Store.Char()
 		c.class = select(2, UnitClass("player"))
 		c.named = true
 	end
-	-- (The rules key it plays under, whenever the game says: what its alts and books go by.)
-	local rules = Store.LiveRules()
-	if rules then c.rules = rules end
+	-- (The rules key it plays under, whenever the game says: what its alts and books go by. Once
+	-- the game has said, the record is filled for the session.)
+	local rules = keptRules or Store.LiveRules()
+	if rules then
+		c.rules = rules
+		filled = c
+	end
 	return c
 end
 
@@ -378,7 +387,7 @@ end
 -- This character's rules key: the game's, else the one it was last saved with, else the rules
 -- word of its saved realm. nil when none of those says (a character never seen, the game's rules
 -- not in yet): then the old "Realm-Faction" books are used meanwhile (Store.RealmKey).
-local keptRules       -- the game's answer, kept from login on (asked again when the rules change)
+-- (keptRules, above: the game's answer, kept from login on, asked again when the rules change.)
 function Store.RulesKey()
 	local live = keptRules or Store.LiveRules()
 	if live then return live end
@@ -398,9 +407,15 @@ function Store.Realm()
 	return type(realm) == "string" and realm or ""
 end
 
--- The old key of this character's books, "Realm-Faction" ("-H" with no realm known).
+-- The old key of this character's books, "Realm-Faction" ("-H" with no realm known). (Read for
+-- every price: kept once a realm is known, until the next login, rules or faction event below.)
+local oldKey
 local function OldKey()
-	return Store.Realm() .. "-" .. ns.Faction()
+	if oldKey then return oldKey end
+	local realm = Store.Realm()
+	local key = realm .. "-" .. ns.Faction()
+	if realm ~= "" then oldKey = key end
+	return key
 end
 
 -- The key of this character's Auction House: its rules key (one house for both factions), or,
@@ -623,7 +638,7 @@ function ReadBank()
 				C_Timer.After(0.5, function()
 					if bankOpen and ReadBank() then
 						Store.version = Store.version + 1
-						if ns.ShowingPlan() then ns.Changed() end
+						if ns.ShowingPlan() then ns.ChangedSoon() end
 					end
 				end)
 			end
@@ -890,14 +905,14 @@ local function Soon(what, fn, delay)
 		-- Only what changed, and only the page that shows it (the Leveling Guide's list).
 		if not changed then return end
 		Store.version = Store.version + 1
-		if ns.Changed and ns.ShowingPlan() then ns.Changed() end
+		if ns.ChangedSoon and ns.ShowingPlan() then ns.ChangedSoon() end
 		-- (The buy lists at a vendor or the Auction House count from this read, window or not.)
 		if ns.Shop then ns.Shop.Refresh() end
 	end)
 end
 
 local f = CreateFrame("Frame")
-for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "GAME_RULES_CHANGED", "BAG_UPDATE_DELAYED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
+for _, e in ipairs({ "PLAYER_LOGIN", "PLAYER_ENTERING_WORLD", "GAME_RULES_CHANGED", "NEUTRAL_FACTION_SELECT_RESULT", "BAG_UPDATE_DELAYED", "BANKFRAME_OPENED", "BANKFRAME_CLOSED",
 	"PLAYERBANKSLOTS_CHANGED", "MAIL_SHOW", "MAIL_INBOX_UPDATE", "MERCHANT_SHOW",
 	"COMMODITY_PURCHASED", "COMMODITY_PURCHASE_SUCCEEDED", "COMMODITY_PURCHASE_FAILED", "ITEM_PURCHASED" }) do
 	pcall(f.RegisterEvent, f, e)
@@ -920,11 +935,17 @@ f:SetScript("OnEvent", function(_, event, a, b)
 		Store.NoteWon(a, 1)
 		return
 	end
+	if event == "NEUTRAL_FACTION_SELECT_RESULT" then
+		-- (A side picked: the old books' key has it.)
+		filled, oldKey = nil, nil
+		return
+	end
 	if event == "PLAYER_LOGIN" or event == "PLAYER_ENTERING_WORLD" or event == "GAME_RULES_CHANGED" then
 		-- (The game's rules for this character can come in after login: its key is saved when
 		-- they do, and what hangs on it worked out again.)
 		local was = keptRules
 		keptRules = Store.LiveRules()
+		filled, oldKey = nil, nil
 		Store.Char()
 		if keptRules ~= was then
 			Store.version = Store.version + 1

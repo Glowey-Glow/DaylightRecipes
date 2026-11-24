@@ -19,6 +19,20 @@ T.eq(Prices.Has(), true, "we have prices")
 book.items[2592] = { p = 300, t = now - 15 * DAY }
 T.eq(Prices.Get(2592), nil, "ours older than two weeks is not used")
 
+-- How old a price is, and "Stale" past a day (Calc.STALE); none, or too old to use, has no age.
+local Calc = ns.Calc
+T.eq(Prices.Age(2589), 3 * DAY, "a price's age")
+T.eq(Prices.Age(2592), nil, "one too old to use has none")
+T.eq(Prices.Age(9999), nil, "no price, no age")
+book.items[2590] = { p = 50, t = now - 3600 }
+T.eq(Calc.STALE, DAY, "stale after a day")
+T.eq((Calc.Stale(2590)), false, "an hour old: not stale")
+local old, age = Calc.Stale(2589)
+T.eq(old, true, "three days old: stale")
+T.eq(age, 3 * DAY, "and its age with it")
+T.eq((Calc.Stale(9999)), false, "no price: not stale")
+book.items[2590] = nil
+
 -- Professionally Lost loaded, the switch off: nothing of its is read.
 local reads = 0
 InstallProfLost({ prices = {

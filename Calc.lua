@@ -14,14 +14,41 @@ local floor, max, min = math.floor, math.max, math.min
 local cache = {}   -- "kind:id" -> answer
 local NONE = {}
 
+-- The game's word on recipes you know (Live), and a recipe's schematic (Materials, Output): asked
+-- for every recipe several times a draw, so kept. The game's word changes with every skill-up and
+-- profession switch: thrown away when its list updates (below) as well as by Calc.Forget.
+local live = {}    -- spell -> { color, canSkillUp, numSkillUps }, or NONE (not one you know)
+local matsOf = {}  -- spell -> Calc.Materials' list
+local outs = {}    -- spell -> { itemID, count }
+
 -- Bumped whenever the answers are thrown away (prices, talents, reputation, a setting): the plan
 -- keys its own cache on it.
 Calc.version = 0
+-- Bumped whenever the game's word on your recipes is thrown away (Plan.CraftNext keys on it).
+Calc.liveVersion = 0
+
+local liveLine, liveSkill, liveLinked   -- the profession and skill the kept word was read at
+local function ForgetLive()
+	live = {}
+	liveLine, liveSkill, liveLinked = nil, nil, nil
+	Calc.liveVersion = Calc.liveVersion + 1
+end
 
 function Calc.Forget()
 	cache = {}
+	matsOf, outs = {}, {}
+	ForgetLive()
 	Calc.version = Calc.version + 1
 end
+
+-- (The list updates on a skill-up, a recipe learned, another profession opened, and on every bag
+-- change and craft: each time the colors may have moved.)
+local liveEvents = CreateFrame("Frame")
+for _, e in ipairs({ "TRADE_SKILL_LIST_UPDATE", "TRADE_SKILL_SHOW", "TRADE_SKILL_CLOSE",
+	"TRADE_SKILL_DATA_SOURCE_CHANGED", "SKILL_LINES_CHANGED", "NEW_RECIPE_LEARNED" }) do
+	pcall(liveEvents.RegisterEvent, liveEvents, e)
+end
+liveEvents:SetScript("OnEvent", ForgetLive)
 
 local function Kept(key, fn)
 	local v = cache[key]
@@ -115,10 +142,23 @@ end
 -- The game's own word on a recipe you know: its difficulty (0 orange, 1 yellow, 2 green, 3 gray),
 -- whether it can still give points, and how many one craft gives. nil for one you don't know (the
 -- game only rates those) or a client without it.
+-- (No answer at all, the game not ready yet, is asked again next time. Another profession or
+-- skill read since throws the kept word away even before the game's list says so.)
 local function Live(spell)
-	local info = ns.Ask("GetRecipeInfo", spell)
-	if type(info) ~= "table" or not info.learned then return nil end
-	return info.relativeDifficulty, info.canSkillUp, tonumber(info.numSkillUps)
+	local S = ns.state
+	if S and (S.line ~= liveLine or S.skill ~= liveSkill or S.linked ~= liveLinked) then
+		ForgetLive()
+		liveLine, liveSkill, liveLinked = S.line, S.skill, S.linked
+	end
+	local v = live[spell]
+	if v == nil then
+		local info = ns.Ask("GetRecipeInfo", spell)
+		if type(info) ~= "table" then return nil end
+		v = info.learned and { info.relativeDifficulty, info.canSkillUp, tonumber(info.numSkillUps) } or NONE
+		live[spell] = v
+	end
+	if v == NONE then return nil end
+	return v[1], v[2], v[3]
 end
 
 -- The game's color step for a recipe you know: 1 orange, 2 yellow, 3 green, 4 gray (nil otherwise).
@@ -205,12 +245,63 @@ function Calc.AH(itemID)
 	end)
 end
 
+-- A price is "Stale" a day after it was seen. Auctions run 12, 24 or 48 hours and the middle one
+-- is what most are posted for, so by then most of what that price was read from has sold or run
+-- out, and its sellers have been undercut or have posted again. Older prices are still used (up to
+-- Prices.lua's two weeks: better than none) but every place that shows one says it is stale and
+-- how old, so the player knows to scan or browse again. A price read from the item's steps (Check
+-- Prices, a search: Calc.Steps, trusted 15 minutes) is never stale.
+Calc.STALE = 24 * 3600
+
+-- How long ago an item's Auction House price was seen, in seconds, or nil (no price, Auction House
+-- prices off, or DaylightMogul's prices, which keep their own age).
+function Calc.AHAge(itemID)
+	if not ns.Get("useAH") then return nil end
+	local P = ns.Prices
+	if not P or P.Mogul() or type(P.Age) ~= "function" then return nil end
+	return P.Age(itemID)
+end
+
+-- Whether an item's Auction House price is stale (Calc.STALE), and its age.
+function Calc.Stale(itemID)
+	if Calc.Steps(itemID) then return false end
+	local age = Calc.AHAge(itemID)
+	return age ~= nil and age > Calc.STALE, age
+end
+
 local DISCOUNT = { [5] = 0.05, [6] = 0.10, [7] = 0.15, [8] = 0.20 }   -- friendly .. exalted
 
 local function Reputation(factionID)
 	if not factionID or factionID <= 0 or not C_Reputation or not C_Reputation.GetFactionDataByID then return 0 end
 	local ok, data = pcall(C_Reputation.GetFactionDataByID, factionID)
 	return ok and data and DISCOUNT[data.reaction] or 0
+end
+
+-- The game says your reputation changed on every point of it (each kill, each turn-in). Vendor
+-- prices only move when the discount from a faction a vendor in the data goes by changes, so
+-- that's what is compared: true when it did (or on the first ask), and the answers must go.
+local repFactions     -- { factionID, ... }: the vendors' factions (made once)
+local repSeen         -- their discounts as last compared
+function Calc.RepMoved()
+	if not repFactions then
+		repFactions = {}
+		local seen = {}
+		for _, sellers in pairs(ns.VendorSellers or {}) do
+			for _, seller in ipairs(sellers) do
+				local id = seller.repFactionID
+				if type(id) == "number" and id > 0 and not seen[id] then
+					seen[id] = true
+					repFactions[#repFactions + 1] = id
+				end
+			end
+		end
+	end
+	local now = {}
+	for i, id in ipairs(repFactions) do now[i] = Reputation(id) end
+	local sig = table.concat(now, ",")
+	if sig == repSeen then return false end
+	repSeen = sig
+	return true
 end
 
 local function SellerAllowed(seller, mine)
@@ -363,8 +454,11 @@ end
 -- A recipe: materials, what it makes
 -- ---------------------------------------------------------------------------------------------
 
--- { { itemID, count }, ... } from the game's schematic, else the data.
+-- { { itemID, count }, ... } from the game's schematic, else the data. (Kept when the game gave
+-- it: the data's is the stand-in until it does. Read-only to the callers.)
 function Calc.Materials(spell)
+	local kept = matsOf[spell]
+	if kept then return kept end
 	local list = {}
 	local s = ns.Ask("GetRecipeSchematic", spell, false)
 	if type(s) == "table" and type(s.reagentSlotSchematics) == "table" then
@@ -375,7 +469,10 @@ function Calc.Materials(spell)
 				list[#list + 1] = { r.itemID, slot.quantityRequired }
 			end
 		end
-		if #list > 0 then return list end
+		if #list > 0 then
+			matsOf[spell] = list
+			return list
+		end
 	end
 	local data = ns.Recipes and ns.Recipes[spell]
 	local mats = data and data[3]
@@ -384,11 +481,15 @@ function Calc.Materials(spell)
 end
 
 -- itemID, count made (nil for an enchant or a recipe that makes nothing).
+-- (Kept when the game gave it, as Materials.)
 function Calc.Output(spell)
+	local kept = outs[spell]
+	if kept then return kept[1], kept[2] end
 	local s = ns.Ask("GetRecipeSchematic", spell, false)
 	if type(s) == "table" and type(s.outputItemID) == "number" and s.outputItemID > 0 then
 		local lo = s.quantityMin or 1
 		local hi = max(lo, s.quantityMax or lo)
+		outs[spell] = { s.outputItemID, (lo + hi) / 2 }
 		return s.outputItemID, (lo + hi) / 2
 	end
 	local data = ns.Recipes and ns.Recipes[spell]

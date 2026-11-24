@@ -823,6 +823,19 @@ local function StepLines(r)
 	end
 end
 
+-- An Auction House row's tooltip line for a price seen over a day ago (Calc.Stale), with Check
+-- Prices to read it again. After StepLines (which adds nothing then: a stale price has no steps).
+local function StaleLine(r, more)
+	return function(tip)
+		if more then more(tip) end
+		local old, age = Calc.Stale(r.itemID)
+		if old and ns.Pages then
+			tip:AddLine(ns.Pages.StaleText(age), Color("WARN"))
+			tip:AddLine(L["Check Prices or browse the Auction House to update it."], Color("TEXT"))
+		end
+	end
+end
+
 local function Visible(f)
 	if type(f) ~= "table" or not f.IsVisible or not f:IsVisible() then return false end
 	if f.GetEffectiveAlpha and f:GetEffectiveAlpha() < 0.05 then return false end
@@ -1448,6 +1461,19 @@ local function NewStrip(name, key)
 				return
 			end
 		end
+		-- (Tabs that come after the strip showed, Auctionator's made as the window opens, and
+		-- Glowey's Gear's window docking beside the host or going: looked for twice a second.)
+		if (self.under or self.beside) and self.redraw then
+			local now = GetTime()
+			if not self.underAt or now - self.underAt > 0.5 then
+				self.underAt = now
+				local gear = self.beside ~= nil and (self.beside() ~= nil) or false
+				if (self.compact and self.under and self.under(self)) or gear ~= (self.besideWas == true) then
+					self.redraw()
+					return
+				end
+			end
+		end
 		Level(self, host)
 		-- (The open list follows the strip: placed again for the room there is where it stands now.)
 		if self.list:IsShown() and self.listWant then
@@ -1496,7 +1522,7 @@ end
 -- its bottom right corner, their right edges one line, as wide as its one row needs and no wider
 -- than the host: Layout's compact), "side" (flush against its right edge, at its foot).
 -- The edge is fixed per host: a strip never moves to another side by itself.
-local function Dock(s, host, kind, mode)
+local function Dock(s, host, kind, mode, drop, at)
 	s.host = host
 	s.fit = mode == "side"
 	s.compact = mode == "corner"
@@ -1507,10 +1533,15 @@ local function Dock(s, host, kind, mode)
 	local seam = Seam(host, kind)
 	s:ClearAllPoints()
 	s.widthOf, s.sized, s.wide = nil, false, nil
-	if mode == "side" then
+	if mode == "side" and at then
+		-- (at: a window docked against the host's right edge already, Glowey's Gear's: the strip
+		-- hangs flush under it, their left edges one line. Show.)
+		s:SetPoint("TOPLEFT", at, "BOTTOMLEFT", 0, 0)
+	elseif mode == "side" then
 		s:SetPoint("BOTTOMLEFT", host, "BOTTOMRIGHT", -seam, 0)
 	elseif mode == "corner" then
-		s:SetPoint("TOPRIGHT", host, "BOTTOMRIGHT", 0, seam)
+		-- (drop: how far under the host's foot, to stand clear of a tab row hanging there: Show.)
+		s:SetPoint("TOPRIGHT", host, "BOTTOMRIGHT", 0, seam - (drop or 0))
 		-- (The most it may be: Layout gives it the width its row needs, up to this.)
 		s.widthOf = function(h) return h:GetWidth() end
 		s.wide = s.widthOf(host)
@@ -1563,6 +1594,31 @@ local function Show(s, host, kind, mode, o)
 	Dock(s, host, kind, mode)
 	s:Show()
 	Layout(s)
+	-- (o.under(s): how deep something of the host's hangs under its foot where this compact
+	-- strip lies, or nil: the game's Auction House tab row, with Auctionator's tabs on it. Then
+	-- beside the host's right edge at its foot where the screen has room for the strip, else
+	-- under that row. Measured once laid out, since only then is the strip's left end known.)
+	-- That place may be taken: Glowey's Gear docks its Upgrades for Sale window against the same
+	-- right edge, tops level (o.beside() gives it while it does). Then the strip hangs under that
+	-- window, where there is room for it below; else under the tab row.
+	local drop = s.compact and o.under and o.under(s)
+	local beside = o.beside and o.beside() or nil
+	if drop then
+		local room = o.roomRight and o.roomRight()
+		if beside and o.roomUnder and o.roomUnder(beside) >= s:GetHeight() then
+			Dock(s, host, kind, "side", nil, beside)
+		elseif not beside and (room == nil or room >= s:GetWidth()) then
+			Dock(s, host, kind, "side")
+		else
+			Dock(s, host, kind, "corner", drop + Seam(host, kind))
+		end
+		Layout(s)
+	elseif mode == "side" and beside and o.roomUnder and o.roomUnder(beside) >= s:GetHeight() then
+		-- (Beside Daylight UI's window for want of room under it: under Gear's there too.)
+		Dock(s, host, kind, "side", nil, beside)
+		Layout(s)
+	end
+	s.under, s.beside, s.besideWas = o.under, o.beside, beside ~= nil
 	if second and s.rows > 1 then
 		s.second:Hide()
 		s.secondGone = true
@@ -1994,6 +2050,67 @@ local ahOpen = false
 -- (Read for 2.5.3 on main, whose Shop.lua has the same host and the same search.)
 local function DaylightAH() return _G.DaylightUIAuctionHouse end
 
+-- The tabs hanging under the game's Auction House window: its own (AuctionHouseFrame.Tabs: Buy,
+-- Sell, Auctions; Blizzard_AuctionHouseFrame.xml/.lua on the forever branch, anchored LEFT to
+-- RIGHT along its foot) and Auctionator's beside them (LibAHTab's, AuctionatorAHTabsContainer.Tabs,
+-- as Addon Skins' Auctionator pack reads them). Our corner strip used to lie over the end of
+-- that row: Show moves it (o.under).
+local function TabsUnder(s)
+	local host = s.host
+	local sl, st, hb = Edge(s, "GetLeft"), Edge(s, "GetTop"), Edge(host, "GetBottom")
+	if not sl or not st or not hb then return nil end
+	local ss, hs = s:GetEffectiveScale(), host:GetEffectiveScale()
+	local deepest
+	local function look(tabs)
+		if type(tabs) ~= "table" then return end
+		for _, tab in ipairs(tabs) do
+			if type(tab) == "table" and type(tab.IsShown) == "function" and tab:IsShown() then
+				local r, b = Edge(tab, "GetRight"), Edge(tab, "GetBottom")
+				local ts = r and b and tab:GetEffectiveScale()
+				-- (Reaching right of the strip's left end, and hanging under the host's foot past
+				-- the strip's top.)
+				if ts and r * ts > sl * ss + 1 and b * ts < hb * hs - 1 and b * ts < st * ss - 1 then
+					local depth = (hb * hs - b * ts) / ss
+					if not deepest or depth > deepest then deepest = depth end
+				end
+			end
+		end
+	end
+	look(host.Tabs)
+	local box = _G.AuctionatorAHTabsContainer
+	if type(box) == "table" then look(box.Tabs) end
+	return deepest
+end
+
+-- Glowey's Gear's Upgrades for Sale window while it stands docked against the host's right edge
+-- (GloweyGear Window.lua, Place: its TOPLEFT on the host's TOPRIGHT, out by its Blizzard Style
+-- frame at most), or nil.
+local function GearBeside(host)
+	local g = _G.GloweyGearWindow
+	if type(g) ~= "table" or type(g.IsVisible) ~= "function" or not g:IsVisible() then return nil end
+	local gl, hr = Edge(g, "GetLeft"), Edge(host, "GetRight")
+	if not gl or not hr then return nil end
+	local gs, hs = g:GetEffectiveScale(), host:GetEffectiveScale()
+	if math.abs(gl * gs - hr * hs) > 24 * hs then return nil end
+	return g
+end
+
+-- The screen's room under a frame, in the host's units (the strip is at the host's scale).
+local function RoomUnder(frame, host)
+	local b = Edge(frame, "GetBottom")
+	if not b then return 0 end
+	return b * frame:GetEffectiveScale() / host:GetEffectiveScale()
+end
+
+-- The screen's room right of a host, in the host's units (nil: not known yet).
+local function RoomRight(host)
+	local right = Edge(host, "GetRight")
+	local scale, ui = host:GetEffectiveScale(), UIParent:GetEffectiveScale()
+	if right and type(scale) == "number" and scale > 0 and type(ui) == "number" then
+		return UIParent:GetWidth() * ui / scale - right
+	end
+end
+
 local function AHHost()
 	return FirstShown({
 		{ function() return _G.DaylightMogulMain end, "daylight" },
@@ -2123,12 +2240,7 @@ function Shop.Auction()
 	-- very corner (its vendor button is met the same way: TheirButtonUnder).
 	local mode = "corner"
 	if daylightAH then
-		local bottom, right = Edge(host, "GetBottom"), Edge(host, "GetRight")
-		local scale, ui = host:GetEffectiveScale(), UIParent:GetEffectiveScale()
-		local room
-		if right and type(scale) == "number" and scale > 0 and type(ui) == "number" then
-			room = UIParent:GetWidth() * ui / scale - right
-		end
+		local bottom, room = Edge(host, "GetBottom"), RoomRight(host)
 		if Shop.StripPlace(STRIP_H - Seam(host, kind), bottom, room) == "side" then mode = "side" end
 	elseif host == _G.AuctionHouseFrame and ns.ProfLost and ns.ProfLost.Loaded() then
 		mode = "side"
@@ -2152,20 +2264,25 @@ function Shop.Auction()
 			end
 			return { r = r, right = right, ink = ink, ah = cost, saved = vend and vend * covered - cost or 0 }
 		elseif r.src == "ah" and ah then
-			return { r = r, right = L["AH about %s"]:format(Calc.Money(ah * r.buy)), ink = "GOOD", ah = ah * r.buy,
-				est = true, saved = vend and (vend - ah) * r.buy or 0 }
+			-- (A price seen over a day ago, Calc.Stale: "Stale" beside it, in the warning ink.)
+			local old = Calc.Stale(r.itemID)
+			local right = L["AH about %s"]:format(Calc.Money(ah * r.buy))
+			if old then right = right .. " · " .. L["Stale"] end
+			return { r = r, right = right, ink = old and "WARN" or "GOOD", ah = ah * r.buy,
+				est = true, stale = old or nil, saved = vend and (vend - ah) * r.buy or 0 }
 		end
 		return { r = r, right = L["No Price"], ink = "OFF" }
 	end
 	-- What the list costs on the Auction House, and what that saves over a vendor. (about: some
 	-- row's cost is an estimate, so the total is one too, and says so.)
-	local ahTotal, saved, about = 0, 0, false
+	local ahTotal, saved, about, stale = 0, 0, false, 0
 	local rows = {}
 	for i, r in ipairs(list) do
 		rows[i] = Priced(r)
 		ahTotal = ahTotal + (rows[i].ah or 0)
 		saved = saved + math.max(0, rows[i].saved or 0)
 		if rows[i].est then about = true end
+		if rows[i].stale then stale = stale + 1 end
 	end
 	-- "Check Prices" (Prices.Check, as 2.7.0's FitCheck): asks the Auction House for the price
 	-- steps of every item listed, one after another; Stop while it runs. Only where prices can be
@@ -2228,19 +2345,27 @@ function Shop.Auction()
 		if r.alert then left = left .. " " .. Hex("LABEL") .. r.alert .. "|r" end
 		-- (While the mouse, or a controller's cursor, is on the row its right text says what a
 		-- press does: every row here searches. Doc's o.hover; Shift held shows Remove instead.)
-		d:Row({ icon = icon, left = left, right = row.right, rightInk = row.ink, tip = RowTip(r, StepLines(r)),
+		d:Row({ icon = icon, left = left, right = row.right, rightInk = row.ink, tip = RowTip(r, StaleLine(r, StepLines(r))),
 			hover = { text = L["Left Click to Search"], ink = "ACCENT" },
 			shift = Remover(pick, r.itemID), onClick = function() SearchFor(r.itemID) end })
 	end
 	-- (With a tag picked the strip says whose items it counts, in the place of "To Buy".)
 	local count = Hex("ACCENT") .. #list .. "|r"
+	local gameAH = host == _G.AuctionHouseFrame
 	Show(auction, host, kind, mode, {
+		under = gameAH and TabsUnder or nil,
+		roomRight = function() return RoomRight(host) end,
+		beside = function() return GearBeside(host) end,
+		roomUnder = function(f) return RoomUnder(f, host) end,
 		lead = tag ~= nil and (count .. " " .. ProfName(tag)) or L["%s To Buy"]:format(count),
 		cost = ahTotal > 0 and (about and L["AH about %s"] or L["AH %s"]):format(Calc.Money(ahTotal)) or nil,
 		-- (While a check runs the note says how far it is; it drops first where the strip is narrow.)
-		note = check and check.busy or (saved > 0 and L["Saves %s"]:format(Calc.Money(saved)))
+		-- (Prices seen over a day ago, Calc.Stale: how many, before what the list saves. Check
+		-- Prices reads them again.)
+		note = check and check.busy or (stale > 0 and Plural(stale, "%d Stale Price", "%d Stale Prices"):format(stale))
+			or (saved > 0 and L["Saves %s"]:format(Calc.Money(saved)))
 			or (not Calc.HasAH() and L["No Auction House Prices Yet"] or nil),
-		noteInk = (check and check.busy) and "VALUE" or (saved > 0 and "GOOD" or "OFF"),
+		noteInk = (check and check.busy) and "VALUE" or (stale > 0 and "WARN") or (saved > 0 and "GOOD" or "OFF"),
 		noteMust = check ~= nil and check.busy ~= nil,
 		-- Check Prices / Stop is the strip's, beside List, not a line of the list: the strip's main
 		-- button (a controller's X), or, where Auctionator List is the main one (the game's
