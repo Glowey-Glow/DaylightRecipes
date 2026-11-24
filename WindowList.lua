@@ -95,6 +95,8 @@ local function Toggle(parent, label, key)
 			b.line:Hide()
 		end
 		b:SetWidth(math.ceil(b.text:GetStringWidth()) + 14)
+		-- (Blizzard Style without Daylight UI: a check box, WindowBlizzard.lua.)
+		if W.Blz then W.Blz.Toggle(b, on) end
 	end
 	b:SetScript("OnEnter", b.Paint)
 	b:SetScript("OnLeave", b.Paint)
@@ -133,6 +135,10 @@ local function AllRecipeIDs()
 	return type(ids) == "table" and ids or {}
 end
 
+-- seek: a recipe to scroll to once the list is built (the one last picked in this profession).
+local seek
+local ApplySeek          -- (below ClampOffset: scrolls to the recipe List.Reset was given)
+
 -- The list worked out again: the open profession's learned recipes, searched and filtered, under
 -- their categories (in the game's order), folded ones without their recipes.
 local function BuildList()
@@ -143,9 +149,12 @@ local function BuildList()
 	local canOnly, upOnly = db.canMake == true, db.skillUps == true
 	local byCat, order = {}, {}
 	local first
+	local anyLearned, pickedKnown = false, false
 	for _, id in ipairs(AllRecipeIDs()) do
 		local info = TS("GetRecipeInfo", id)
 		if type(info) == "table" and info.learned and not info.isDummyRecipe and info.name then
+			anyLearned = true
+			if id == S.recipe then pickedKnown = true end
 			local keep = filterText == "" or ns.Fold(info.name):find(filterText, 1, true) ~= nil
 			local count = keep and Craft.Count(id) or 0
 			local rd = type(info.relativeDifficulty) == "number" and info.relativeDifficulty or 3
@@ -159,8 +168,9 @@ local function BuildList()
 					byCat[cat] = list
 					order[#order + 1] = cat
 				end
+				-- (can: it can still give a point, as the game says; the Blizzard Layout's arrow.)
 				list[#list + 1] = { spell = id, name = info.name, step = rd + 1, count = count,
-					ups = info.numSkillUps }
+					ups = info.numSkillUps, can = info.canSkillUp ~= false }
 				first = first or id
 			end
 		end
@@ -176,11 +186,18 @@ local function BuildList()
 			for _, e in ipairs(list) do entries[#entries + 1] = e end
 		end
 	end
+	-- The recipe brought back from the last time (Core.lua's ns.LastRecipe), checked once the
+	-- profession's recipes are in: one no longer known (unlearned, another rank) is let go.
+	if S.recipeRestored and anyLearned then
+		S.recipeRestored = nil
+		if not pickedKnown then S.recipe, seek = nil, nil end
+	end
 	-- Nothing picked yet (a profession just opened): its first recipe, as the game does.
 	if not S.recipe and first then
 		S.recipe = first
 		ns.Window.RecipeChanged()
 	end
+	if anyLearned and ApplySeek then ApplySeek() end
 end
 
 local function VisibleRows()
@@ -194,6 +211,20 @@ local function ClampOffset()
 	if offset < 0 then offset = 0 end
 end
 
+ApplySeek = function()
+	local spell = seek
+	seek = nil
+	if not spell then return end
+	for i, e in ipairs(entries) do
+		if e.spell == spell then
+			local shown = VisibleRows()
+			if i > shown then offset = i - math.floor(shown / 2) end
+			ClampOffset()
+			return
+		end
+	end
+end
+
 -- On a controller the list scrolls under the cursor: the D-pad past its first or last row moves it
 -- a row (the cursor stays on that row), and the right stick scrolls it (listPad: a stand-in scroll
 -- frame, Guide.lua's Pad.Scroller).
@@ -201,9 +232,28 @@ local listPad
 local stickMoving = false   -- the stick moved it: its stand-in keeps the stick's own position
 local PaintList
 
+-- The list as the game's scroll bar sees it (WindowBlizzard.lua's Blz.Thumb): in rows' heights,
+-- its offset a row at a time.
+local scrollCtl = {
+	range = function() return math.max(0, #entries - VisibleRows()) * ROW end,
+	at = function() return offset * ROW end,
+	set = function(v)
+		local to = math.floor(v / ROW + 0.5)
+		if to == offset then return end
+		offset = to
+		PaintList()
+	end,
+	view = function() return VisibleRows() * ROW end,
+	step = ROW,
+}
+
 local function PaintThumb()
 	local n, shown = #entries, VisibleRows()
-	if n <= shown then listThumb:Hide() return end
+	if n <= shown then
+		listThumb:Hide()
+		if W.Blz then W.Blz.Thumb(listThumb, listFrame, scrollCtl) end
+		return
+	end
 	local h = listFrame:GetHeight()
 	local size = math.max(24, h * shown / n)
 	listThumb:SetHeight(size)
@@ -212,6 +262,8 @@ local function PaintThumb()
 	listThumb:SetColorTexture(API.Accent())
 	listThumb:SetAlpha(0.5)
 	listThumb:Show()
+	-- (Blizzard Style without Daylight UI: the game's own scroll bar in its place, WindowBlizzard.lua.)
+	if W.Blz then W.Blz.Thumb(listThumb, listFrame, scrollCtl) end
 end
 
 local function MakeListRow()
@@ -340,7 +392,12 @@ PaintList = function()
 		end
 		local e = entries[offset + i]
 		r.entry = e
-		Doc.Glow(r, e ~= nil and i <= shown and not e.cat and e.spell == glow)
+		local lit = e ~= nil and i <= shown and not e.cat and e.spell == glow
+		if lit then
+			Doc.Glow(r, true, Doc.DiffColor(math.max(1, math.min(4, tonumber(e.step) or 2))))
+		else
+			Doc.Glow(r, false)
+		end
 		if not e or i > shown then
 			r:Hide()
 		else
@@ -432,6 +489,10 @@ PaintList = function()
 			end
 			r:Show()
 		end
+		-- (Blizzard Style without Daylight UI: the list's header and row art, WindowBlizzard.lua.)
+		if W.Blz then W.Blz.Row(r, (e and i <= shown) and e or nil) end
+		-- (Blizzard Layout: the game's skill-up arrow and the count after the name, WindowLayout.lua.)
+		if W.Lay then W.Lay.Row(r, (e and i <= shown) and e or nil) end
 	end
 	-- Rows made for a taller list are put away. The list gets shorter by a drag of the window's
 	-- edge, the Window Height setting, a taller summary line, a second row of the craft bar or an
@@ -453,9 +514,10 @@ List.Paint = function() PaintList() end
 function List.Dirty() listDirty = true end
 
 -- A profession just opened: the list from its top.
-function List.Reset()
+function List.Reset(spell)
 	listDirty = true
 	offset = 0
+	seek = type(spell) == "number" and spell or nil
 end
 
 function List.Count()
@@ -584,6 +646,12 @@ end
 
 function List.DetailPage(d)
 	local spell = S.recipe
+	-- (On the Leveling Guide: the recipe its current step makes, when the game has it.)
+	if W.tab == "guide" then
+		local step = StepSpell()
+		local info = step and TS("GetRecipeInfo", step)
+		if type(info) == "table" and info.name then spell = step end
+	end
 	if not spell then
 		d:Line(#entries == 0 and L["No recipe matches."] or L["Pick a recipe."], "body", "OFF")
 		return
@@ -620,7 +688,7 @@ function List.DetailPage(d)
 	local chance = Pages.Skill(d, spell)
 	Pages.Cost(d, spell, chance, { have = true })
 	Pages.Worth(d, spell)
-	local who = ns.Store and ns.Store.WhoKnows(spell)
+	local who = ns.Store and ns.Store.WhoKnows(spell, false, true)
 	if type(who) == "table" and #who > 0 then
 		d:Heading(L["Also Known By"])
 		d:Line(table.concat(who, ", "), "small", "TEXT")
@@ -722,7 +790,30 @@ local PaintCraftBar
 -- The bar's buttons fitted to their words (longer in some languages), never narrower than the
 -- design's widths. When they don't fit one row of the column, the count and Queue go on a row of
 -- their own above (true: two rows). The sum is WindowState's, so the tests check it.
+-- The buttons' own places on the bar (as the bar is built). Put back on each fit: the Blizzard
+-- Layout lays them out its own way (WindowLayout.lua's FitBar), and a switch back or a run under
+-- way finds them here again.
+function List.AnchorBar(cb)
+	cb.make:ClearAllPoints()
+	cb.make:SetPoint("RIGHT", cb, "BOTTOMRIGHT", -PAD, BAR / 2)
+	cb.max:ClearAllPoints()
+	cb.max:SetPoint("RIGHT", cb.make, "LEFT", -8, 0)
+	cb.plus:ClearAllPoints()
+	cb.plus:SetPoint("RIGHT", cb.max, "LEFT", -8, 0)
+	countBox:ClearAllPoints()
+	countBox:SetPoint("RIGHT", cb.plus, "LEFT", -4, 0)
+	cb.minus:ClearAllPoints()
+	cb.minus:SetPoint("RIGHT", countBox, "LEFT", -4, 0)
+	cb.queue:ClearAllPoints()
+	cb.queue:SetPoint("RIGHT", cb.minus, "LEFT", -8, 0)
+end
+
 local function FitButtons(cb)
+	List.AnchorBar(cb)
+	-- (Blizzard Layout: Create All, the count and Create on the game's places; nil when it isn't
+	-- on, or the bar shows a run's buttons.)
+	local laid = W.Lay and W.Lay.FitBar(cb, countBox)
+	if laid ~= nil then return laid end
 	local least = State.LEAST
 	cb.make.FitWidth(least.make)
 	cb.max.FitWidth(least.max)
@@ -1120,6 +1211,12 @@ function List.BuildCraftBar(parent)
 		end
 		local spell = S.recipe
 		local n = spell and Craft.Count(spell) or 0
+		-- (Blizzard Layout: it is Create All, all you can make at once, as the game's; a Shift-click
+		-- still puts that many into the count, as Max does.)
+		if n > 0 and W.Lay and W.Lay.Active() and not IsShiftKeyDown() then
+			Craft.Make(spell, n)
+			return
+		end
 		if n > 0 then countBox:SetText(tostring(n)) end
 	end)
 

@@ -12,7 +12,7 @@
 -- asked once, the setting "duiProfit") and keeps what Daylight UI doesn't show.
 local ADDON, ns = ...
 if not ns.ok then return end
-local DUI = _G.DaylightUI
+local DUI = ns.DUI or _G.DaylightUI   -- (ns.DUI: Host.lua; the global only in the offline tests)
 
 local API, me = ns.API, ns.me
 local L = ns.L
@@ -545,9 +545,9 @@ local function AskProfit()
 			text = L["Daylight UI's profession window now shows a recipe's materials cost and profit. Leave those to it in the Docked Pane?\n\nThe pane keeps what Daylight UI doesn't show: each material's price, the cost per skill point, and the vendor and disenchant value. You can change this later in Glowey's Recipes' options."],
 			button1 = L["Use Daylight UI's"],
 			button2 = L["Keep Both"],
-			OnAccept = function() DUI:Set(ADDON, "duiProfit", true) end,
+			OnAccept = function() pcall(DUI.Set, DUI, ADDON, "duiProfit", true) end,
 			OnCancel = function(_, _, reason)
-				if reason == "clicked" then DUI:Set(ADDON, "duiProfit", false) end
+				if reason == "clicked" then pcall(DUI.Set, DUI, ADDON, "duiProfit", false) end
 			end,
 			-- (Answered or put away: Professionally Lost's window, if it was waiting, may come.)
 			OnHide = function() if ns.Guide and ns.Guide.Hold then ns.Guide.Hold("profit", false) end end,
@@ -680,19 +680,19 @@ function Pane.Resize()
 	if Pane.Shown() then ns.Changed() end
 end
 
--- The grip on the tab: three short bars, gray, in the accent under the mouse.
+-- The grip on the tab: three short bars, gray, in the accent under the mouse (Host.Tint: drawn
+-- again in the new colors after a look change).
 local function PaintGrip(hover)
 	if not foldTab then return end
-	local r, g, b
-	if hover then r, g, b = API.Accent() else r, g, b = Color("LABEL") end
-	for _, bar in ipairs(foldTab.bars) do bar:SetColorTexture(r, g, b, 1) end
+	for _, bar in ipairs(foldTab.bars) do ns.Host.Tint(bar, hover and "pop" or "LABEL", 1) end
 end
 
 local function BuildTab()
 	foldTab = CreateFrame("Button", nil, UIParent)
 	foldTab:SetSize(TAB_W, TAB_H)
 	foldTab:SetIgnoreParentAlpha(true)   -- it stays while the folded pane fades out
-	API.Skin(foldTab, { noBevel = true })
+	-- (Host.Skin: dressed again after a look change.)
+	ns.Host.Skin(foldTab, { noBevel = true })
 	foldTab.bars = {}
 	for i = 1, 3 do
 		local bar = foldTab:CreateTexture(nil, "OVERLAY")
@@ -704,9 +704,7 @@ local function BuildTab()
 	foldTab:SetScript("OnClick", function() Pane.SetFolded(not Folded()) end)
 	foldTab:SetScript("OnEnter", function(self)
 		PaintGrip(true)
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:SetText(Folded() and L["Open Glowey's Recipes"] or L["Fold Glowey's Recipes away"])
-		GameTooltip:Show()
+		ns.Host.Tip(self, Folded() and L["Open Glowey's Recipes"] or L["Fold Glowey's Recipes away"], nil, nil, "ANCHOR_RIGHT")
 	end)
 	foldTab:SetScript("OnLeave", function()
 		PaintGrip(false)

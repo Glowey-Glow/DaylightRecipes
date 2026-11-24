@@ -1605,8 +1605,9 @@ local function BuildConfirm()
 	f:EnableMouse(true)
 	f:SetClampedToScreen(true)
 	f:Hide()
-	-- (Solid, whatever the window opacity: what's under it doesn't show through.)
-	API.Skin(f, { bgAlpha = 1 })
+	-- (Solid, whatever the window opacity: what's under it doesn't show through. Host.Skin: dressed
+	-- again after a look change.)
+	ns.Host.Skin(f, { bgAlpha = 1 })
 	f.title = Doc.Text(f, "head")
 	f.title:SetPoint("TOP", f, "TOP", 0, -18)
 	f.title:SetText(L["Are you sure?"])
@@ -1655,16 +1656,17 @@ local function Confirm(owner, what, total, onYes, opts)
 	f.title:SetWidth(wide - 32)
 	f.title:SetWordWrap(true)
 	f.what:SetText(what)
-	f.what:SetTextColor(Color(opts and opts.warn and "WARN" or "TEXT"))
+	-- (Host.Ink: in its role's color again after a look change while the box is up.)
+	ns.Host.Ink(f.what, opts and opts.warn and "WARN" or "TEXT")
 	if total then
 		f.cost:SetText(L["Total Cost: %s"]:format(Calc.Money(total)))
-		f.cost:SetTextColor(Color(short and "BAD" or "VALUE"))
+		ns.Host.Ink(f.cost, short and "BAD" or "VALUE")
 		f.cost:Show()
 	else
 		f.cost:SetText("")
 		f.cost:Hide()
 	end
-	f.title:SetTextColor(Color("VALUE"))
+	ns.Host.Ink(f.title, "VALUE")
 	-- (Top 18, the title, 12, the question, 8, the cost, 20 clear above the buttons, 18 under them.)
 	local titleExtra = math.max(0, math.ceil(f.title:GetStringHeight()) - 16)
 	f:SetHeight((total and 134 or 110) + titleExtra + math.ceil(f.what:GetStringHeight()))
@@ -2019,7 +2021,7 @@ end
 -- any of it isn't as read (the caller then says so in chat). Exactly as main's 2.5.3 does it.
 local function SearchDaylight(name)
 	if not DaylightAtLeast({ 2, 0, 0 }) then return false end
-	local DUI = _G.DaylightUI
+	local DUI = ns.DUI or _G.DaylightUI   -- (ns.DUI: Host.lua; the global only in the offline tests)
 	if type(DUI) ~= "table" or type(DUI.GetModule) ~= "function" then return false end
 	local got, mod = pcall(DUI.GetModule, DUI, "AuctionHouse")
 	local m = got and type(mod) == "table" and mod.ns

@@ -68,6 +68,7 @@ local function world()
 			return W.settings[path]
 		end }, { __index = function() return Any end })
 	ns.me = Any
+	ns.DUI = DaylightUI   -- (as Host.lua hands it over in the game)
 	ns.Get = function(path)
 		local v = W.settings[path]
 		if v ~= nil then return v end
@@ -349,7 +350,7 @@ T.case("the Recipe tab with and without the hand-off", function()
 	both, handed = NewDoc(), NewDoc()
 	Pages.Cost(both, 1, 0.5)
 	Pages.Cost(handed, 1, 0.5, { handed = true })
-	T.ok(Has(both, "the total is short") and not Has(handed, "total"), "no price for a material: the note goes with the total")
+	T.ok(Has(both, "Scan Auction House to Update Price") and not Has(handed, "total"), "no price for a material: the note goes with the total")
 	T.ok(Has(handed, "R:Item1"), "its row stays under the Materials heading")
 	T.eq(Headings(handed), 1, "one heading, with its row: none orphaned")
 	ns.Calc.Cost = function() return { rows = {}, total = 0, complete = true } end

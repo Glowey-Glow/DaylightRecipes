@@ -12,13 +12,13 @@
 -- The recipe, source and disenchant tables in Data/ are ForeverRecipes' (GPL-3.0, by Ismail),
 -- built from ForeverDB.app and CMaNGOS Classic DB, unchanged; Data/Polestar.lua is generated from
 -- Polestar's data (GPL-3.0) by Tools/polestar.py. This plugin is GPL-3.0 too
--- (LICENSE.md). Built on DaylightUI.API only.
+-- (LICENSE.md). Built on DaylightUI.API, or without Daylight UI on Host.lua's stand-in for it.
 
 local ADDON, ns = ...
 local L = ns.L
 
-local DUI = _G.DaylightUI
-local API = DUI and DUI.API
+local DUI = ns.DUI or _G.DaylightUI   -- (ns.DUI: Host.lua; the global only in the offline tests)
+local API = ns.API or (DUI and DUI.API)   -- Daylight UI's, or without it Host.lua's stand-in
 if not API or API.major ~= 1 then return end
 
 ns.API = API
@@ -34,6 +34,8 @@ local DEFAULTS = {
 	winScale = 1,
 	winHeight = 560,
 	detailsDefault = false,
+	-- The window laid out like the game's own profession window (WindowLayout.lua).
+	blizzardLayout = false,
 	altProfs = true,
 	paneWidth = 300,
 	useAH = true,
@@ -60,6 +62,8 @@ local DEFAULTS = {
 	plTips = false,
 	plPrices = false,
 	plStep = false,
+	-- Saved window spots (Host.Spot: Window.lua's "window"), in the player's Daylight UI profile.
+	spots = {},
 }
 ns.DEFAULTS = DEFAULTS
 
@@ -268,6 +272,14 @@ function ns.ReadProfession()
 	local was = S.skill or 0
 	local rose = line and line == S.line and not linked and skill > was
 	S.line, S.name, S.skill, S.max, S.linked = line, name, skill, max, linked
+	-- (The game's own line too: a profession the data has no recipes for, as Fishing, has no line
+	-- of ours, and is told by this one: its portrait, its side tab lit. Professions.lua's ids.)
+	S.game = nil
+	if type(info) == "table" then
+		for _, key in ipairs(LINE_KEYS) do
+			if type(info[key]) == "number" and info[key] > 0 then S.game = info[key] break end
+		end
+	end
 	if rose and ns.Tips then pcall(ns.Tips.SkillUp, line, was, skill, max) end
 	-- Your own profession (not someone's linked recipes): kept for the plan and your alts' view.
 	if line and not linked and changed and ns.Store then ns.Store.SaveProfession(line, skill, max) end
@@ -461,6 +473,13 @@ local SOURCES = {
 
 local function NoAH(get) return get("useAH") == false end
 local function PaneOff(get) return get("window") == "recipes" end
+-- A window to dock the pane to: Daylight UI's (with it loaded) or DaylightMogul's. Without
+-- either (Host.lua runs the plugin on its own) the Docked Pane choice and its rows are left out.
+function ns.CanDock()
+	return not ns.standalone or (C_AddOns and C_AddOns.IsAddOnLoaded and C_AddOns.IsAddOnLoaded("DaylightMogul")) or false
+end
+local function NoDock() return not ns.CanDock() end
+local function NoDaylight() return ns.standalone == true end
 local function WindowOff(get) return get("window") ~= "recipes" end
 local function FollowOpacity(get) return get("duiOpacity") ~= false end
 
@@ -472,7 +491,7 @@ local function NoGuideHandOff(get) return get("plGuide") ~= true end
 
 local WINDOWS = {
 	recipes = L["Recipes Window"],
-	game = L["The Game's Window"],
+	game = L["Default Skill Window"],
 	pane = L["Docked Pane"],
 }
 
@@ -481,27 +500,33 @@ local pages = {
 	  desc = L["Your profession window, leveling plan and missing recipes."],
 	  groups = {
 		{ label = L["Profession Window"], items = {
-			{ type = "dropdown", key = "window", label = L["Profession Window"], values = WINDOWS, order = { "recipes", "game", "pane" },
-			  desc = L["Recipes Window: Glowey's Recipes' own (Daylight UI's profession window is switched off for it). The Game's Window: Blizzard's own, as the swap button beside the X picks. Docked Pane: Daylight UI's or DaylightMogul's window with a pane beside it (Daylight UI's comes back after a reload)."] },
+			{ type = "dropdown", key = "window", label = L["Profession Window"], values = WINDOWS,
+			  order = ns.CanDock() and { "recipes", "game", "pane" } or { "recipes", "game" },
+			  desc = ns.CanDock() and L["Recipes Window: Glowey's Recipes' own (Daylight UI's profession window is switched off for it). Default Skill Window: Blizzard's own, as the swap button beside the X picks. Docked Pane: Daylight UI's or DaylightMogul's window with a pane beside it (Daylight UI's comes back after a reload)."]
+				or L["Recipes Window: Glowey's Recipes' own. Default Skill Window: Blizzard's own, as the swap button beside the X picks."] },
 			{ type = "slider", key = "winScale", label = L["Window Size"], min = 0.7, max = 1.2, step = 0.05,
 			  desc = L["How large Glowey's Recipes' window is."], disabled = WindowOff },
 			{ type = "slider", key = "winHeight", label = L["Window Height"], min = 400, max = 720, step = 20,
 			  desc = L["How tall Glowey's Recipes' window is. Dragging its bottom edge sets it too."], disabled = WindowOff },
+			{ type = "toggle", key = "blizzardLayout", label = L["Blizzard Layout"],
+			  desc = L["The window laid out like the game's own, profession tabs on the left."], disabled = WindowOff },
 			{ type = "toggle", key = "detailsDefault", label = L["Open Details by Default"],
-			  desc = L["Recipe details start open on every tab until you close them there."], disabled = WindowOff },
+			  desc = L["Recipe details start open on every tab until you close them there."],
+			  -- (The Blizzard Layout's details are always open.)
+			  disabled = function(get) return WindowOff(get) or get("blizzardLayout") == true end },
 			{ type = "toggle", key = "altProfs", label = L["Show Your Alts' Professions"],
 			  desc = L["Your other characters' professions, under Your Alts in the professions menu."], disabled = WindowOff },
 			{ type = "slider", key = "paneWidth", label = L["Pane Width"], min = 260, max = 400, step = 10,
-			  desc = L["How wide the pane beside Daylight UI's or DaylightMogul's profession window is."], disabled = PaneOff },
+			  desc = L["How wide the pane beside Daylight UI's or DaylightMogul's profession window is."], disabled = PaneOff, hidden = NoDock },
 			{ type = "toggle", key = "duiProfit", label = L["Leave Cost and Profit to Daylight UI"],
 			  hidden = function() return not (ns.Pane and ns.Pane.ProfitCould and ns.Pane.ProfitCould()) end, disabled = PaneOff,
 			  desc = L["Beside Daylight UI's window the pane leaves the materials total and Auction House profit to it."] },
 		} },
 		{ label = L["Look"], items = {
-			{ type = "toggle", key = "duiOpacity", label = L["Use Daylight UI's Opacity"],
+			{ type = "toggle", key = "duiOpacity", label = L["Use Daylight UI's Opacity"], hidden = NoDaylight,
 			  desc = L["Our windows and panels follow Daylight UI's window opacity."] },
 			{ type = "slider", key = "opacity", label = L["Window Opacity"], min = 0.1, max = 1, step = 0.05, unit = "%",
-			  desc = L["How solid our windows' backgrounds are, with Daylight UI's opacity off."], disabled = FollowOpacity },
+			  desc = L["How solid our windows' backgrounds are, with Daylight UI's opacity off."], disabled = FollowOpacity, hidden = NoDaylight },
 		} },
 		{ label = L["Prices"], items = {
 			{ type = "toggle", key = "useAH", label = L["Use Auction House Prices"],
@@ -637,7 +662,7 @@ me.On("SettingChanged", function(scope, path)
 		return
 	end
 	-- (Read where they're used: nothing is drawn from these.)
-	if path == "askBuyAll" or path == "winHeight" or path == "detailsDefault" then return end
+	if path == "askBuyAll" or path == "winHeight" or path == "detailsDefault" or path == "blizzardLayout" then return end
 	if ns.Calc then ns.Calc.Forget() end
 	if PaneShown() then ns.Changed() end
 end)

@@ -15,7 +15,7 @@ local ADDON, ns = ...
 if not ns.ok then return end
 
 local API, L = ns.API, ns.L
-local DUI = _G.DaylightUI
+local DUI = ns.DUI or _G.DaylightUI   -- (ns.DUI: Host.lua; the global only in the offline tests)
 
 local Swap = {}
 ns.Swap = Swap
@@ -90,6 +90,7 @@ local function AskReload(text)
 end
 
 local function DuiCraftOn()
+	if ns.standalone then return false end   -- no Daylight UI: no window of its own to switch (Host.lua)
 	local ok, on = pcall(DUI.Get, DUI, "Professions", "enabled")
 	return ok and on ~= false
 end
@@ -129,14 +130,16 @@ local function Ask()
 	-- (A first launch: the welcome asks this instead, Start Tour or Keep My Window. Guide.lua)
 	if ns.Guide and not (type(db.guide) == "table" and db.guide.welcomed) then return end
 	StaticPopupDialogs.DAYLIGHTRECIPES_WINDOW = {
-		text = L["Use Glowey's Recipes' profession window?\n\nIt takes the place of the game's and Daylight UI's profession windows. The swap button beside its X switches to the game's window and back any time. You can change this later in Glowey's Recipes' options."],
+		text = ns.standalone and L["Use Glowey's Recipes' profession window?\n\nIt takes the place of the game's profession window. The swap button beside its X switches to the game's window and back any time. You can change this later in Glowey's Recipes' options."]
+			or L["Use Glowey's Recipes' profession window?\n\nIt takes the place of the game's and Daylight UI's profession windows. The swap button beside its X switches to the game's window and back any time. You can change this later in Glowey's Recipes' options."],
 		button1 = L["Use Recipes' Window"],
 		button2 = L["Keep My Window"],
 		OnAccept = function()
-			if ns.Get("window") == "recipes" then TakeFromDaylightUI() else DUI:Set(ADDON, "window", "recipes") end
+			if ns.Get("window") == "recipes" then TakeFromDaylightUI() else pcall(DUI.Set, DUI, ADDON, "window", "recipes") end
 		end,
 		OnCancel = function(_, _, reason)
-			if reason == "clicked" then DUI:Set(ADDON, "window", "pane") end
+			-- (Without Daylight UI or DaylightMogul there is no window for a pane: the game's.)
+			if reason == "clicked" then pcall(DUI.Set, DUI, ADDON, "window", ns.CanDock() and "pane" or "game") end
 		end,
 		timeout = 0, whileDead = true, hideOnEscape = false, preferredIndex = 3,
 	}
@@ -203,16 +206,11 @@ local function Make(parent)
 		C_Timer.After(TIP_WAIT, function()
 			if mine ~= token or not self:IsMouseOver() or not GameTooltip then return end
 			local words, theirs = TipWords(self)
-			GameTooltip:SetOwner(self, "ANCHOR_TOP")
-			GameTooltip:SetText(words, 1, 1, 1)
-			if theirs then
-				local r, g, bl = Ink("OFF")
-				GameTooltip:AddLine(theirs, r, g, bl, true)
-			end
-			if InCombatLockdown() then
-				GameTooltip:AddLine(L["Profession windows can be switched once the fight ends."], Ink("OFF"))
-			end
-			GameTooltip:Show()
+			ns.Host.TipLines(self, function(t)
+				t.Line(words, "TITLE")
+				if theirs then t.Line(theirs, "OFF", true) end
+				if InCombatLockdown() then t.Line(L["Profession windows can be switched once the fight ends."], "OFF", true) end
+			end, "ANCHOR_TOP")
 		end)
 	end)
 	b:SetScript("OnLeave", function(self)

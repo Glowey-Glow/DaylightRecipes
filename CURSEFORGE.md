@@ -1,13 +1,18 @@
-# Glowey's Recipes (DaylightUI Plugin)
+# Glowey's Recipes
 
 **A profession window that levels you up:** your recipes, a step-by-step Leveling Guide, a crafting queue, and what to buy or learn at the vendor, the Auction House and the trainer, all in the Daylight UI look.
 
-A plugin for Daylight UI, by Glowey (not part of Daylight UI itself: report its bugs here, not to Daylight UI). Requires **Daylight UI**. Works on its own: it keeps its own Auction House prices, and uses **DaylightMogul**'s when Mogul is loaded. With it installed you can turn ForeverRecipes off.
+By Glowey. A standalone addon that **integrates with Daylight UI** when it's installed: its pages sit in Daylight UI's options window, in its look, and ride in its profiles (not part of Daylight UI itself: report its bugs here, not to Daylight UI). Without Daylight UI, its settings are in the Glowey's Plugins window (**/glowey**, or Options > AddOns). It keeps its own Auction House prices, and uses **DaylightMogul**'s when Mogul is loaded. With it installed you can turn ForeverRecipes off.
 
 ---
 
-## New in 3.0.7
-- **Upgrade arrows on recipes:** with Glowey's Gear 1.0.6 or later installed, every recipe whose crafted item would be a gear upgrade for your character gets the green upgrade arrow in the recipe list.
+## New in 3.1.0
+- **Works without Daylight UI:** its settings are in Glowey's settings (**/glowey**), and **Blizzard Style** dresses the window in the game's own frames, tabs, bars and scroll bars. With Daylight UI it follows its language, look and scale.
+- **Blizzard Layout** (in the options, off to start): the window laid out like the game's own profession window, with your professions as tabs down its **left** side, **Alts**, **Cooldowns** and **Tracking** as pages of their own, the recipe always on the right and its pages as tabs under it.
+- **Chance of Skill Up** takes the chance's own color, red to green. **Also Known By** lists only your other characters. **Camping** folds each profession's items.
+- **Link to Chat** posts to Guild, Party, Raid, a channel, or **whispers** someone by name.
+- **The Leveling Guide** shows its current step's recipe on the right; **Alternates** lists other recipes that give points now.
+- **Fishing** opens its recipe window (with its camping recipes) like the other professions.
 ---
 
 ## The window
@@ -15,9 +20,10 @@ Open any profession and Glowey's Recipes' window takes the place of the game's (
 - **Compact, with details on demand:** the picked recipe's chance, cost and sale value are one line above the craft bar. The **Details** button (or a press on that line) slides its full page out beside the list. Drag the bottom edge to make the window taller.
 - **Roll Up** folds the window to its header and one bar while you craft. The bar says what it acts on: what is being made (with Stop), else the next craft in your queue (with **Craft Next**), else the picked recipe.
 - **Your professions across the title bar:** a chip for each, by its abbreviation, the open one lit with its skill; press another to open it. Herbalism, Skinning and Fishing open their own page (skill, rank, where to train next), and a **Camping** chip lists every profession's camping items. A right-click on a chip has **Link to Chat** and **Unlearn** (Unlearn asks first); the three dots at the end have your alts' professions (see what each alt knows), your craft cooldowns and your tracking spells.
+- **Blizzard Layout** (an option): the window laid out like the game's own profession window instead, your professions as tabs down its left side with Alts, Cooldowns and Tracking as pages, the recipe always on the right.
 - **Swap button** beside the X: switch to the game's profession window and back any time.
 - **Recipes:** search, "Can Make" and "Skill-ups" filters, folding categories and how many you can make. The picked recipe shows its skill-up chance, what its materials cost and what you hold of them (bags, bank, mail, alts), what it's worth, and Create, Max and Queue (Max fills in all you can make).
-- **Leveling Guide:** pick your goal (150, 225, 300) and what the route aims for (cheapest materials, or after vendoring, disenchanting or selling what you make). Every step uses a recipe that is orange or yellow at that skill, whatever the goal; for recipes you know, the game's own color decides. The step you're on comes as a card: what to make and how many, its materials, and Make / Queue / Show Recipe, with other recipes that give points under Or Instead. Then every next step, numbered, with when to train each rank, and the rods and tools you'll need made along the way. The step you're on glows, and so does its recipe in the list.
+- **Leveling Guide:** pick your goal (150, 225, 300) and what the route aims for (cheapest materials, or after vendoring, disenchanting or selling what you make). Every step uses a recipe that is orange or yellow at that skill, whatever the goal; for recipes you know, the game's own color decides. The step you're on comes as a card: what to make and how many, its materials, and Make / Queue / Show Recipe, with other recipes that give points under Alternates. Then every next step, numbered, with when to train each rank, and the rods and tools you'll need made along the way. The step you're on glows, and so does its recipe in the list.
 - **Materials:** everything the route needs, what you hold, and what's left to buy.
 - **Queue:** queue recipes from anywhere, then "Craft Next".
 - **Missing:** every recipe you don't know yet, where to get it (checked against QuestieDB), nearest first, with waypoints, including reputation recipes ("Nightclaw Druids: Friendly (Current Rep: Neutral)", in the game's reputation colors).

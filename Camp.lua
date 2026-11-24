@@ -216,15 +216,27 @@ function Camp.Page(d, redraw)
 	end
 	local function Name(line) return ns.Tips and ns.Tips.LineName(line) or tostring(line) end
 	table.sort(others, function(a, b) return ns.NameLess(Name(a), Name(b)) end)
+	-- Each profession's items fold away under its name (a click on it; another shows them again),
+	-- kept while the window is open.
+	local st = d.state
+	st.campFold = st.campFold or {}
+	local function Section(line, title, p)
+		local shut = st.campFold[line] == true
+		d:Row({ left = title, leftInk = "TITLE", right = shut and L["Show"] or L["Hide"], rightInk = "ACCENT",
+			onClick = function()
+				st.campFold[line] = not shut or nil
+				redraw()
+			end })
+		if shut then return end
+		for _, c in ipairs(Items(line)) do ItemRow(d, c, p, redraw) end
+	end
 	for _, line in ipairs(lines) do
 		local p = Mine(line)
-		d:Heading(p and L["%s (skill %d)"]:format(Name(line), p.skill or 0) or Name(line))
-		for _, c in ipairs(Items(line)) do ItemRow(d, c, p, redraw) end
+		Section(line, p and L["%s (skill %d)"]:format(Name(line), p.skill or 0) or Name(line), p)
 	end
 	if #others > 0 then
 		-- Folded away to start (a click shows them, another folds them again): the page opens on
 		-- your own professions. With none of your own to show, they start open instead.
-		local st = d.state
 		local open = st.campOthers
 		if open == nil then open = #lines == 0 end
 		d:Gap(10)
@@ -234,10 +246,7 @@ function Camp.Page(d, redraw)
 				redraw()
 			end })
 		if open then
-			for _, line in ipairs(others) do
-				d:Line(Name(line), "small", "LABEL")
-				for _, c in ipairs(Items(line)) do ItemRow(d, c, nil, redraw) end
-			end
+			for _, line in ipairs(others) do Section(line, Name(line), nil) end
 		end
 	end
 end

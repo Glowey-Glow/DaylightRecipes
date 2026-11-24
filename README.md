@@ -4,7 +4,7 @@ A plugin for Daylight UI on WoW: Forever. It gives you a compact profession wind
 
 ## Requirements
 
-- Daylight UI.
+- Nothing. Daylight UI is optional: without it Host.lua stands in for it, and the settings are in /glowey.
 - Optional: DaylightMogul, for its Auction House prices. Without it, Glowey's Recipes keeps its own from what you browse or scan, and uses vendor prices where it has none.
 - Optional: Professionally Lost. With it installed, a window asks once which of the two addons does each job (see below).
 

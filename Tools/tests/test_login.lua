@@ -74,14 +74,14 @@ T.case("M4: a player updating from 2.5.2 is told what changed", function()
 	local n = Note()
 	T.eq(n.title:GetText(), "What's New in Glowey's Recipes", "its title")
 	local body = n.body:GetText()
-	T.ok(body:find("3.0.2", 1, true), "this release's entry")
+	T.ok(body:find("3.1.0", 1, true), "this release's entry")
 	T.ok(body:find("A compact window: one column at the left of the screen", 1, true), "says why the window is small now")
 	T.ok(body:find("Queue List and Guide List", 1, true) and body:find("Check Prices", 1, true), "what the strips carry from 2.6 to 2.8, in one line")
 	T.ok(body:find("thin strip", 1, true), "the strips")
 	T.ok(body:find("Tours no longer start by themselves", 1, true), "the tours")
 	T.ok(body:find("Professionally Lost", 1, true), "the hand-off")
 	T.ok(not body:find("2.5.0", 1, true), "and not the notes they read before")
-	T.eq(DaylightRecipesDB.guide.newsSeen, "3.0.2", "read now: not shown again at the next login")
+	T.eq(DaylightRecipesDB.guide.newsSeen, "3.1.0", "read now: not shown again at the next login")
 	n.main:Click()
 	T.ok(not NoteUp(), "Okay closes it")
 	Reset(DaylightRecipesDB)
@@ -147,7 +147,7 @@ end)
 
 T.case("M5: another Daylight plugin's guide is waited for too", function()
 	local db = From252()
-	db.guide.newsSeen = "3.0.2"
+	db.guide.newsSeen = "3.1.0"
 	Reset(db)
 	DaylightGuides.DaylightFishing = true
 	local ok, err = pcall(function()
@@ -165,7 +165,7 @@ end)
 
 T.case("nothing new to read: the hand-off window comes by itself, once answered never again", function()
 	local db = From252()
-	db.guide.newsSeen = "3.0.2"
+	db.guide.newsSeen = "3.1.0"
 	Reset(db)
 	Login()
 	Play(7.5, "before its moment")
@@ -198,7 +198,7 @@ end)
 
 T.case("another question of ours up (the Docked Pane's, about Daylight UI's profit): the hand-off window waits for it", function()
 	local db = From252()
-	db.guide.newsSeen = "3.0.2"
+	db.guide.newsSeen = "3.1.0"
 	Reset(db)
 	T.eq(PL.Due(), false, "before login nothing is to come")
 	Login()
@@ -218,10 +218,10 @@ T.case("another question of ours up (the Docked Pane's, about Daylight UI's prof
 	_G.DaylightRecipesProfLost.later:Click()
 	T.eq(Guide.Busy(), false, "closed: nothing is up")
 	-- Not installed, or answered: never to come.
-	Reset({ guide = { welcomed = true, newsSeen = "3.0.2", tours = {} }, proflost = { asked = true } })
+	Reset({ guide = { welcomed = true, newsSeen = "3.1.0", tours = {} }, proflost = { asked = true } })
 	Login()
 	T.eq(PL.Due(), false, "answered at an earlier login: not to come")
 end)
 
-Reset({ guide = { welcomed = true, newsSeen = "3.0.2", tours = {} }, proflost = { asked = true } })
+Reset({ guide = { welcomed = true, newsSeen = "3.1.0", tours = {} }, proflost = { asked = true } })
 return T.done()

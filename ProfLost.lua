@@ -490,9 +490,9 @@ function PL.Asked() return Record().asked == true end
 local W, EDGE = 560, 18
 local dialog
 
+-- (Host.Ink: in the role's color again after a look change.)
 local function Ink(fs, role)
-	local c = API.Colors()[role]
-	if type(c) == "table" then fs:SetTextColor(c[1], c[2], c[3]) end
+	ns.Host.Ink(fs, role)
 end
 
 -- The rows that mean nothing while the guide is not handed off are dimmed and take no press.

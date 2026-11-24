@@ -226,6 +226,14 @@ do
 	T.ok(layout.col >= 600 + 2 * State.TAB_PAD, "a label wider than 520 widens the column rather than lose a letter")
 	layout = State.TabLayout({})
 	T.ok(layout.col == 420 and #layout.tabs == 0, "no tabs (an alt's page): the 420 column")
+	-- Blizzard Style: no tab narrower than its art's two end caps (35 + 37), wider ones as they were.
+	local short = { 20, 40, 120 }
+	layout = State.TabLayout(short, { minTab = 72 })
+	T.eq(layout.tabs[1].w, 72, "a short label's tab is the caps' width")
+	T.eq(layout.tabs[2].w, 72, "and so is one a little longer")
+	T.eq(layout.tabs[3].w, 120 + 2 * State.TAB_PAD, "a long one keeps its words plus padding")
+	T.eq(layout.tabs[2].x, layout.tabs[1].x + 72 + State.TAB_GAP, "the next tab starts after the widened one")
+	T.eq(State.TabLayout(short).tabs[1].w, 20 + 2 * State.TAB_PAD, "without minTab nothing changes")
 
 	-- Any widths at all (a fixed pseudo-random run): always sound.
 	local seed = 7

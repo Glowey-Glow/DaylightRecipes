@@ -1,4 +1,40 @@
-# Glowey's Recipes (DaylightUI Plugin)
+# Glowey's Recipes
+
+## 3.1.0
+- Blizzard Style: windows and panels no longer lose their text under their own background after they are raised (the shop panel's text and button labels showed only on hover). The art now draws at the window's own level, as Blizzard's frames do.
+- Blizzard Style: every profession and page tab now shows both rounded ends at Blizzard's own tab size (narrow ones no longer lose an edge or run together into a dark band), tab words sit inside the tab, the tab rows rest on Blizzard's inset edge, Glowey's skill line is left out, and Details and Swap are Blizzard's square buttons.
+- With Daylight UI installed, the Recipes window follows its language, look, colors, tooltips and scale, slides aside with its other windows, opens and closes with its sounds and fade, and keeps its spot in your Daylight UI profile; without it, the plugin uses its own Language choice and Blizzard-style windows.
+- New option, Blizzard Layout (off by default): the Recipes window laid out like the game's own profession window, with the profession's portrait, its rank bar, the recipe list with a Filter menu (Can Make, Skill-ups) and the game's skill-up arrows, the recipe's reagents with have/need beside our costs, chances and value, and Create All, the count and Create at the bottom. Your professions are tabs down the window's left side and the Leveling Guide, Materials, Queue and Missing pages are tabs under it. It takes the current look (Blizzard Style, Daylight UI's, Glowey's or Polestar's) and switches without a reload.
+- Blizzard Layout: the profession tabs' icons are larger and without their own edge, filling the tab.
+- Blizzard Layout: Alts, Cooldowns and Tracking are each a tab of their own down the left side (in place of the three dots), and each opens its own page in the window, as Camping does: your alts' professions by character (click one for its recipes), your craft cooldowns with how long each has left (click one to open the recipe), and your professions' minimap tracking (click one to turn it on or off). The window is tall enough for every tab, with every profession and Camping, so none goes behind "+N".
+- Blizzard Layout: the window is wide enough for Create All with a three-digit count beside the count box and Create, so Create All no longer jumps up to a row of its own.
+- Blizzard Layout: the Link to Chat button works on a plain click. With a chat box open it puts the link in it; otherwise it opens a Post In menu (Guild, Party, Raid, your channels), as the game's button does, plus Whisper..., which asks for a name and opens the chat whispering them the link.
+- Blizzard Layout: the Filter menu is wide enough for its words.
+- Camping: each profession's camping items fold away under its name (click it to hide them, again to show them), Other Professions' too.
+- "Chance of a Point" is now "Chance of Skill Up". Its percent and bar take the chance's own color, red when a point is unlikely through gold to green when it's sure.
+- Also Known By lists only your other characters, not the one you're on.
+- The box round the best recipe in the list and round the Leveling Guide's current step takes the recipe's skill-up color (orange, yellow or green), as its arrow does.
+- Leveling Guide: "Or Instead" is now "Alternates".
+- A material with no price now says "Scan Auction House to Update Price" under the total.
+- Without Daylight UI: dropdown menus fit their words. Each menu is as wide as its longest choice, its rows are as tall as the font, and in Blizzard Style it keeps the game's own margins (8 at the sides and top, 15 at the foot), so the last choice no longer runs past the bottom edge. Menus are solid, so the setting underneath no longer shows through.
+- Without Daylight UI: a dropdown on a settings page is wide enough for its longest choice.
+- Without Daylight UI: sliders on the settings pages can be dragged and clicked again. They were made without taking the mouse, so none of them moved.
+- The Profession Window choice "The Game's Window" is now "Default Skill Window".
+- Without Daylight UI: a slider can be dragged all the way. The page was drawn again on every step, which let go of the slider under the mouse; it now waits until the slider is let go.
+- Blizzard Style: bars are the profession window's own (its skill bar's border and fill, 14 high), such as the Chance of Skill Up bar.
+- Fishing (and any profession the game gives a recipe window but Recipes has no recipes for) opens its recipe window from its tab or chip, with its camping recipes, instead of its skill page. Its icon shows in the window's corner and its tab is lit while it's open.
+- Blizzard Layout: the window is drawn right the first time it opens; before, the rank bar and the list sat too low over each other until a tab was clicked.
+- Leveling Guide: the recipe on the right is the one its current step makes, not the last one picked in the list.
+- A profession with no recipes in the data (Fishing, with its camping recipes) shows only its Recipes tab: no empty Leveling Guide, Materials, Queue or Missing.
+- The tour covers the Blizzard Layout (its professions tabs, the recipe on the right, Link to Chat), Camping's folds and the Blizzard Layout option, and What's New lists this release.
+- Blizzard Style: scroll bars are the game's own (its minimal scroll bar, with arrows at both ends): drag the thumb, click the track or the arrows, as in the game's windows.
+- Fixed: the Recipes window didn't remember the recipe you had open. Switching profession in the professions menu, a /reload or a relog opened the first recipe in the list every time. Each profession now opens on the recipe you last picked in it, kept for each character, and the list scrolls to show it. A recipe you no longer know gives way to the first one.
+- Works without Daylight UI. Daylight UI is no longer required: with it installed nothing changes, and without it the plugin runs on its own. Its settings are then in a Glowey's Plugins window (/glowey, or the game's Options > AddOns), shared by every Glowey plugin you have, with a General page for the accent color, window opacity and moving frames. Frames move with /glowey unlock (drag; right-click puts one back), and /glowey <command> stands in for /dui <command>.
+- Your settings are kept either way: they are now also saved in the plugin's own saved variable, so taking Daylight UI out keeps them, and settings made without it are taken into Daylight UI when it comes back.
+- Without Daylight UI: a Look choice on the General page of /glowey for every Glowey window: Glowey's own, Blizzard Style (Blizzard's own window frames from this client: the metal frame with its title bar and red close button, dialog borders, tooltip boxes, red buttons, edit boxes, check boxes, sliders, tabs and gold text), or Polestar's when Polestar is loaded. With Polestar, Polestar itself paints the windows in the look you picked in its settings, and they change when you change it there. And a minimap button: click it for the settings, right-click to move frames, drag it round the map. It also appears in the game's addon menu, and Minimap Icon on the General page hides it.
+- Blizzard Style fits its borders to each window: a small box (Essentials' combat timer, the tabs) gets the tooltip's thin border instead of the dialog's, which overlapped itself there, and the border sits round the outside of a window so it never covers what's inside.
+- Without Daylight UI: the Recipes Window or the game's window, as you pick. The Docked Pane needs Daylight UI's or DaylightMogul's profession window, so it is left out without them, and so are Daylight UI's own opacity switches. Prices come from DaylightMogul when it's loaded, else from what you browse or scan.
+- Controller navigation of the plugin's windows comes from Daylight UI's controller support, so it needs Daylight UI.
 
 ## 3.0.7
 

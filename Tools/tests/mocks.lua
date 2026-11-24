@@ -450,6 +450,50 @@ function Bootstrap(ns)
 		Settle = function() GAME.settled = (GAME.settled or 0) + 1 end,
 	}
 	ns.Guide = { Offer = function(id) GAME.offered = id end }
+	-- Host.lua's ns.Host, the parts the plugin's files call (Host.lua itself runs in the standalone
+	-- harness, E:\\daylight\\standalone-harness): each drawn once, plainly, from ns.API. No Window,
+	-- Spot or Scaled, so the window takes its own way here (Window.lua's Hw).
+	local function HostColor(role)
+		if role == "pop" then return ns.API.Accent() end
+		local c = ns.API.Colors()[role or "TEXT"]
+		return c[1], c[2], c[3]
+	end
+	local function HostTipLines(owner, fn, anchor)
+		if not GameTooltip then return end
+		GameTooltip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
+		local t = {}
+		function t.Line(text, role, wrap)
+			local r, g, b = HostColor(role)
+			GameTooltip:AddLine(tostring(text or ""), r, g, b, wrap and true or false)
+		end
+		function t.Double(l, r) GameTooltip:AddDoubleLine(tostring(l or ""), tostring(r or "")) end
+		function t.Blank() GameTooltip:AddLine(" ") end
+		fn(t)
+		GameTooltip:Show()
+	end
+	ns.Host = {
+		-- (Guide.lua asks Host for Daylight UI's options window: none here, as before the stub.)
+		OptionsShown = function() return false end,
+		ToggleOptions = function() end,
+		OpenOptions = function() end,
+		Ink = function(fs, role, a) local r, g, b = HostColor(role) fs:SetTextColor(r, g, b, a or 1) end,
+		Tint = function(tex, role, a, vertex)
+			local r, g, b = HostColor(role)
+			if vertex then tex:SetVertexColor(r, g, b, a or 1) else tex:SetColorTexture(r, g, b, a or 1) end
+		end,
+		Untrack = function() end,
+		Skin = function(frame, opts) return ns.API.Skin(frame, opts) end,
+		OnStyle = function() end,
+		Color = HostColor,
+		TipLines = HostTipLines,
+		Tip = function(owner, title, text, hint, anchor)
+			HostTipLines(owner, function(t)
+				if title then t.Line(title, "TITLE") end
+				if text then t.Line(text, "TEXT", true) end
+				if hint then t.Line(hint, "pop", true) end
+			end, anchor)
+		end,
+	}
 end
 
 -- ---- Professionally Lost, as much of it as we read (its 1.2.0 shapes) ------------------------

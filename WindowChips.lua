@@ -43,7 +43,7 @@ local HEIGHT, PADX, GAP = 22, 5, 3
 local ICON = 16
 local LEFT = 8                  -- the first chip's place from the header's left edge
 local MORE_W = 20               -- the "more" chip's width
-Chips.GAP, Chips.LEFT, Chips.MORE_W = GAP, LEFT, MORE_W
+Chips.GAP, Chips.LEFT, Chips.MORE_W, Chips.PADX = GAP, LEFT, MORE_W, PADX
 
 local bar                       -- the row: a frame as wide as the chips on show
 local chips = {}                -- the chips made so far (reused by place in the row)
@@ -67,6 +67,8 @@ local function Lit(c, on, over)
 		c.back:SetColorTexture(1, 1, 1, over and 0.14 or 0.06)
 		c.text:SetTextColor(Color(over and "VALUE" or "TEXT"))
 	end
+	-- (Blizzard Style without Daylight UI: a tab, WindowBlizzard.lua.)
+	if W.Blz then W.Blz.Chip(c, on, over) end
 end
 
 -- A chip's tooltip lines: the name, the skill, then two hints at most, each thing said once and
@@ -93,13 +95,12 @@ end
 local function Tip(c)
 	local e = c.entry
 	if not e then return end
-	GameTooltip:SetOwner(c, "ANCHOR_BOTTOMRIGHT")
 	local lines = Chips.TipLines(e)
-	GameTooltip:SetText(lines[1])
-	for i = 2, #lines do
-		GameTooltip:AddLine(lines[i], Color((i == 2 and (e.sub or "") ~= "") and "TEXT" or "LABEL"))
-	end
-	GameTooltip:Show()
+	-- (The name in TITLE, its rank in TEXT, the click hints in the accent: Host.TipLines.)
+	ns.Host.TipLines(c, function(t)
+		t.Line(lines[1], "TITLE")
+		for i = 2, #lines do t.Line(lines[i], (i == 2 and (e.sub or "") ~= "") and "TEXT" or "pop") end
+	end, "ANCHOR_BOTTOMRIGHT")
 end
 
 local function Base(parent)
@@ -192,13 +193,17 @@ local function Fill(c, e)
 		c.text:Show()
 		w = PADX + math.ceil(c.text:GetUnboundedStringWidth()) + PADX
 	end
+	-- (Blizzard Style without Daylight UI: a tab's width and its words' place, WindowBlizzard.lua.)
+	if W.Blz then w = W.Blz.ChipFit(c, w, c.icon:IsShown() and ICON or w - 2 * PADX) end
 	c.want = w
 	Lit(c, c.lit, false)
 end
 
 local function PlusWidth(n)
 	plus.text:SetText(("+%d"):format(n))
-	return PADX + math.ceil(plus.text:GetUnboundedStringWidth()) + PADX
+	local w = PADX + math.ceil(plus.text:GetUnboundedStringWidth()) + PADX
+	if W.Blz then w = W.Blz.ChipFit(plus, w, w - 2 * PADX) end
+	return w
 end
 
 function Chips.Build(header)
@@ -218,12 +223,13 @@ function Chips.Build(header)
 	plus.text:SetPoint("CENTER", plus, "CENTER", 0, 0)
 	plus:SetScript("OnEnter", function(self)
 		Lit(self, false, true)
-		GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-		GameTooltip:SetText(L["Professions"])
-		for _, e in ipairs(self.left or {}) do
-			GameTooltip:AddLine((e.sub or "") ~= "" and e.prof and ("%s  %s"):format(e.name, e.sub) or e.name, Color("TEXT"))
-		end
-		GameTooltip:Show()
+		local left = self.left or {}
+		ns.Host.TipLines(self, function(t)
+			t.Line(L["Professions"], "TITLE")
+			for _, e in ipairs(left) do
+				t.Line((e.sub or "") ~= "" and e.prof and ("%s  %s"):format(e.name, e.sub) or e.name, "TEXT")
+			end
+		end, "ANCHOR_BOTTOMRIGHT")
 	end)
 	plus:SetScript("OnLeave", function(self)
 		Lit(self, false, false)
@@ -258,12 +264,13 @@ function Chips.Build(header)
 	more.ready:Hide()
 	more:SetScript("OnEnter", function(self)
 		self.Paint(true)
-		GameTooltip:SetOwner(self, "ANCHOR_BOTTOMRIGHT")
-		GameTooltip:SetText(L["Your Alts"])
-		GameTooltip:AddLine(L["Cooldowns"], Color("TEXT"))
-		GameTooltip:AddLine(L["Tracking"], Color("TEXT"))
-		if self.ready:IsShown() then GameTooltip:AddLine(L["Ready to craft"], Color("GOOD")) end
-		GameTooltip:Show()
+		local ready = self.ready:IsShown()
+		ns.Host.TipLines(self, function(t)
+			t.Line(L["Your Alts"], "TITLE")
+			t.Line(L["Cooldowns"], "TEXT")
+			t.Line(L["Tracking"], "TEXT")
+			if ready then t.Line(L["Ready to craft"], "GOOD") end
+		end, "ANCHOR_BOTTOMRIGHT")
 	end)
 	more:SetScript("OnLeave", function(self)
 		self.Paint(false)
@@ -305,7 +312,13 @@ function Chips.Paint(room)
 	end
 	for i = #entries + 1, #chips do chips[i]:Hide() end
 	local hasMore = Menu.HasMore()
-	local list, left = State.ChipFit(widths, open, room - (hasMore and MORE_W + GAP or 0), GAP, PlusWidth)
+	local moreW = MORE_W
+	if W.Blz then
+		-- (Blizzard Style: the "more" chip a tab too, and the bar's room the column's.)
+		moreW = W.Blz.ChipFit(more, MORE_W, 3 * 4 - 2)
+		room = W.Blz.ChipRoom(room)
+	end
+	local list, left = State.ChipFit(widths, open, room - (hasMore and moreW + GAP or 0), GAP, PlusWidth)
 	local on = {}
 	for _, index in ipairs(list) do on[index] = true end
 	shownList = {}
@@ -335,7 +348,7 @@ function Chips.Paint(room)
 		plus:Hide()
 	end
 	if hasMore then
-		Place(more, MORE_W)
+		Place(more, moreW)
 		more.Paint(false)
 		Chips.PaintReady()
 	else

@@ -49,10 +49,25 @@ local function TS(name, ...)
 	return Craft.TS(name, ...)
 end
 
--- The window's scale: the "Window Size" setting, made smaller when the widest state wouldn't fit
--- on the screen at it (a large setting with a large UI scale), so no part of it is ever off screen.
+-- Host.lua's part in the window (ns.Host; missing only in the offline tests, which get the plain
+-- frame calls): Daylight UI's global scale, its window room, Escape, the open and close sounds and
+-- fade, and the window's spot in the settings (so in Daylight UI's profiles). A table, not locals:
+-- Build is near Lua 5.1's 60 upvalues.
+local Hw = {}
+
+-- Daylight UI's own scale (general.scale; 1 without it): Host.Scale(1).
+function Hw.Global()
+	local H = ns.Host
+	local ok, v = false, 1
+	if H and H.Scale then ok, v = pcall(H.Scale, 1) end
+	return ok and type(v) == "number" and v > 0 and v or 1
+end
+
+-- The window's scale: the "Window Size" setting times Daylight UI's own scale (as its windows take
+-- it: DaylightUI/Windows/Frame.lua:467-470), made smaller when the widest state wouldn't fit on the
+-- screen at it (a large setting with a large UI scale), so no part of it is ever off screen.
 local function Scale()
-	local s = ns.Get("winScale") or 1
+	local s = (ns.Get("winScale") or 1) * Hw.Global()
 	local sw, sh = UIParent:GetWidth(), UIParent:GetHeight()
 	if sw and sw > 0 and sh and sh > 0 then
 		s = math.min(s, sw / (W.col + State.DETAIL), sh / State.MIN_H)
@@ -72,11 +87,75 @@ local function Other() return W.alt ~= nil or W.gather ~= nil end
 
 -- (Rolled up only while there is a craft bar to roll up to and no tour is showing the window:
 -- W.Rolled, WindowList.lua.)
+-- (The Blizzard Layout, WindowLayout.lua, has its details always open, so no state of its own
+-- here: "layout". Rolled up it is the compact window's rolled-up bar.)
 local function Mode()
+	if W.Lay and W.Lay.Active() then return "layout" end
 	return State.Mode(DB(), W.tab, Other(), ns.Get("detailsDefault") == true, W.Rolled())
 end
 
 function Window.Width() return (win and win:GetWidth() or W.col) * Scale() end
+
+-- The scale set: through Host.Scaled (own * global again after a look change; the window is never
+-- docked, so always with the global factor), else straight.
+function Hw.ApplyScale()
+	local H = ns.Host
+	if not (H and H.Scaled and H.Rescale) then return win:SetScale(Scale()) end
+	if Hw.scaled then return H.Rescale(win) end
+	Hw.scaled = true
+	H.Scaled(win, { own = function() return Scale() / Hw.Global() end })
+end
+
+-- Host.Window's open, close and toggle test (a close fades out first), else the frame's own.
+function Hw.Open()
+	local H = ns.Host
+	if H and H.Open and win.__gloweyWin then return H.Open(win) end
+	if not win:IsShown() then
+		win:SetAlpha(0)
+		win:Show()
+		API.Fade(win, 1, "FAST")
+	end
+end
+function Hw.Close()
+	local H = ns.Host
+	if H and H.Close and win.__gloweyWin then return H.Close(win) end
+	win:Hide()
+end
+function Hw.Shown()
+	local H = ns.Host
+	if win and H and H.Shown and win.__gloweyWin then return H.Shown(win) end
+	return Window.Shown()
+end
+function Hw.Moved()
+	local H = ns.Host
+	if win and H and H.Moved then H.Moved(win) end
+end
+
+-- Its spot: Host.Spot("window"), in the plugin's settings (with Daylight UI, the player's profile),
+-- moved in once from the old DaylightRecipesDB.win.spot; that old one only without Host. Asked
+-- only once logged in (the window is built on a profession's open), as Host.Spot needs.
+function Hw.Spot()
+	local H = ns.Host
+	if not Hw.spots and H and H.Spot then
+		Hw.spots = H.Spot("window", { get = function() return DB().spot end, clear = function() DB().spot = nil end })
+	end
+	return Hw.spots
+end
+function Hw.GetSpot()
+	local s = Hw.Spot()
+	if s then return s.Get() end
+	return DB().spot
+end
+function Hw.SaveSpot(t)
+	local s = Hw.Spot()
+	if not s then
+		DB().spot = t
+	elseif t then
+		s.Save(t)
+	else
+		s.Reset()
+	end
+end
 function Window.Shown() return win ~= nil and win:IsShown() end
 function Window.Mode() return Mode() end
 
@@ -109,16 +188,13 @@ local function IconButton(parent, name, onClick)
 		t:Show()
 		return t
 	end
+	-- (Host.Tint: drawn again in the new colors after a look change.)
 	function b.Paint(over)
-		local r, g, bl
-		if over then r, g, bl = API.Accent() else r, g, bl = Color("LABEL") end
-		for _, t in ipairs(b.bars) do t:SetColorTexture(r, g, bl, t.faint and 0.35 or 1) end
+		for _, t in ipairs(b.bars) do ns.Host.Tint(t, over and "pop" or "LABEL", t.faint and 0.35 or 1) end
 	end
 	b:SetScript("OnEnter", function(self)
 		self.Paint(true)
-		GameTooltip:SetOwner(self, "ANCHOR_TOP")
-		GameTooltip:SetText(type(name) == "function" and name() or name, 1, 1, 1)
-		GameTooltip:Show()
+		ns.Host.Tip(self, type(name) == "function" and name() or name, nil, nil, "ANCHOR_TOP")
 	end)
 	b:SetScript("OnLeave", function(self)
 		self.Paint(false)
@@ -169,7 +245,7 @@ end
 -- bottom-left corner, so a change of state or size grows it right and down from the same corner.
 local function Place()
 	win:ClearAllPoints()
-	local spot = DB().spot
+	local spot = Hw.GetSpot()
 	local s = win:GetScale()
 	if type(spot) == "table" and type(spot[1]) == "number" and type(spot[2]) == "number" and s > 0 then
 		win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", spot[1] / s, spot[2] / s)
@@ -185,16 +261,16 @@ local function SavePlace()
 	if not (left and top) then return end
 	local sw, sh = UIParent:GetWidth(), UIParent:GetHeight()
 	local x, y = State.ClampSpot(left * s, top * s, win:GetWidth() * s, sw, sh)
-	DB().spot = { x, y }
+	Hw.SaveSpot({ x, y })
 	Place()
 end
 
 local sizedW, sizedH
 -- The window's size for its state, and the column's parts shown for it. foot: the craft bar's
 -- height now. The shell is dressed again after a change of size (API.Skin: "Call it again after
--- resizing", DaylightUI/API.md).
-local function Size(mode, foot)
-	local w, h = State.Size(mode, W.col, Height(), foot)
+-- resizing", DaylightUI/API.md). w, h: a size of the Blizzard Layout's own (WindowLayout.lua).
+local function Size(mode, foot, w, h)
+	if not w then w, h = State.Size(mode, W.col, Height(), foot) end
 	if slideW then w = slideW end
 	if w ~= sizedW or h ~= sizedH then
 		sizedW, sizedH = w, h
@@ -313,7 +389,7 @@ local function PaintHead()
 		-- (HeaderRoom is the room for a name that starts after the icon, at 38, and ends before a
 		-- chevron: the chips start at the bar's own left margin and use all of it.)
 		W.Chips.Paint(State.HeaderRoom(W.col, buttons) + 38 + 14 - W.Chips.LEFT)
-		if gather == W.CAMP then
+		if gather == W.CAMP or Menu.IsPartPage(gather) then
 			SkillLine(nil)
 		elseif gather then
 			local p = Menu.GatherEntry()
@@ -410,10 +486,7 @@ local function BuildHeader()
 	end)
 	iconHit:SetScript("OnEnter", function(self)
 		if not headIcon:IsShown() or not W.Own() then return end
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		GameTooltip:SetText(S.name or L["Profession"])
-		GameTooltip:AddLine(L["Shift-click: link to chat"], Color("LABEL"))
-		GameTooltip:Show()
+		ns.Host.Tip(self, S.name or L["Profession"], nil, L["Shift-click: link to chat"], "ANCHOR_RIGHT")
 	end)
 	iconHit:SetScript("OnLeave", function(self)
 		if GameTooltip:IsOwned(self) then GameTooltip:Hide() end
@@ -455,7 +528,7 @@ local function BuildHeader()
 	headSkill:SetPoint("LEFT", nameButton, "RIGHT", 6, 0)
 	headSkill:SetWordWrap(false)
 
-	closeButton = API.Close(win, function() win:Hide() end)
+	closeButton = API.Close(win, function() Hw.Close() end)
 	closeButton:SetPoint("RIGHT", header, "RIGHT", -10, 0)
 	-- (Beside the X: the swap button, back to the game's or DaylightUI's profession window.)
 	if ns.Swap then win.swapButton = ns.Swap.OnWindow(win, closeButton) end
@@ -464,6 +537,11 @@ local function BuildHeader()
 	rollButton:SetPoint("RIGHT", win.swapButton or closeButton, "LEFT", -6, 0)
 	detailsButton = IconButton(header, L["Details"], function() Window.ToggleDetails() end)
 	detailsButton:SetPoint("RIGHT", rollButton, "LEFT", -6, 0)
+	-- (For Blizzard Style without Daylight UI: WindowBlizzard.lua.)
+	W.closeButton, W.rollButton, W.detailsButton = closeButton, rollButton, detailsButton
+	W.headUnder, W.skillBack, W.skillLine = under, skillBack, skillLine
+	-- (For the Blizzard Layout, which puts the header's left side away: WindowLayout.lua.)
+	W.headIcon, W.headDot, W.headSkill = headIcon, headDot, headSkill
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -491,6 +569,12 @@ local function PaintTabs()
 	local other = Other()
 	local shown = {}
 	for _, key in ipairs(State.Tabs(handed)) do shown[key] = true end
+	-- (A profession the data has no recipes for, as Fishing with its camping recipes alone: no
+	-- guide, materials, queue or missing recipes to show, so only its Recipes tab.)
+	if S.mode == "win" and S.line == nil and not Linked() then
+		shown = { recipes = true }
+		W.tab = "recipes"
+	end
 	-- widths: the labels as they read now (the tabs are laid out from these); reserve: the same
 	-- with the queue's tab at its reserved longest, "Queue (99)" (the column's width comes from
 	-- these, so it does not move as the queue fills and empties).
@@ -527,8 +611,10 @@ local function PaintTabs()
 	-- The column: what the tab row asks at its reserved widths, and what the craft bar's one row
 	-- asks at its (WindowState.Column; WindowList's CraftBarNeed). The tabs are then laid out from
 	-- their own words in a column at least that wide: never cut, and never wider than 520 for it.
-	local least = State.Column(State.TabLayout(reserve).col, List.CraftBarNeed())
-	local layout = State.TabLayout(widths, { min = least, max = math.max(State.MAX_W, least) })
+	-- (Blizzard Style: no tab narrower than its art's two end caps, WindowBlizzard.lua.)
+	local capped = W.Blz and W.Blz.TabMin() or nil
+	local least = State.Column(State.TabLayout(reserve, { minTab = capped }).col, List.CraftBarNeed())
+	local layout = State.TabLayout(widths, { min = least, max = math.max(State.MAX_W, least), minTab = capped })
 	W.col = layout.col
 	for i, b in ipairs(pieces) do
 		local t = layout.tabs[i]
@@ -580,6 +666,7 @@ local function BuildTabs()
 		tabButtons[i] = b
 		tabOf[key] = b
 	end
+	W.tabButtons, W.tabRow, W.tabUnder = tabButtons, tabRow, under
 	plButton = CreateFrame("Button", nil, tabRow)
 	plButton.text = Text(plButton, "small")
 	plButton.text:SetPoint("CENTER", 0, 1)
@@ -591,6 +678,7 @@ local function BuildTabs()
 		if PL and PL.OpenGuide then PL.OpenGuide(S.line) end
 	end)
 	plButton:Hide()
+	W.plButton = plButton
 end
 
 -- ---------------------------------------------------------------------------------------------
@@ -605,7 +693,7 @@ local function CloseOne()
 	elseif not W.Rolled() and Mode() == "expanded" then
 		Window.SetDetails(false)
 	else
-		win:Hide()
+		Hw.Close()
 	end
 end
 
@@ -627,7 +715,8 @@ local function BuildPad()
 		local list, at = {}, nil
 		-- (The kit steps nothing with fewer than two: DaylightUI/Pad.lua:141-146.)
 		if Menu.Shown() then return list, at end
-		for _, b in ipairs(tabButtons) do
+		-- (The Blizzard Layout's tabs are its own, under the window: WindowLayout.lua.)
+		for _, b in ipairs(W.Lay and W.Lay.Active() and W.Lay.Tabs() or tabButtons) do
 			if b:IsVisible() then
 				list[#list + 1] = b
 				if b.key == W.tab then at = #list end
@@ -673,6 +762,8 @@ local function BuildPad()
 		{ key = "Y", label = function() return W.Rolled() and L["Unroll"] or L["Details"] end,
 			when = function(at)
 				if Menu.Shown() or HasMore(at) then return false end
+				-- (The Blizzard Layout's details are always open.)
+				if W.Lay and W.Lay.Active() then return false end
 				return W.Rolled() or State.HasDetails(W.tab, Other())
 			end,
 			run = function()
@@ -680,6 +771,13 @@ local function BuildPad()
 			end },
 	}
 	Pad.Follow(win, CloseOne)
+	-- Host.Window after the controller: B keeps closing one level at a time (CloseOne), Escape
+	-- closes the window (Host.Close, a fade), and with Daylight UI it joins its window room: the
+	-- other windows slide aside for it (DaylightUI/Windows/Room.lua:1-6). It always floats free
+	-- (the docked pane is Pane.lua's own frame), so room answers true. Host follows no frame that
+	-- is followed already (__gloweyFollowed, set by Guide.lua's Pad.Follow).
+	local H = ns.Host
+	if H and H.Window then H.Window(win, { room = function() return true end }) end
 	win.listPad = listPad
 end
 
@@ -698,10 +796,9 @@ local function BuildGrip()
 		bar:SetPoint("CENTER", grip, "CENTER", (i - 2) * 9, 0)
 		grip.bars[i] = bar
 	end
+	-- (Host.Tint: drawn again in the new colors after a look change.)
 	function grip.Paint(over)
-		local r, g, b
-		if over then r, g, b = API.Accent() else r, g, b = Color("LABEL") end
-		for _, bar in ipairs(grip.bars) do bar:SetColorTexture(r, g, b, over and 1 or 0.6) end
+		for _, bar in ipairs(grip.bars) do ns.Host.Tint(bar, over and "pop" or "LABEL", over and 1 or 0.6) end
 	end
 	grip.Paint(false)
 	local function CursorY()
@@ -759,6 +856,8 @@ local function Draggable()
 		win:StopMovingOrSizing()
 		win:SetUserPlaced(false)   -- (the place is kept in our saved variables, not the game's layout cache)
 		SavePlace()
+		-- (Anchored at one point again by SavePlace: its new spot is home in the window room.)
+		Hw.Moved()
 		Window.Relayout()
 	end
 	win:SetMovable(true)
@@ -846,12 +945,13 @@ local function Build()
 	win:SetClampedToScreen(true)
 	win:EnableMouse(true)
 	win:Hide()
-	win:SetScale(Scale())
+	Hw.ApplyScale()
 	ns.SkinWindow(win)
 	Place()
 	Draggable()
-	-- Esc closes it like any window (and ends the trade skill with it).
-	if type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "DaylightRecipesWindow") end
+	-- Esc closes it like any window (and ends the trade skill with it): Host.Window (BuildPad); the
+	-- game's own list only without Host (the offline tests).
+	if not (ns.Host and ns.Host.Window) and type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "DaylightRecipesWindow") end
 	win:HookScript("OnHide", function()
 		Menu.Close()
 		Menu.StopTicker()
@@ -936,6 +1036,9 @@ Render = function()
 	-- picked all the same, as the game does, so the craft bar has one.)
 	if S.mode == "win" and not S.recipe then List.Count() end
 	local tabsH = PaintTabs()
+	-- (The Blizzard Layout lays the window out itself while it is on and the window isn't rolled
+	-- up: WindowLayout.lua. Off, or rolled up, it puts its places back and this goes on.)
+	if W.Lay and W.Lay.Shape(Window.Parts()) then return end
 	PaintHead()
 	local other = Other()
 	local mode = Mode()
@@ -946,6 +1049,8 @@ Render = function()
 	DrawDetails(detailsButton, mode == "expanded")
 	detailsButton:SetShown(not rolled and State.HasDetails(W.tab, other))
 	DrawRoll(rollButton, rolled)
+	-- (Blizzard Style without Daylight UI: the title bar, tabs and buttons, WindowBlizzard.lua.)
+	if W.Blz then W.Blz.Paint(rolled, mode == "expanded") end
 	-- (Nothing to roll up to, someone's linked recipes or no profession open: no Roll Up button.
 	-- Details then sits where it would have.)
 	local canRoll = List.CanRoll()
@@ -1016,7 +1121,7 @@ Render = function()
 		scroll:SetPoint("TOPLEFT", body, "TOPLEFT", 0, W.alt and -List.UnderSearch(altDoc.search) or -4)
 		scroll:SetPoint("RIGHT", body, "RIGHT", 0, 0)
 		scroll:SetPoint("BOTTOM", below, belowPoint == "TOPLEFT" and "TOP" or "BOTTOM", 0, gap)
-		Draw(altDoc, W.alt and Menu.AltPage or (W.gather == W.CAMP and Menu.CampPage) or Menu.GatherPage)
+		Draw(altDoc, W.alt and Menu.AltPage or (W.gather == W.CAMP and Menu.CampPage) or Menu.PartPage(W.gather) or Menu.GatherPage)
 		return
 	end
 	if recipes then
@@ -1068,13 +1173,27 @@ Render = function()
 	end
 end
 
+-- The window's parts for the Blizzard Layout (WindowLayout.lua), which lays the same frames out
+-- its own way: one table, made once the window is built (its frames never change after).
+local parts
+function Window.Parts()
+	if parts or not win then return parts end
+	parts = { win = win, header = header, col = col, tabRow = tabRow, body = body, side = side, detail = detail,
+		pageDoc = pageDoc, pageSearch = pageSearch, altDoc = altDoc, pageCtx = pageCtx,
+		Draw = Draw, NoSession = NoSession, Size = Size, Height = Height, DrawRoll = DrawRoll,
+		GetPick = function() return missingPick end, SetPick = function(spell) missingPick = spell end }
+	return parts
+end
+
 -- ---------------------------------------------------------------------------------------------
 -- States
 -- ---------------------------------------------------------------------------------------------
 
--- The details open or closed on the tab that's up (remembered for that tab), sliding.
+-- The details open or closed on the tab that's up (remembered for that tab), sliding. (Not in the
+-- Blizzard Layout: its details are always open, and a slide would size the window.)
 function Window.SetDetails(open)
 	if not win or not State.HasDetails(W.tab, Other()) then return end
+	if W.Lay and W.Lay.Active() then return end
 	local db = DB()
 	if State.DetailsOpen(db, W.tab, Other(), ns.Get("detailsDefault") == true) == (open and true or false) then return end
 	State.SetDetails(db, W.tab, open)
@@ -1110,7 +1229,7 @@ end
 -- The Window Height setting, from a drag of the bottom edge (the options slider writes it itself).
 function Window.SetHeight(h)
 	h = State.ClampHeight(h)
-	local DUI = _G.DaylightUI
+	local DUI = ns.DUI or _G.DaylightUI   -- (ns.DUI: Host.lua; the global only in the offline tests)
 	-- (DaylightUI:Set(scope, path, value), as Swap.lua and RecipesGuide.lua set "window".)
 	if type(DUI) == "table" and type(DUI.Set) == "function" then pcall(DUI.Set, DUI, ADDON, "winHeight", h) end
 	Window.Relayout()
@@ -1119,14 +1238,25 @@ end
 -- A right-click on the header: the default place and height again.
 function Window.ResetPlace()
 	if not win then return end
-	DB().spot = nil
+	Hw.SaveSpot(nil)
 	Place()
+	Hw.Moved()
 	Window.SetHeight(State.H)
 end
 
 ns.me.On("SettingChanged", function(scope, path)
+	-- (Daylight UI's own scale changed: DaylightUI/DB.lua:43.)
+	if scope == "general" and path == "scale" then
+		if win then Window.Rescale() end
+		return
+	end
 	if scope ~= ADDON then return end
 	if path == "winHeight" or path == "detailsDefault" or path == nil then Window.Relayout() end
+	-- (The Blizzard Layout on or off: the same window laid out again, no reload. WindowLayout.lua)
+	if path == "blizzardLayout" then
+		Menu.Close()
+		Window.Relayout()
+	end
 end)
 
 -- A hand-off to Professionally Lost flipped, or its guide moved to another step: ProfLost.lua calls
@@ -1199,13 +1329,18 @@ function Window.Unlearn(p) Menu.Unlearn(p) end
 -- summary line.
 function Window.TourParts()
 	local tabs = {}
-	for _, b in ipairs(tabButtons) do
+	-- (The Blizzard Layout: its own tabs under the window, its side tabs for the professions and its
+	-- portrait for the menu. WindowLayout.lua)
+	local lay = W.Lay and W.Lay.Active()
+	for _, b in ipairs(lay and W.Lay.Tabs() or tabButtons) do
 		if b:IsVisible() then tabs[#tabs + 1] = b end
 	end
 	local bar = (not W.named and W.chipBar and W.chipBar:IsShown()) and W.chipBar or nameButton
-	return { win = win, side = bar, menu = bar, tabs = tabs, tabOf = tabOf, list = W.list,
+	if lay then bar = W.Lay.Bar() or bar end
+	return { win = win, side = bar, menu = bar, tabs = tabs, tabOf = lay and W.Lay.TabOf() or tabOf, list = W.list,
 		craft = W.craftBar, body = body, swap = win and win.swapButton, tab = W.tab,
-		details = detailsButton, roll = rollButton, summary = W.summary }
+		details = detailsButton, roll = rollButton, summary = W.summary,
+		detail = lay and side or nil, link = lay and W.Lay.Link() or nil }
 end
 
 -- Opens the window for a tour (on the open profession, else the last one, else your professions).
@@ -1242,12 +1377,32 @@ function Window.TourDone()
 	Window.Render()
 end
 
+-- The recipe last picked in each of this character's professions (Store's character table,
+-- lastRecipe[line]): the professions menu, a /reload or a relog opens a profession on it again.
+-- Not for someone else's recipes (a link). The list checks it is still known (WindowList.lua).
+function Window.LastRecipe(line)
+	local c = line and ns.Store and ns.Store.Char()
+	local t = c and c.lastRecipe
+	local spell = type(t) == "table" and t[line] or nil
+	return type(spell) == "number" and spell or nil
+end
+
+function Window.KeepRecipe()
+	if Linked() or not S.line or type(S.recipe) ~= "number" then return end
+	local c = ns.Store and ns.Store.Char()
+	if not c then return end
+	if type(c.lastRecipe) ~= "table" then c.lastRecipe = {} end
+	c.lastRecipe[S.line] = S.recipe
+end
+
 function Window.Select(spell)
 	if type(spell) ~= "number" then return end
+	S.recipeRestored = nil
 	if S.recipe ~= spell then
 		S.recipe = spell
 		Window.RecipeChanged()
 	end
+	Window.KeepRecipe()
 	List.ShowInList(spell)
 	ns.Changed()
 end
@@ -1291,6 +1446,7 @@ function Window.PaintCooldowns()
 	if not Window.Shown() then return end
 	headDot:SetShown(W.named == true and Menu.CooldownReady())
 	W.Chips.PaintReady()
+	if W.Lay then W.Lay.PaintReady() end
 	if Menu.Shown() then Menu.Paint() end
 end
 
@@ -1312,12 +1468,16 @@ function Window.SessionStarted()
 	ns.ReadProfession()
 	-- (The one /recipes opens next time, away from a crafting station.)
 	if S.line and not Linked() then DaylightRecipesDB.lastLine = S.line end
-	List.Reset()
-	if not win:IsShown() then
-		win:SetAlpha(0)
-		win:Show()
-		API.Fade(win, 1, "FAST")
+	-- (Nothing picked: another profession, or the first open since logging in. The recipe last
+	-- picked in it comes back.)
+	if not S.recipe and S.line and not Linked() then
+		S.recipe = Window.LastRecipe(S.line)
+		S.recipeRestored = S.recipe ~= nil or nil
 	end
+	-- (The list opens at its top, or where the recipe last picked here shows.)
+	List.Reset(S.recipe)
+	-- (Hw.Shown: one still fading out after a close opens again, in the state it was left.)
+	if not Hw.Shown() then Hw.Open() end
 	ns.Changed()
 end
 
@@ -1331,7 +1491,7 @@ function Window.SessionEnded()
 	local serial = closing
 	C_Timer.After(0, function()
 		if serial ~= closing or S.mode == "win" then return end
-		if win:IsShown() then win:Hide() end
+		if win:IsShown() then Hw.Close() end
 	end)
 end
 
@@ -1409,7 +1569,7 @@ function Window.ShowAlt(guid, line)
 	if altDoc then altDoc:Top() end
 	-- (Its page has no place rolled up: it unrolls.)
 	State.SetRolled(DB(), false)
-	if not win:IsShown() then win:Show() end
+	if not Hw.Shown() then Hw.Open() end
 	Window.Render()
 end
 
@@ -1420,7 +1580,7 @@ function Window.ShowGather(game)
 	Ensure()
 	if altDoc then altDoc:Top() end
 	State.SetRolled(DB(), false)
-	if not win:IsShown() then win:Show() end
+	if not Hw.Shown() then Hw.Open() end
 	Window.Render()
 end
 
@@ -1428,13 +1588,14 @@ end
 -- noGame: the window alone, without asking the game to open a profession (a tour that starts by
 -- itself: the game opens a trade skill only from a click, and blocks it from a timer).
 function Window.Toggle(noGame)
-	if Window.Shown() then
-		win:Hide()
+	-- (Hw.Shown: one fading out after a close counts as closed, and opens again.)
+	if Hw.Shown() then
+		Hw.Close()
 		return
 	end
 	if ns.Take and ns.Take.OursNow() then
 		Ensure()
-		win:Show()
+		Hw.Open()
 		return
 	end
 	local last = DaylightRecipesDB and DaylightRecipesDB.lastLine
@@ -1452,7 +1613,7 @@ function Window.Toggle(noGame)
 	end
 	-- No profession to open: the window shows anyway, its menu a press away.
 	Ensure()
-	win:Show()
+	Hw.Open()
 end
 
 function Window.Restyle()
@@ -1462,10 +1623,11 @@ end
 
 function Window.Rescale()
 	if not win then return end
-	local old, new = win:GetScale(), Scale()
+	local old = win:GetScale()
 	local left, top = win:GetLeft(), win:GetTop()
-	win:SetScale(new)
-	if left and top and DB().spot then
+	Hw.ApplyScale()
+	local new = win:GetScale()
+	if left and top and Hw.GetSpot() then
 		-- (The same spot on the screen at the new scale.)
 		win:ClearAllPoints()
 		win:SetPoint("TOPLEFT", UIParent, "BOTTOMLEFT", left * old / new, top * old / new)
@@ -1474,6 +1636,14 @@ function Window.Rescale()
 		Place()
 	end
 	Window.Relayout()
+end
+
+-- A look change: Host sets the scales it keeps again after its OnStyle calls (Host.lua, Restyle),
+-- so the window takes a new one here first, keeping its spot on the screen.
+if ns.Host and ns.Host.OnStyle then
+	ns.Host.OnStyle(function()
+		if win and math.abs((win:GetScale() or 1) - Scale()) > 0.001 then Window.Rescale() end
+	end)
 end
 
 -- The screen got smaller or larger (the UI scale, the game's window): the window fits it again.

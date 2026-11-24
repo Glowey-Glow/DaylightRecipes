@@ -10,7 +10,7 @@
 local ADDON, ns = ...
 if not ns.ok then return end
 local L, Plural = ns.L, ns.Plural
-local DUI = _G.DaylightUI
+local DUI = ns.DUI or _G.DaylightUI   -- (ns.DUI: Host.lua; the global only in the offline tests)
 
 local API, me = ns.API, ns.me
 local Tips = {}
@@ -343,9 +343,9 @@ local function AskMastercraft()
 		text = L["Mastercraft also lists your characters on recipe items. Show only Glowey's Recipes' lines?\n\nMastercraft's come back if you pick Keep Both, or later in Glowey's Recipes' options."],
 		button1 = L["Only Recipes'"],
 		button2 = L["Keep Both"],
-		OnAccept = function() DUI:Set(ADDON, "mastercraftTips", true) end,
+		OnAccept = function() pcall(DUI.Set, DUI, ADDON, "mastercraftTips", true) end,
 		OnCancel = function(_, _, reason)
-			if reason == "clicked" then DUI:Set(ADDON, "mastercraftTips", false) end
+			if reason == "clicked" then pcall(DUI.Set, DUI, ADDON, "mastercraftTips", false) end
 		end,
 		timeout = 0, whileDead = true, hideOnEscape = false, preferredIndex = 3,
 	}

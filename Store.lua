@@ -525,16 +525,17 @@ function Store.Alts()
 	return out
 end
 
--- The characters on the account who know a recipe: { name, ... } (this one included), each in its
--- class color when `colored`.
-function Store.WhoKnows(spell, colored)
+-- The characters on the account who know a recipe: { name, ... } (this one included, unless
+-- `others`: then only your other characters), each in its class color when `colored`.
+function Store.WhoKnows(spell, colored, others)
 	local data = ns.Recipes and ns.Recipes[spell]
 	local line = data and data[1]
 	if not line then return {} end
 	local out = {}
-	for _, c in pairs(DB().chars) do
+	local self = others and Me() or nil
+	for guid, c in pairs(DB().chars) do
 		local set = type(c) == "table" and c.known and c.known[line]
-		if set and set[spell] and c.name then out[#out + 1] = c end
+		if set and set[spell] and c.name and not (self and guid == self) then out[#out + 1] = c end
 	end
 	table.sort(out, function(a, b) return ns.NameLess(a.name, b.name) end)
 	for i, c in ipairs(out) do

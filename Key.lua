@@ -5,7 +5,7 @@
 -- Why it's needed: with our window picked, Daylight UI's own profession window is switched off,
 -- and with it Daylight UI's hold on that key, so the key fell back to the game's professions book.
 -- Ours takes the key only while our window is the one in use and Daylight UI's own isn't
--- (DaylightUI.craftOwnWindow), so the two never both hold it. "The Game's Window" or "Docked
+-- (DaylightUI.craftOwnWindow), so the two never both hold it. "Default Skill Window" or "Docked
 -- Pane" picked: the key is the game's (or Daylight UI's) again.
 --
 -- How: an override binding on the key's current keys (never the player's saved bindings; gone on

@@ -81,7 +81,9 @@ local PROTECTED = { SetPoint = true, ClearAllPoints = true, SetSize = true, SetW
 -- Every widget method the window calls on this run, each one checked by hand against the client's
 -- own API documentation (wow-ui-source, branch "forever": Blizzard_APIDocumentationGenerated/
 -- Simple*APIDocumentation.lua). A method not on this list raises: a new call is looked up there
--- first, then added here. (The tooltip's methods are the ones 2.5.2 already used.)
+-- first, then added here. (The tooltip's methods are the ones 2.5.2 already used. The Blizzard
+-- Layout's: CreateMaskTexture and SetClampRectInsets, SimpleFrameAPIDocumentation.lua:113, 1193;
+-- AddMaskTexture, SimpleTextureAPIDocumentation.lua:10.)
 local VERIFIED = {}
 for name in ([[
 ClearAllPoints Click CreateTexture EnableMouse EnableMouseWheel GetBottom GetEffectiveScale
@@ -89,11 +91,12 @@ GetFrameLevel GetFrameStrata GetHeight GetLeft GetParent GetRect GetScale GetScr
 GetStringHeight GetStringWidth GetText GetTop GetUnboundedStringWidth GetVerticalScroll
 GetVerticalScrollRange GetWidth Hide HookScript IsMouseOver IsShown IsTruncated IsVisible
 RegisterEvent RegisterForClicks RegisterForDrag RegisterUnitEvent SetAllPoints SetAlpha
-SetAtlas SetAttribute SetClampedToScreen SetClipsChildren SetColorTexture SetDesaturated SetFrameLevel
-SetFrameStrata SetHeight SetIgnoreParentAlpha SetJustifyH SetMinMaxValues SetMovable SetParent
+SetAtlas SetAttribute SetBlendMode SetClampedToScreen SetClipsChildren SetColorTexture SetDesaturated SetFrameLevel
+SetFrameStrata SetHeight SetHorizTile SetIgnoreParentAlpha SetJustifyH SetMinMaxValues SetStatusBarColor SetMovable SetParent
 SetPoint SetScale SetScript SetScrollChild SetShown SetSize SetTexCoord SetText SetTextColor
 SetTexture SetToplevel SetUserPlaced SetValue SetVerticalScroll SetWidth SetWordWrap Show
 StartMoving StopMovingOrSizing UnregisterEvent
+CreateMaskTexture AddMaskTexture SetClampRectInsets
 ]]):gmatch("%S+") do VERIFIED[name] = true end
 local IMPL = {}
 local MT = {}
@@ -150,6 +153,7 @@ function IMPL.Hide(self)
 end
 function IMPL.SetShown(self, on) if on then self:Show() else self:Hide() end end
 function IMPL.SetTexture(self, texture) rawset(self, "texture", texture) end
+function IMPL.SetAlpha(self, a) rawset(self, "alpha", a) end
 function IMPL.IsShown(self) return self.shown end
 function IMPL.IsVisible(self)
 	local o = self
@@ -280,6 +284,8 @@ function IMPL.IsTruncated(self) return TRUNC ~= nil and TRUNC(self) or false end
 function IMPL.GetFont() return "font", 12, "" end
 function IMPL.CreateTexture(self) return NewObj("Texture", nil, self) end
 function IMPL.CreateFontString(self) return NewObj("FontString", nil, self) end
+function IMPL.CreateMaskTexture(self) return NewObj("MaskTexture", nil, self) end
+function IMPL.SetClampRectInsets(self, l, r, t, b) rawset(self, "clampInsets", { l, r, t, b }) end
 function IMPL.GetVerticalScrollRange() return 0 end
 function IMPL.GetVerticalScroll() return 0 end
 function IMPL.SetScrollChild(self, child) rawset(self, "child", child) end
@@ -455,6 +461,46 @@ ns.API = {
 	GetSetting = function() return "circle" end,
 	ClassColor = function() return 1, 1, 1 end,
 }
+-- Host.lua's ns.Host, the parts the plugin's files call (Host.lua itself runs in the standalone
+-- harness, E:\\daylight\\standalone-harness): each drawn once, plainly, from ns.API. No Window,
+-- Spot or Scaled, so the window takes its own way here (Window.lua's Hw).
+local function HostColor(role)
+	if role == "pop" then return ns.API.Accent() end
+	local c = ns.API.Colors()[role or "TEXT"]
+	return c[1], c[2], c[3]
+end
+local function HostTipLines(owner, fn, anchor)
+	if not GameTooltip then return end
+	GameTooltip:SetOwner(owner, anchor or "ANCHOR_RIGHT")
+	local t = {}
+	function t.Line(text, role, wrap)
+		local r, g, b = HostColor(role)
+		GameTooltip:AddLine(tostring(text or ""), r, g, b, wrap and true or false)
+	end
+	function t.Double(l, r) GameTooltip:AddDoubleLine(tostring(l or ""), tostring(r or "")) end
+	function t.Blank() GameTooltip:AddLine(" ") end
+	fn(t)
+	GameTooltip:Show()
+end
+ns.Host = {
+	Ink = function(fs, role, a) local r, g, b = HostColor(role) fs:SetTextColor(r, g, b, a or 1) end,
+	Tint = function(tex, role, a, vertex)
+		local r, g, b = HostColor(role)
+		if vertex then tex:SetVertexColor(r, g, b, a or 1) else tex:SetColorTexture(r, g, b, a or 1) end
+	end,
+	Untrack = function() end,
+	Skin = function(frame, opts) return ns.API.Skin(frame, opts) end,
+	OnStyle = function() end,
+	Color = HostColor,
+	TipLines = HostTipLines,
+	Tip = function(owner, title, text, hint, anchor)
+		HostTipLines(owner, function(t)
+			if title then t.Line(title, "TITLE") end
+			if text then t.Line(text, "TEXT", true) end
+			if hint then t.Line(hint, "pop", true) end
+		end, anchor)
+	end,
+}
 local padSkipped = {}
 ns.Pad = {
 	On = function() return true end,
@@ -587,6 +633,10 @@ Load("WindowList.lua")
 Load("WindowMenu.lua")
 Load("WindowChips.lua")
 Load("Window.lua")
+-- (Blizzard Style: answers at once here, the mock Host having no Blizzard calls.)
+Load("WindowBlizzard.lua")
+-- (The Blizzard Layout: inert while its setting is off, as it is until its own case below.)
+Load("WindowLayout.lua")
 
 local Window, Craft, State, W, Menu = ns.Window, ns.Craft, ns.WinState, ns.Win, ns.WinMenu
 local S = ns.state
@@ -674,7 +724,7 @@ ok(W.side:IsVisible(), "the detail column shows")
 eq(DaylightRecipesDB.win.details.recipes, true, "remembered for the Recipes tab")
 NoLabelCut("expanded")
 Hover("expanded")
-ok(DocRow("Chance of a Point"), "the detail column has the recipe's skill-up chance")
+ok(DocRow("Chance of Skill Up"), "the detail column has the recipe's skill-up chance")
 Window.SetTab("guide")
 Flush()
 eq(Window.Mode(), "compact", "the Leveling Guide tab has its own answer: shut")
@@ -2261,6 +2311,382 @@ end, function()
 	ns.LINES[185], ns.LINES[129] = nil, nil
 	S.line = 197
 	Window.OpenProfession(197, 197)
+	Flush()
+end)
+
+-- ---- each profession opens on the recipe last picked in it ----------------------------------------
+-- (Core.lua forgets the pick when another profession opens; SessionStarted brings back that one's.)
+Case("each profession opens on the recipe last picked in it", function()
+	local function Open(line)
+		W.win:Hide()
+		if line ~= S.line then S.recipe = nil end
+		S.line = line
+		Window.SessionStarted()
+		Flush()
+	end
+	Open(197)
+	Window.Select(8772)
+	eq(CHAR.lastRecipe and CHAR.lastRecipe[197], 8772, "a pick is kept for its profession")
+	Open(185)
+	eq(S.recipe, 3839, "a profession with nothing kept opens on its first recipe")
+	Window.Select(8762)
+	Open(197)
+	eq(S.recipe, 8772, "back in the first profession, its recipe again")
+	Open(185)
+	eq(S.recipe, 8762, "and the other's in the other")
+	S.recipe = nil                              -- a /reload or a relog: nothing picked yet
+	Open(185)
+	eq(S.recipe, 8762, "after a reload too")
+	CHAR.lastRecipe[197] = 99999                -- one no longer known
+	Open(197)
+	eq(S.recipe, 3839, "a recipe no longer known gives way to the first")
+	ok(not S.recipeRestored, "and is checked only once")
+end, function()
+	CHAR.lastRecipe = nil
+	S.line = 197
+end)
+
+-- ---- Blizzard Style (without Daylight UI): every tab whole, nothing of ours left in the rows -------
+-- The Host here answers as Host.lua does in Blizzard Style (Host.Tab and the rest draw nothing in
+-- this mock): what is checked is WindowBlizzard.lua's sizing and placing, the rules from Blizzard's
+-- PanelTemplates_TabResize and top tab (Mainline/SharedUIPanelTemplates.lua:475-487, 611-641).
+Case("Blizzard Style: tabs as wide as their caps, words in the art, our lines away", function()
+	local H = ns.Host
+	H.Blizzard = function() return true end
+	H.Chrome = function(_, o) if o and o.close then o.close.__bzTitle = true end return true end
+	H.Retitle = function() end
+	H.Dress = function() return true end
+	H.Tab = function() return true end
+	H.Inset = function() return nil end
+	H.ScrollArt = function() return false end
+	H.Atlas = function() return true end
+	H.Looked = function() end
+	W.win:Hide()
+	Window.SessionStarted()
+	Flush()
+	Window.Render()
+	Flush()
+	local caps = 35 + 37
+	local shown = W.Chips.Shown()
+	ok(#shown > 0, "chips show")
+	for _, c in ipairs(shown) do
+		ok(c.w >= caps, "a chip is at least its two caps wide: " .. tostring(c.w))
+		local at = c.text and c.text.points and c.text.points[1]
+		if c.text and c.text:IsShown() and at then
+			eq(at[3], "BOTTOMLEFT", "a chip's words are placed from its foot")
+			eq(at[5], c.lit and 12 or 8, "at a top tab's height")
+		end
+	end
+	for _, b in ipairs(W.tabButtons) do
+		if b:IsShown() then
+			ok(b.w >= caps, "a page tab is at least its two caps wide: " .. tostring(b.w))
+			local at = b.text.points[1]
+			eq(at[3], "BOTTOM", "a page tab's words are placed from its foot")
+			eq(at[5], b.key == W.tab and 12 or 8, "at a top tab's height")
+		end
+	end
+	for _, region in ipairs({ W.headUnder, W.skillBack, W.skillLine, W.tabUnder }) do
+		eq(region.alpha, 0, "our 1-pixel lines and the skill line are out of sight")
+	end
+	ok(W.Blz.tabShelf and W.Blz.tabShelf:IsShown(), "the page tabs stand on the inset's edge")
+	ok(W.Blz.chipShelf and W.Blz.chipShelf:IsShown(), "and the chips on theirs")
+	eq(W.detailsButton.w, 26, "Details is UIPanelSquareButton's size")
+	ok(W.detailsButton.__blzSq and W.detailsButton.__blzSq.on, "and on its art")
+	for _, t in ipairs(W.detailsButton.bars) do eq(t.alpha, 0, "its drawn outline away") end
+	if W.win.swapButton then eq(W.win.swapButton.w, 26, "Swap too") end
+	eq(W.rollButton.w, 28, "Roll Up the red button's size")
+	-- Back to the other look: all as it was.
+	H.Blizzard = function() return false end
+	Window.Render()
+	Flush()
+	for _, region in ipairs({ W.headUnder, W.skillBack, W.skillLine, W.tabUnder }) do
+		eq(region.alpha, 1, "our lines back")
+	end
+	ok(not W.Blz.tabShelf:IsShown(), "the shelf away")
+	eq(W.detailsButton.w, 20, "Details its own size again")
+	eq(W.rollButton.w, 20, "Roll Up too")
+	for _, c in ipairs(W.Chips.Shown()) do
+		local at = c.text and c.text.points and c.text.points[1]
+		if c.chip and at then eq(at[3], "LEFT", "a chip's words back at its left") end
+	end
+end, function()
+	local H = ns.Host
+	for _, k in ipairs({ "Blizzard", "Chrome", "Retitle", "Dress", "Tab", "Inset", "ScrollArt", "Atlas", "Looked" }) do H[k] = nil end
+	W.Blz.ready = nil
+end)
+
+-- ---- The Blizzard Layout: the game's profession window's shape, its professions on the LEFT -----
+-- WindowLayout.lua over the same window: the game's width (Camelot/Blizzard_ProfessionsFrame.xml:11),
+-- the list beside the details, a side tab per profession hung off the left edge (the game's first
+-- 60 under the top, each next 2 under the last: xml:13-61), the page tabs under the window, and the
+-- compact window's places all back when it is turned off or rolled up. (Another look here: the
+-- mock Host has no Blizzard Style, so the tabs are the look's own, flush with the window's edges.)
+Case("Blizzard Layout: laid out like the game's window, its professions as tabs on the left", function()
+	local Lay = ns.WinLayout
+	Enum = { SpellBookSpellBank = { Player = 0 } }
+	C_SpellBook = { GetSpellBookItemInfo = function(slot) return { spellID = 5000 + slot } end }
+	C_TradeSkillUI.CanTradeSkillShowCraftingUI = function() return true end
+	GetProfessions = function() return 1, 2, 4, 3, 5 end
+	GetProfessionInfo = function(i)
+		if i == 4 then return "First Aid", 9, 79, 150, 0, 60, 129 end
+		if i == 5 then return "Cooking", 10, 153, 225, 0, 40, 185 end
+		local name, icon, skill, max, n, _, line = realProfessionInfo(i)
+		return name, icon, skill, max, n, i * 10, line
+	end
+	ns.LINES[185], ns.LINES[129] = true, true
+	S.line, S.recipe = 197, 3839
+	win:Hide()
+	Window.SessionStarted()
+	Window.SetTab("recipes")
+	SETTINGS.blizzardLayout = true
+	Window.Relayout()
+	Flush()
+	eq(Window.Mode(), "layout", "the layout is on")
+	SizeIs(Lay.Width(Lay.detailW), 560, "the game's width (wider for Create All [999]), the player's height")
+	ok(Lay.detailW >= Lay.DETAIL_W, "never under the game's 673")
+	ok(not W.tabRow:IsShown() and not W.chipBar:IsShown(), "no tab row and no chips in the title bar")
+	ok(not W.detailsButton:IsShown(), "no Details button: the details are always open")
+	ok(W.side:IsShown() and W.list:IsShown(), "the list and the details side by side")
+	ok(not W.summary:IsShown(), "no summary line")
+	-- The side tabs: a button each, hung off the left edge (TOPRIGHT to the window's TOPLEFT).
+	local function Side()
+		local out = {}
+		for _, o in ipairs(ALL) do
+			local at = rawget(o, "points") and o.points[1]
+			if o.kind == "Button" and rawget(o, "chip") and o:IsShown() and at and at[1] == "TOPRIGHT" and at[2] == win then
+				out[#out + 1] = o
+			end
+		end
+		table.sort(out, function(m1, m2) return m1.points[1][5] > m2.points[1][5] end)
+		return out
+	end
+	local side = Side()
+	local entries = Menu.Entries()
+	eq(#side, #entries + #Menu.Parts(), "a side tab per profession and Camping, then Alts, Cooldowns and Tracking each")
+	for k, t in ipairs(side) do
+		local at = t.points[1]
+		eq(at[3], "TOPLEFT", "hung off the window's left edge")
+		eq(at[4], 0, "flush with it (no art outside the frame in this look)")
+		eq(at[5], -(Lay.SIDE_TOP + (k - 1) * (Lay.OWN_SIDE + Lay.SIDE_GAP)), "60 under the top, each next 2 under the last")
+		eq(t.w, Lay.OWN_SIDE, "the look's own size")
+	end
+	local tail
+	for _, t in ipairs(side) do if t.entry and t.entry.name == "Tailoring" then tail = t end end
+	ok(tail and tail.lit, "the open profession's tab is the lit one")
+	eq(tail.cast, nil, "and has no spell (casting it again would close it)")
+	-- A press on another: its spell through the secure button the chips use, out of a fight only.
+	local cook
+	for _, t in ipairs(side) do if t.entry and t.entry.name == "Cooking" then cook = t end end
+	ok(cook and cook.cast == 5041, "Cooking's tab carries its spell")
+	cook.left, cook.bottom = 40, 700
+	cook.scripts.OnEnter(cook)
+	local cast = _G.DaylightRecipesMenuCast
+	ok(cast and cast:IsShown() and cast.attrs.spell == 5041, "the secure button is over the tab under the mouse")
+	ok(cast.px == 40 and cast.py == 700 and cast.w == cook.w, "exactly over it")
+	ok(cast.level > cook.level, "over the tab")
+	eq(Menu.PadCast(cook).spell, 5041, "a controller's A on it casts the same spell")
+	Fire("PLAYER_REGEN_DISABLED")
+	ok(not cast:IsShown(), "a fight starts: put away")
+	FIGHT = true
+	cook.scripts.OnEnter(cook)
+	Window.Render()
+	ok(not cast:IsShown(), "in a fight it stays away")
+	eq(Menu.PadCast(cook), nil, "and A casts nothing in a fight")
+	FIGHT = false
+	cook.left, cook.bottom = nil, nil   -- (the mock's place, not a doc row's left text: DocRow reads "left")
+	MENU = nil
+	tail.scripts.OnClick(tail, "RightButton")
+	ok(MENU and table.concat(MENU.keys, " ") == "link unlearn", "a right-click on a side tab: Link to Chat and Unlearn")
+	MENU.catcher:Hide()
+	-- The page tabs under the window, left to right.
+	local ltabs = Lay.Tabs()
+	eq(#ltabs, 5, "five page tabs under the window")
+	local x = -1
+	for _, t in ipairs(ltabs) do
+		local at = t.points[1]
+		ok(at[1] == "TOPLEFT" and at[2] == win and at[3] == "BOTTOMLEFT", "hung under the window")
+		ok(at[4] > x, "left to right")
+		x = at[4]
+		ok(t.w >= 6 * #strip(t.text.textValue) + 24, "a tab holds its words: " .. tostring(t.text.textValue))
+	end
+	local padList = win.padTabs()
+	eq(#padList, 5, "LB / RB step through them")
+	eq(Window.TourParts().tabs[1], ltabs[1], "the tours light them")
+	ltabs[2]:Click()
+	Flush()
+	eq(W.tab, "guide", "a page tab's press opens its page")
+	Window.SetTab("recipes")
+	Flush()
+	-- The recipe's details: the game's schematic, then ours.
+	ok(DocRow("Chance of Skill Up"), "our skill-up chance under the schematic")
+	local slot
+	for _, o in ipairs(ALL) do if rawget(o, "itemID") == 4306 and o:IsVisible() then slot = o end end
+	ok(slot and strip(slot.name.textValue):find("^%d+/3 "), "a reagent slot says have/need: " .. tostring(slot and slot.name.textValue))
+	-- The craft bar: Create All [N], the spinner, Create; Queue in the details' corner.
+	local lcb = W.craftBar
+	eq(lcb.max.text.textValue, "Create All [12]", "Max is the game's Create All, with how many")
+	eq(lcb.max.points[1][1], "LEFT", "at the bar's left")
+	eq(lcb.queue.points[1][2], W.side, "Queue in the details' corner")
+	local before = #CRAFTED
+	lcb.max:Click()
+	ok(#CRAFTED > before and CRAFTED[#CRAFTED][1] == 3839 and CRAFTED[#CRAFTED][2] == 12, "Create All makes all you can")
+	Craft.Cancel()
+	Flush()
+	-- Filter: our two filters in its menu, and a way to clear them.
+	local filter
+	for _, o in ipairs(ALL) do
+		if o.kind == "Button" and rawget(o, "text") and o.text.textValue == "Filter" and o:IsVisible() then filter = o end
+	end
+	ok(filter, "a Filter button beside the search")
+	MENU = nil
+	filter:Click()
+	ok(MENU and MENU.keys[1] == "canMake" and MENU.keys[2] == "skillUps", "its menu holds Can Make and Skill-ups")
+	MENU.onPick("canMake")
+	Flush()
+	eq(DaylightRecipesDB.win.canMake, true, "a pick turns the filter on")
+	MENU = nil
+	filter:Click()
+	ok(MENU and MENU.keys[3] == "clear", "and offers to clear them")
+	MENU.onPick("clear")
+	Flush()
+	eq(DaylightRecipesDB.win.canMake, nil, "cleared")
+	-- The rows: the skill-up arrow before the name, the count after it.
+	local lrow
+	for _, o in ipairs(ALL) do
+		if rawget(o, "entry") and o.entry.spell == 8762 and o:IsVisible() then lrow = o end
+	end
+	ok(lrow and lrow.__lay and lrow.__lay.arrow:IsShown(), "an orange recipe has the game's arrow")
+	ok(lrow and strip(lrow.name.textValue) == "Silk Headband [4]", "its count after its name: " .. tostring(lrow and lrow.name.textValue))
+	ok(lrow and not lrow.right:IsShown(), "not at the row's end")
+	Hover("the Blizzard Layout")
+	-- Other tabs: their page in the list's column, the details beside it.
+	Window.SetTab("guide")
+	Flush()
+	eq(Window.Mode(), "layout", "the Leveling Guide in the layout")
+	ok(W.side:IsShown(), "the details stay open")
+	Window.SetTab("missing")
+	Flush()
+	local lvest
+	for _, o in ipairs(ALL) do
+		if o.kind == "Button" and type(rawget(o, "left")) == "table" and o:IsVisible() and rawget(o, "onClick")
+			and strip(o.left.textValue) == "Crimson Silk Vest" then lvest = o end
+	end
+	ok(lvest, "a missing recipe's row in the list's column")
+	ok(lvest.parent.parent.parent ~= W.side, "the list's, not the details'")
+	lvest.onClick("LeftButton", lvest)
+	Flush()
+	local ltepa = DocRow("Tepa")
+	ok(ltepa and ltepa.parent.parent.parent == W.side, "its sources in the details")
+	Window.SetTab("recipes")
+	Flush()
+	-- Details can't slide here (it would size the window).
+	Window.SetDetails(false)
+	Flush()
+	SizeIs(Lay.Width(Lay.detailW), 560, "no slide in the layout")
+	-- An alt's page: the whole width, no page tabs.
+	Window.ShowAlt("Player-1", 171)
+	Flush()
+	ok(not W.side:IsShown() and #Lay.Tabs() == 0, "an alt's page: no details, no page tabs")
+	Window.SetTab("recipes")
+	Flush()
+	-- Rolled up: the compact window's bar, every place of the layout put back.
+	Window.SetRolled(true)
+	Flush()
+	eq(Window.Mode(), "rolled", "rolled up")
+	eq(#Side(), 0, "no side tabs rolled up")
+	eq(W.body:GetParent().points[1][5], -State.HEADER, "the column under the header again")
+	Window.SetRolled(false)
+	Flush()
+	eq(Window.Mode(), "layout", "unrolled: the layout again")
+	-- Off: the compact window, no reload.
+	SETTINGS.blizzardLayout = nil
+	Window.Relayout()
+	Flush()
+	ok(Window.Mode() ~= "layout", "off: the compact window")
+	eq(#Side(), 0, "no side tabs")
+	eq(#Lay.Tabs(), 0, "no page tabs under it")
+	ok(W.tabRow:IsShown() and W.chipBar:IsShown(), "its tab row and chips back")
+	eq(W.search.points[1][2], W.body, "the search back in the column")
+	eq(lcb.points[1][2], W.body, "the craft bar too")
+	eq(lcb.max.text.textValue, "Max 12", "Max again")
+	eq(lcb.queue.points[1][2], lcb.minus, "Queue beside the count again")
+	local insets = win.clampInsets
+	ok(insets and insets[1] == 0 and insets[4] == 0, "the clamp is the frame's own again")
+	ok(lrow and not lrow.__lay.arrow:IsShown() and lrow.right:IsShown(), "the rows as they were")
+	NoLabelCut("the layout off again")
+end, function()
+	SETTINGS.blizzardLayout = nil
+	FIGHT = false
+	GetProfessions, GetProfessionInfo = realProfessions, realProfessionInfo
+	C_TradeSkillUI.CanTradeSkillShowCraftingUI = nil
+	C_SpellBook, Enum = nil, nil
+	ns.LINES[185], ns.LINES[129] = nil, nil
+	S.line = 197
+	DaylightRecipesDB.win.canMake = nil
+	Window.Relayout()
+	Flush()
+end)
+
+-- ---- The Blizzard Layout in Blizzard Style: the art outside our frame, the tabs off its edges -----
+-- Host.Outset gives how far the titled window's art reaches (left 9, right 6, top 24, bottom 4):
+-- the side tabs hang off the art's left edge, 60 under its top; the page tabs 22 in and 2 up from
+-- its foot (Mainline/Blizzard_ProfessionsFrame.xml:12-20); the clamp takes both in.
+Case("Blizzard Layout in Blizzard Style: tabs off the art's edges, the clamp round them", function()
+	local Lay = ns.WinLayout
+	local H = ns.Host
+	H.Blizzard = function() return true end
+	H.Chrome = function(_, o) if o and o.close then o.close.__bzTitle = true end return true end
+	H.Retitle = function() end
+	H.Dress = function() return true end
+	H.Tab = function() return true end
+	H.Inset = function() return nil end
+	H.ScrollArt = function() return false end
+	H.Atlas = function() return true end
+	H.Looked = function() end
+	H.Outset = function() return 9, 6, 24, 4 end
+	win:Hide()
+	Window.SessionStarted()
+	Window.SetTab("recipes")
+	SETTINGS.blizzardLayout = true
+	Window.Relayout()
+	Flush()
+	eq(Window.Mode(), "layout", "on")
+	local side = {}
+	for _, o in ipairs(ALL) do
+		local at = rawget(o, "points") and o.points[1]
+		if o.kind == "Button" and rawget(o, "chip") and o:IsShown() and at and at[1] == "TOPRIGHT" and at[2] == win then
+			side[#side + 1] = o
+		end
+	end
+	table.sort(side, function(m1, m2) return m1.points[1][5] > m2.points[1][5] end)
+	ok(#side > 0, "side tabs")
+	eq(side[1].points[1][4], -9, "off the art's left edge")
+	eq(side[1].points[1][5], -(60 - 24), "60 under the art's top")
+	ok(side[1].art and side[1].art.bg:IsShown(), "on the game's side tab art")
+	ok(not side[1].holder:IsShown(), "the look's own shell away")
+	local ltabs = Lay.Tabs()
+	ok(#ltabs == 5, "the page tabs")
+	eq(ltabs[1].points[1][4], 22 - 9, "22 in from the art's left")
+	eq(ltabs[1].points[1][5], 2 - 4, "2 up from the art's foot")
+	eq(ltabs[1].h, 32, "the game's 32 high")
+	for _, t in ipairs(ltabs) do ok(t.w >= 100, "at least 100 wide") end
+	local picked = Lay.TabOf()[W.tab]
+	ok(picked and picked.art.LeftActive:IsShown() and not picked.art.Left:IsShown(), "the open page's tab on the active art")
+	local insets = win.clampInsets
+	ok(insets and insets[1] == -(9 + side[1].w) and insets[2] == 6 and insets[3] == 24 and insets[4] == -34,
+		"the clamp takes in the side tabs and the page tabs: " .. table.concat(insets or {}, ","))
+	Hover("the Blizzard Layout in Blizzard Style")
+	SETTINGS.blizzardLayout = nil
+	Window.Relayout()
+	Flush()
+	insets = win.clampInsets
+	ok(insets and insets[1] == -9 and insets[4] == -4, "off: the art's own clamp, as Host sets it")
+end, function()
+	SETTINGS.blizzardLayout = nil
+	local H = ns.Host
+	for _, k in ipairs({ "Blizzard", "Chrome", "Retitle", "Dress", "Tab", "Inset", "ScrollArt", "Atlas", "Looked", "Outset" }) do H[k] = nil end
+	W.Blz.ready = nil
+	Window.Relayout()
 	Flush()
 end)
 

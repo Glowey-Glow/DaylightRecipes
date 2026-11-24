@@ -31,18 +31,11 @@ function Pages.Skill(d, spell)
 		return chance
 	end
 	local t = Calc.Thresholds(spell)
-	-- The game's own color when it rates the recipe (one you know), else from the thresholds.
-	local step = Calc.Step(spell)
-	if not step then
-		step = 4
-		if t then
-			for i = 1, 3 do if (S.skill or 0) < t[i + 1] then step = i break end end
-		end
-	end
-	local r, g, b = DiffColor(step)
-	local row = d:Row({ left = L["Chance of a Point"], right = Pct(chance) })
+	-- (The percent and its bar in the chance's own color: red when it's unlikely, green when sure.)
+	local r, g, b = Doc.ChanceColor(chance)
+	local row = d:Row({ left = L["Chance of Skill Up"], right = Pct(chance) })
 	row.right:SetTextColor(r, g, b)
-	d:Bar(chance)
+	d:Bar(chance, r, g, b)
 	if t then
 		local marks = {}
 		local words = { L["orange %d"], L["yellow %d"], L["green %d"], L["gray %d"] }
@@ -97,6 +90,31 @@ end
 -- opts.handed: the total is Daylight UI's window's to show (the pane docked to it, Pane.lua's
 -- ProfitHanded): the materials with their prices and the cost per skill point stay, the Total row
 -- and the note on a short total go.
+-- A material's second line: where its price comes from, and with `have` what you hold of it and an
+-- alt's alert ("86 in the bank · Vendor, 1s each · [Mira Has 4]"). sub, its ink. Also the Blizzard
+-- Layout's reagent slots' line (WindowLayout.lua).
+function Pages.MaterialSub(m, have)
+	local sub
+	if m.kind == "ah" then
+		sub = L["Auction House, %s each"]:format(Calc.Money(m.unit))
+	elseif m.kind == "vendor" then
+		sub = L["%s, %s each"]:format(m.who or L["Vendor"], Calc.Money(m.unit))
+	else
+		sub = L["No price known"]
+	end
+	local subInk = m.unit and "TEXT" or "OFF"
+	if have then
+		local text, held = HaveText(m.itemID)
+		local bags = held and held.bags or 0
+		if text then sub = text .. " · " .. sub end
+		local alert = bags < m.count and Pages.AltAlert(held)
+		if alert then sub = sub .. " · " .. alert end
+		-- (Short in your bags, where crafting takes them from: said in the warning ink.)
+		if bags < m.count then subInk = "WARN" end
+	end
+	return sub, subInk
+end
+
 function Pages.Cost(d, spell, chance, opts)
 	d:Heading(L["Materials"])
 	local cost = Calc.Cost(spell)
@@ -106,32 +124,22 @@ function Pages.Cost(d, spell, chance, opts)
 	end
 	for _, m in ipairs(cost.rows) do
 		local name, icon = ItemName(m.itemID, d)
-		local sub
-		if m.kind == "ah" then
-			sub = L["Auction House, %s each"]:format(Calc.Money(m.unit))
-		elseif m.kind == "vendor" then
-			sub = L["%s, %s each"]:format(m.who or L["Vendor"], Calc.Money(m.unit))
-		else
-			sub = L["No price known"]
-		end
-		local subInk = m.unit and "TEXT" or "OFF"
-		if opts and opts.have then
-			local text, have = HaveText(m.itemID)
-			local bags = have and have.bags or 0
-			if text then sub = text .. " · " .. sub end
-			local alert = bags < m.count and Pages.AltAlert(have)
-			if alert then sub = sub .. " · " .. alert end
-			-- (Short in your bags, where crafting takes them from: said in the warning ink.)
-			if bags < m.count then subInk = "WARN" end
-		end
+		local sub, subInk = Pages.MaterialSub(m, opts and opts.have)
 		d:Row({ icon = icon, left = name .. (m.count > 1 and ("  x" .. m.count) or ""),
 			right = m.total and Calc.Money(m.total) or "?", rightInk = m.total and "VALUE" or "OFF",
 			sub = sub, subInk = subInk, tip = ItemTip(m.itemID) })
 	end
+	Pages.CostFoot(d, spell, cost, chance, opts)
+	return cost
+end
+
+-- Under the materials: the total, the note on a short one, the cost per skill point, and the note
+-- on vendor prices only. Also under the Blizzard Layout's reagent slots (WindowLayout.lua).
+function Pages.CostFoot(d, spell, cost, chance, opts)
 	local handed = opts and opts.handed
 	if not handed then d:Row({ left = L["Total"], leftInk = "LABEL", right = Calc.Money(cost.total) }) end
 	if not cost.complete then
-		if not handed then d:Line(L["Some materials have no price, so the total is short."], "small", "WARN") end
+		if not handed then d:Line(L["Scan Auction House to Update Price"], "small", "WARN") end
 	elseif chance and chance > 0 then
 		-- (Expected points per craft: the chance times the points one gives.)
 		local points = chance * Calc.SkillUps(spell)
@@ -662,10 +670,11 @@ local function StepCard(d, ctx, s, n, glowTop)
 		d:Gap(4)
 		d:Buttons(buttons)
 	end
-	if glowTop then d:GlowFrom(glowTop) end
+	-- (Its box in the recipe's skill-up color now, as its arrow in the list.)
+	if glowTop then d:GlowFrom(glowTop, DiffColor(Calc.Step(s.spell) or 2)) end
 	-- The next best recipes when the step began, for when you'd rather (or lack its materials).
 	if s.alts and #s.alts > 0 then
-		d:Line(L["Or Instead"], "small", "LABEL")
+		d:Line(L["Alternates"], "small", "LABEL")
 		for _, a in ipairs(s.alts) do
 			local m, k = Net(a.perPoint, true)
 			-- (A material with no price: its cost a point is not known. The route's own figure

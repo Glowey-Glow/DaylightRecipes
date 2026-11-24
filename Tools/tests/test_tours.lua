@@ -191,7 +191,7 @@ end
 
 -- ---- the window's tour ---------------------------------------------------------------------------
 local window = Guide.Tour("window")
-T.ok(window and #window.steps >= 10 and #window.steps <= 14, "the window's tour: about ten steps, two of them only where they apply (" .. #window.steps .. ")")
+T.ok(window and #window.steps >= 10 and #window.steps <= 20, "the window's tour: every part, compact or Blizzard Layout, some only where they apply (" .. #window.steps .. ")")
 local titles = {}
 for i, step in ipairs(window.steps) do
 	sound("window", step, i)
@@ -213,7 +213,7 @@ T.ok(words(titles["Your Professions"]):find("Show Your Alts' Professions", 1, tr
 T.ok(words(titles["Roll Up"]):find("Craft Next", 1, true) and words(titles["Roll Up"]):find("queue", 1, true),
 	"Roll Up's step says the rolled-up bar is the queue's next, with Craft Next")
 T.ok(words(titles["Leveling Guide"]):find("orange or yellow", 1, true), "the guide's step says a step only uses recipes that give points")
-T.ok(words(titles["Each Step"]):find("Or Instead", 1, true), "and names Or Instead")
+T.ok(words(titles["Each Step"]):find("Alternates", 1, true), "and names Alternates")
 T.ok(words(titles["Queue"]):find("Queue List", 1, true), "the queue's step names the Queue List")
 T.ok(words(titles["Missing Recipes"]):find("pin on your map", 1, true), "the Missing step says how to find a source")
 -- A missing part is no error: the card stands alone (a part of a window that is not open).
@@ -240,16 +240,19 @@ ns.ProfLost.Loaded = function() return false end
 ns.ProfLost.Handed = function() return false end
 ns.Pane = { ProfitCould = function() return false end }
 local plain = runLength("window")
-T.eq(plain, #window.steps - 2, "without Professionally Lost and the Docked Pane's hand-off: neither of their steps")
+-- (Nor, in the compact window, the Blizzard Layout's two (The Recipe, Link to Chat) and Camping's,
+-- told only on its page.)
+T.eq(plain, #window.steps - 5, "without Professionally Lost and the Docked Pane's hand-off: neither of their steps")
 ns.ProfLost.Loaded = function() return true end
 T.eq(runLength("window"), plain + 1, "with Professionally Lost installed: its step")
 ns.ProfLost.Loaded = function() return false end
 ns.Pane.ProfitCould = function() return true end
 T.eq(runLength("window"), plain, "Daylight UI could show profit, but Recipes' own window is in use: no step about the pane")
 GAME.settings.window = "pane"
-T.eq(runLength("window"), plain + 1, "the Docked Pane beside a Daylight UI that shows cost and profit: its step")
+-- (Its step in, the Blizzard Layout's out: that is about Recipes' own window, not in use here.)
+T.eq(runLength("window"), plain, "the Docked Pane beside a Daylight UI that shows cost and profit: its step, and not the Blizzard Layout's")
 ns.Pane.ProfitCould = function() return false end
-T.eq(runLength("window"), plain, "the pane without that: no step")
+T.eq(runLength("window"), plain - 1, "the pane without that: no step (and no Blizzard Layout step)")
 -- A profession whose guide is Professionally Lost's: the steps of the two tabs that are gone are left out.
 ns.ProfLost.Handed = function(key) return key == "guide" end
 GAME.settings.window = "recipes"

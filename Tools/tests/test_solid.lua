@@ -75,15 +75,15 @@ end)
 -- has to be put on one side or the other here.
 T.case("every frame the plugin dresses is a window (follows the opacity) or a solid popup", function()
 	local SOLID = {
-		["Shop.lua"] = { 'ns.SkinWindow(list, { solid = true })', 'API.Skin(f, { bgAlpha = 1 })' },
+		["Shop.lua"] = { 'ns.SkinWindow(list, { solid = true })', 'ns.Host.Skin(f, { bgAlpha = 1 })' },
 		["ProfLost.lua"] = { 'ns.SkinWindow(f, { solid = true })', 'ns.SkinWindow(f, { solid = true })' },
 		["WindowMenu.lua"] = { 'API.Skin(menu, LOOK)', 'API.Skin(menu, LOOK)' },
 	}
 	local FOLLOWS = {
 		["Shop.lua"] = { 'ns.SkinWindow(s)' },
 		["Window.lua"] = { 'ns.SkinWindow(win)', 'ns.SkinWindow(win)', 'ns.SkinWindow(win)' },
-		["Pane.lua"] = { 'ns.SkinWindow(mogulPane)', 'ns.SkinWindow(mogulPane)', 'API.Skin(foldTab, { noBevel = true })' },
-		["EnchantRow.lua"] = { 'API.Skin(slot, { noBevel = true })' },
+		["Pane.lua"] = { 'ns.SkinWindow(mogulPane)', 'ns.SkinWindow(mogulPane)', 'ns.Host.Skin(foldTab, { noBevel = true })' },
+		["EnchantRow.lua"] = { 'ns.Host.Skin(slot, { noBevel = true })' },
 		-- (The tours' cards and notes: Guide.lua is shared with the other plugins, as it is.)
 		["Guide.lua"] = { 'API.Skin(card, { window = true })', 'API.Skin(toast, { window = true })', 'API.Skin(toast, { window = true })',
 			'API.Skin(card, { window = true })', 'API.Skin(note, { window = true })', 'API.Skin(note, { window = true })' },
@@ -101,7 +101,9 @@ T.case("every frame the plugin dresses is a window (follows the opacity) or a so
 		local got = {}
 		for line in read(file):gmatch("[^\n]+") do
 			local code = line:gsub("%-%-.*$", "")
-			local call = code:match("(ns%.SkinWindow%(.-%))%s*$") or code:match("(API%.Skin%(.-%))%s*$")
+			-- (ns.Host.Skin: Host.lua's API.Skin, dressed again after a look change.)
+			local call = code:match("(ns%.SkinWindow%(.-%))%s*$") or code:match("(ns%.Host%.Skin%(.-%))%s*$")
+				or code:match("(API%.Skin%(.-%))%s*$")
 				or code:match("(API%.Skin%(.-%)) end%s*$")
 			if call and not code:find("function ns.SkinWindow", 1, true) and not code:find("pairs(skinned)", 1, true) then
 				got[#got + 1] = call

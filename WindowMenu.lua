@@ -42,6 +42,8 @@ local CAMP_ICON = 279981  -- the Basic Campfire Kit's icon, for the camping page
 Menu.CAMP_ICON = CAMP_ICON
 
 local catcher, menu, body, list, track, cool, thumb
+local only                      -- the one part the open menu shows: "alts", "cooldowns" or
+                                -- "tracking" (the Blizzard Layout's side tab for it), or nil (all)
 local listed                    -- which of your professions the open menu lists: true (all), a set
                                 -- by the game's skill line (and W.CAMP), or nil (none)
 -- The menu's look: DaylightUI's shell, its background fully solid. It lies over the window's page,
@@ -669,7 +671,7 @@ end
 
 PaintTrack = function()
 	if not track then return end
-	local all = TrackingList()
+	local all = (only and only ~= "tracking") and {} or TrackingList()
 	for i = #all + 1, #trackTiles do
 		local b = trackTiles[i]
 		b:Hide()
@@ -742,15 +744,16 @@ local function CoolTile(index)
 		self.wash:Show()
 		local t = self.tile
 		if not t then return end
-		GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
-		for i, name in ipairs(t.names) do GameTooltip:AddLine(name, Color(i == 1 and "VALUE" or "TEXT")) end
-		if t.readyAt == 0 then
-			GameTooltip:AddLine(L["Ready to craft"], Color("GOOD"))
-		else
-			GameTooltip:AddLine(L["Ready in %s"]:format(ns.Cooldowns.Left(t.readyAt)), Color("WARN"))
-		end
-		GameTooltip:AddLine(L["Click: show the recipe"], Color("LABEL"))
-		GameTooltip:Show()
+		-- (Host.TipLines: the look's roles, the click hint in the accent.)
+		ns.Host.TipLines(self, function(tip)
+			for i, name in ipairs(t.names) do tip.Line(name, i == 1 and "TITLE" or "TEXT") end
+			if t.readyAt == 0 then
+				tip.Line(L["Ready to craft"], "GOOD")
+			else
+				tip.Line(L["Ready in %s"]:format(ns.Cooldowns.Left(t.readyAt)), "WARN")
+			end
+			tip.Line(L["Click: show the recipe"], "pop")
+		end, "ANCHOR_RIGHT")
 	end)
 	b:SetScript("OnLeave", function(self)
 		self.wash:Hide()
@@ -769,7 +772,7 @@ end
 
 PaintCooldowns = function()
 	if not cool then return end
-	local all = ns.Cooldowns and ns.Cooldowns.List() or {}
+	local all = (only and only ~= "cooldowns") and {} or (ns.Cooldowns and ns.Cooldowns.List() or {})
 	for i = #all + 1, #coolTiles do coolTiles[i]:Hide() end
 	if #all == 0 then
 		StopCoolTicker()
@@ -864,25 +867,30 @@ function Menu.Entries()
 	local alt, gather = W.alt, W.gather
 	for _, p in ipairs(MyProfessions()) do
 		local picked
+		-- (The open one: by our line, or for one we have no recipes for, as Fishing, by its name.)
+		local isOpen = S.line ~= nil and p.line == S.line or (S.line == nil and S.name ~= nil and p.name == S.name)
 		if gather then
 			picked = not alt and gather == p.game
 		else
-			picked = not alt and S.mode == "win" and not W.Linked() and p.line == S.line
+			picked = not alt and S.mode == "win" and not W.Linked() and isOpen
 		end
 		-- (One with recipes opens its trade skill; a gathering one shows its own page.)
 		-- Its spell opens it (PlaceCaster), unless it is the one open now: casting that again would
 		-- close it, and its own click shows its recipes (OpenProfession).
-		local openNow = S.mode == "win" and S.line == p.line and not W.Linked()
+		local openNow = S.mode == "win" and isOpen and not W.Linked()
 		local more = p.crafts or p.primary
+		-- (One the data has no recipes for, whose recipe window the game still opens, as Fishing's
+		-- with its camping recipes: opened as the others are, not shown as a gathering page.)
+		local window = p.crafts or p.spell ~= nil
 		out[#out + 1] = { key = p.game, prof = p, icon = p.icon, name = p.name,
 			sub = p.max > 0 and ("%d / %d"):format(p.skill, p.max) or "",
 			value = p.max > 0 and p.skill / p.max or nil, picked = picked,
-			cast = p.crafts and not openNow and p.spell or nil,
+			cast = window and not openNow and p.spell or nil,
 			onClick = function()
 				Menu.Close()
 				if p.crafts and IsModifiedClick("CHATLINK") then
 					ns.Window.LinkProfession(p.line, p.game)
-				elseif p.crafts then
+				elseif window then
 					ns.Window.OpenProfession(p.line, p.game)
 				else
 					ns.Window.ShowGather(p.game)
@@ -928,6 +936,31 @@ function Menu.HasMore()
 	return #(ns.Cooldowns and ns.Cooldowns.List() or {}) > 0
 end
 
+-- The menu's parts one at a time, for the Blizzard Layout's side tabs (one tab each): the ones
+-- with something in them, in the menu's order, each { kind, icon, count }. Its icon is the first
+-- entry's own (a tracking spell's, a cooldown recipe's), the alts' a group's.
+function Menu.Parts()
+	local out = {}
+	local alts = AltRows()
+	if #alts > 0 then
+		out[#out + 1] = { kind = "alts", icon = "Interface\\Icons\\INV_Misc_GroupNeedMore", count = #alts }
+	end
+	local cds = ns.Cooldowns and ns.Cooldowns.List() or {}
+	if #cds > 0 then
+		out[#out + 1] = { kind = "cooldowns", icon = cds[1].icon or "Interface\\Icons\\INV_Misc_PocketWatch_01", count = #cds }
+	end
+	local tracks = TrackingList()
+	if #tracks > 0 then
+		local icon = tracks[1].icon
+		for _, t in ipairs(tracks) do if t.on and t.icon then icon = t.icon break end end
+		out[#out + 1] = { kind = "tracking", icon = icon or "Interface\\Icons\\INV_Misc_Spyglass_03", count = #tracks }
+	end
+	return out
+end
+
+-- The part the open menu shows alone (Menu.Parts' kind), or nil.
+function Menu.Only() return Menu.Shown() and only or nil end
+
 local function PaintRows()
 	for i = 1, #rows do rows[i]:Hide() end
 	used, y = 0, 6 - scroll
@@ -950,7 +983,7 @@ local function PaintRows()
 	-- Unlearn are behind a right-click on the chip, never a row or a line of this menu.)
 	-- Your alts' professions on this server, from the last time each opened them (the "Show Your
 	-- Alts' Professions" option; off: none are listed).
-	local alts = AltRows()
+	local alts = (only and only ~= "alts") and {} or AltRows()
 	if #alts > 0 then
 		table.sort(alts, function(a, b)
 			if (a.c.name or "") ~= (b.c.name or "") then return (a.c.name or "") < (b.c.name or "") end
@@ -985,7 +1018,9 @@ Paint = function()
 	-- the mouse is on.)
 	HideCaster()
 	menu:SetScale(win:GetScale())
-	local room = math.max(120, win:GetHeight() - State.HEADER - 4)
+	-- (Under the header; in the Blizzard Layout under its rank bar, over the recipe list: its Top.)
+	local top = W.Lay and W.Lay.Active() and W.Lay.Top() or State.HEADER
+	local room = math.max(120, win:GetHeight() - top - 4)
 	for _ = 1, 2 do
 		widest = 0
 		PaintTrack()
@@ -1000,7 +1035,7 @@ Paint = function()
 		if same then break end
 	end
 	menu:ClearAllPoints()
-	menu:SetPoint("TOPLEFT", win, "TOPLEFT", 2, -(State.HEADER + 2))
+	menu:SetPoint("TOPLEFT", win, "TOPLEFT", 2, -(top + 2))
 	-- (Fewer rows than before, scrolled past the end: back to the end.)
 	local most = math.max(0, tall - list:GetHeight() + 8)
 	if scroll > most then
@@ -1119,10 +1154,11 @@ local function SettleShell()
 end
 
 -- which: the professions of yours it lists as rows (see `listed`, above); from: what opened it,
--- where a controller's cursor goes back to when it closes.
-function Menu.Open(which, from)
+-- where a controller's cursor goes back to when it closes; part: the one part to show (`only`).
+function Menu.Open(which, from, part)
 	if not W.win or not W.win:IsShown() then return end
 	listed = which or nil
+	only = part or nil
 	W.menuFrom = from
 	-- (Rolled up there is no room under the header for it: the window unrolls first.)
 	if W.Rolled() then ns.Window.SetRolled(false) end
@@ -1135,6 +1171,7 @@ function Menu.Open(which, from)
 	menu:Show()
 	SettleShell()
 	Paint()
+	if W.Lay and W.Lay.Relight then W.Lay.Relight() end
 	-- (A controller starts on the open profession's row, else the first.)
 	if Pad.On() then
 		local first
@@ -1155,13 +1192,15 @@ function Menu.Close()
 	GameTooltip:Hide()
 	HideCaster()
 	catcher:Hide()
+	if W.Lay and W.Lay.Relight then W.Lay.Relight() end
 	local from = W.menuFrom
 	if not (from and from:IsVisible()) then from = W.nameButton end
 	if W.win and W.win:IsShown() and Pad.On() then Pad.Settle(from) end
 end
 
-function Menu.Toggle(which, from)
-	if Menu.Shown() then Menu.Close() else Menu.Open(which, from) end
+function Menu.Toggle(which, from, part)
+	-- (Open on another part, from another side tab: that part instead.)
+	if Menu.Shown() and (part or nil) == only then Menu.Close() else Menu.Open(which, from, part) end
 end
 
 function Menu.Restyle()
@@ -1179,6 +1218,7 @@ trackEvents:RegisterEvent("MINIMAP_UPDATE_TRACKING")
 trackEvents:RegisterEvent("SPELLS_CHANGED")
 trackEvents:SetScript("OnEvent", function()
 	if Menu.Shown() then Paint() end
+	if W.gather == "tracking" and W.win and W.win:IsVisible() then ns.Window.Render() end
 end)
 
 -- ---------------------------------------------------------------------------------------------
@@ -1351,6 +1391,114 @@ function Menu.GatherPage(d)
 end
 
 -- Every profession's camping items, in place of a profession's page.
+-- ---------------------------------------------------------------------------------------------
+-- Alts, Cooldowns and Tracking as pages of the window (the Blizzard Layout's side tabs for them),
+-- shown where Camping's page is (W.gather set to their key)
+-- ---------------------------------------------------------------------------------------------
+
+W.ALTS, W.COOLS, W.TRACK = "alts", "cooldowns", "tracking"
+local PART_PAGE = { alts = true, cooldowns = true, tracking = true }
+function Menu.IsPartPage(gather) return gather ~= nil and PART_PAGE[gather] == true end
+
+-- The page's name and icon (the title bar and the portrait).
+function Menu.PartTitle(kind)
+	local words = { alts = L["Your Alts"], cooldowns = L["Cooldowns"], tracking = L["Tracking"] }
+	local icon
+	for _, part in ipairs(Menu.Parts()) do if part.kind == kind then icon = part.icon end end
+	return words[kind] or "", icon
+end
+
+-- Your alts' professions on this server, a heading per character, a row per profession: a click
+-- shows its recipes (as the menu's rows did).
+local function AltsPage(d)
+	local alts = AltRows()
+	if #alts == 0 then
+		d:Line(L["None of your alts' professions are known yet: log in on an alt and open its professions once."], "small", "OFF")
+		return
+	end
+	table.sort(alts, function(a, b)
+		if (a.c.name or "") ~= (b.c.name or "") then return (a.c.name or "") < (b.c.name or "") end
+		return a.line < b.line
+	end)
+	d:Line(L["Your other characters' professions on this server, as each last saw them. Click one to see its recipes."], "small", "TEXT")
+	local last
+	for _, a in ipairs(alts) do
+		if a.c.name ~= last then
+			last = a.c.name
+			local name = a.c.name or "?"
+			if ns.Learn and ns.Learn.ClassName then
+				local ok, colored = pcall(ns.Learn.ClassName, a.c)
+				if ok and type(colored) == "string" then name = colored end
+			end
+			d:Heading(name)
+		end
+		d:Row({ left = ns.Tips and ns.Tips.LineName(a.line) or tostring(a.line), leftInk = "VALUE",
+			right = a.max > 0 and ("%d / %d"):format(a.skill, a.max) or tostring(a.skill), rightInk = "TEXT",
+			onClick = function() ns.Window.ShowAlt(a.guid, a.line) end })
+	end
+end
+
+-- Your craft cooldowns: a row each, ready or how long until it is; a click opens the recipe. While
+-- one is cooling down the page is drawn again each half minute, only while it shows.
+local coolSerial = 0
+local function CooldownsPage(d)
+	local all = ns.Cooldowns and ns.Cooldowns.List() or {}
+	if #all == 0 then
+		d:Line(L["You know no recipe that can only be made once in a while."], "small", "OFF")
+		return
+	end
+	d:Line(L["Your recipes that can only be made once in a while. Click one to open it."], "small", "TEXT")
+	local cooling = false
+	for _, t in ipairs(all) do
+		local ready = t.readyAt == 0
+		if not ready then cooling = true end
+		local more = {}
+		for i = 2, #(t.names or {}) do more[#more + 1] = t.names[i] end
+		d:Row({ icon = t.icon or 134400, left = (t.names and t.names[1]) or "?", leftInk = "VALUE",
+			right = ready and L["Ready to craft"] or L["Ready in %s"]:format(ns.Cooldowns.Left(t.readyAt)),
+			rightInk = ready and "GOOD" or "WARN",
+			sub = #more > 0 and table.concat(more, ", ") or (ns.Tips and t.line and ns.Tips.LineName(t.line)) or nil,
+			subInk = "TEXT",
+			onClick = function()
+				if t.line and t.spells and t.spells[1] then ns.Window.OpenRecipe(t.line, t.spells[1]) end
+			end })
+	end
+	if cooling then
+		coolSerial = coolSerial + 1
+		local serial = coolSerial
+		C_Timer.After(COOL_TICK, function()
+			if serial == coolSerial and W.gather == W.COOLS and W.win and W.win:IsVisible() then ns.Window.Render() end
+		end)
+	end
+end
+
+-- Your professions' minimap tracking: a row each, on or off; a click turns it the other way.
+local function TrackingPage(d)
+	local all = TrackingList()
+	if #all == 0 then
+		d:Line(L["None of your professions tracks anything on the minimap."], "small", "OFF")
+		return
+	end
+	d:Line(L["Your professions' minimap tracking. Click one to turn it on or off."], "small", "TEXT")
+	for _, t in ipairs(all) do
+		d:Row({ icon = t.icon, left = t.name or "?", leftInk = "VALUE",
+			right = t.on and L["On"] or L["Off"], rightInk = t.on and "GOOD" or "OFF",
+			tip = t.spell and function(tip) tip:SetSpellByID(t.spell) end or nil,
+			onClick = function()
+				pcall(C_Minimap.SetTracking, t.index, not t.on)
+				ns.Window.Render()
+			end })
+	end
+end
+
+-- The page for W.gather when it is one of these, else nil.
+function Menu.PartPage(gather)
+	if gather == W.ALTS then return AltsPage end
+	if gather == W.COOLS then return CooldownsPage end
+	if gather == W.TRACK then return TrackingPage end
+	return nil
+end
+
 function Menu.CampPage(d)
 	if ns.Camp then ns.Camp.Page(d, ns.Window.Render) end
 end

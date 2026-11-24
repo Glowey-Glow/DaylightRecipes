@@ -5,7 +5,7 @@ local ADDON, ns = ...
 local Guide = ns.Guide
 if not Guide then return end
 local L = ns.L
-local DUI = _G.DaylightUI
+local DUI = ns.DUI or _G.DaylightUI   -- (ns.DUI: Host.lua; the global only in the offline tests)
 local Pop = Guide.Pop
 
 local function Loaded(name)
@@ -30,16 +30,26 @@ local function Theirs()
 end
 local function GiveBack()
 	local _, mode = Theirs()
-	DUI:Set(ADDON, "window", mode)
+	pcall(DUI.Set, DUI, ADDON, "window", mode)
 end
 
 local function Get(key) return ns.Get and ns.Get(key) end
+-- The Blizzard Layout in use now (WindowLayout.lua): some steps say it its own way.
+local function Layout()
+	local W = ns.Win
+	return W ~= nil and W.Lay ~= nil and W.Lay.Active() == true
+end
 local function Parts() return ns.Window and ns.Window.TourParts and ns.Window.TourParts() or {} end
 
 -- Newest first. An entry is keyed by the release it ships in (CHANGELOG.md's heading), and its
 -- lines are in all six language files. A player updating sees every entry above the one they
 -- read last (Guide.News), so 3.0.0's is what says why the window is suddenly small.
 local NEWS = {
+	{ version = "3.1.0", lines = {
+		L["Works without Daylight UI: its settings are in Glowey's settings (/glowey), and the Blizzard Style look dresses the window in the game's own frames, tabs, bars and scroll bars. With Daylight UI it follows its language, look and scale."],
+		L["Blizzard Layout (in the options, off to start): the window laid out like the game's profession window, with your professions as tabs down its left side and Alts, Cooldowns and Tracking as pages of their own. The Leveling Guide shows its step's recipe on the right."],
+		L["Chance of Skill Up takes the chance's own color, Also Known By lists only your other characters, Camping folds each profession's items, and Link to Chat can post to a channel or whisper someone."],
+	} },
 	{ version = "3.0.2", lines = {
 		L["Your professions are chips across the title bar: one press opens another, with no menu to open first. A right-click on a chip links or unlearns it, and the three dots at the end have your alts, Cooldowns and Tracking. Menus and lists are solid boxes now, whatever Window Opacity is set to."],
 	} },
@@ -120,7 +130,7 @@ Guide.Setup({
 		if Get("window") == "recipes" then
 			if ns.Swap then ns.Swap.Picked("recipes") end
 		else
-			DUI:Set(ADDON, "window", "recipes")
+			pcall(DUI.Set, DUI, ADDON, "window", "recipes")
 		end
 	end,
 	-- (Someone who already uses another window keeps exactly that one.)
@@ -145,6 +155,9 @@ local function OwnGuide()
 end
 
 local function Settings()
+	if ns.standalone then
+		return string.format(L["Everything is in Glowey's settings: %s. %s there shows this tour again."], Pop("/glowey"), Pop(L["Retake Tour"]))
+	end
 	return string.format(L["Everything is in Daylight UI's options: %s. %s there shows this tour again."], Pop(L["Plugins > Recipes"]), Pop(L["Retake Tour"]))
 end
 
@@ -174,14 +187,25 @@ Guide.AddTour("window", {
 		-- the picked recipe's line above the craft bar; `details` and `roll` the header's two buttons.
 		-- The window is always unrolled for a tour: Window.ShowForTour.)
 		{ title = L["Your Professions"],
-		  text = string.format(L["Your professions are chips across the title bar, Camping after them. The open one is lit and shows its skill; press another to open it. A right-click on a chip (Y on a controller) has %s and %s. The three dots at the end have your alts' professions, your cooldowns and tracking. %s in the options hides your alts' professions."], Pop(L["Link to Chat"]), Pop(L["Unlearn"]), Pop(L["Show Your Alts' Professions"])),
+		  text = function()
+			if Layout() then
+				return string.format(L["Your professions are tabs down the window's left side, Camping after them, then %s, %s and %s, each a page of its own. The open one is lit; press another to open it. A right-click on a profession's tab (Y on a controller) has %s and %s."],
+					Pop(L["Your Alts"]), Pop(L["Cooldowns"]), Pop(L["Tracking"]), Pop(L["Link to Chat"]), Pop(L["Unlearn"]))
+			end
+			return string.format(L["Your professions are chips across the title bar, Camping after them. The open one is lit and shows its skill; press another to open it. A right-click on a chip (Y on a controller) has %s and %s. The three dots at the end have your alts' professions, your cooldowns and tracking. %s in the options hides your alts' professions."], Pop(L["Link to Chat"]), Pop(L["Unlearn"]), Pop(L["Show Your Alts' Professions"]))
+		  end,
 		  part = function()
 			local p = Parts()
 			return p.menu or p.side
 		  end },
 		-- Recipes
 		{ title = L["Recipes"],
-		  text = L["Every recipe you know, sorted by skill-up color. The small mark is the cheapest recipe to skill up with now. Pick one: its chance to skill up, material cost and sale value show in one line above the craft bar. Shift-click links it."],
+		  text = function()
+			if Layout() then
+				return string.format(L["Every recipe you know, by category; the arrow before a name is how surely it gives a point, and the number after it how many you can make. The box marks the cheapest recipe to skill up with now. %s narrows the list to what you can make or what gives points. Shift-click links a recipe."], Pop(L["Filter"]))
+			end
+			return L["Every recipe you know, sorted by skill-up color. The small mark is the cheapest recipe to skill up with now. Pick one: its chance to skill up, material cost and sale value show in one line above the craft bar. Shift-click links it."]
+		  end,
 		  enter = OnTab("recipes"),
 		  part = function()
 			local p = Parts()
@@ -192,7 +216,17 @@ Guide.AddTour("window", {
 		  text = string.format(L["Set how many (%s fills in all you can make), then Create, or add it to the queue. What the queue needs shows on the strips at vendors and the auction house."], Pop(L["Max"])),
 		  enter = OnTab("recipes"),
 		  part = function() return Parts().craft end },
+		-- (The Blizzard Layout: the recipe is always on the right, and the rank bar's link button.)
+		{ title = L["The Recipe"],
+		  text = string.format(L["The picked recipe, on the right: its reagents with what you hold of each, the total cost, %s in the chance's own color (red when a point is unlikely, green when it's sure), what it sells for, and which of your other characters know it."], Pop(L["Chance of Skill Up"])),
+		  enter = OnTab("recipes"), when = Layout,
+		  part = function() return Parts().detail end },
+		{ title = L["Link to Chat"],
+		  text = string.format(L["The button after the skill bar links your profession: into the chat box when one is open, else it asks where to post it (Guild, Party, Raid, a channel) or %s someone by name."], Pop(L["Whisper..."])),
+		  enter = OnTab("recipes"), when = function() return Layout() and Parts().link ~= nil end,
+		  part = function() return Parts().link end },
 		{ title = L["Details"],
+		  when = function() return not Layout() end,
 		  text = string.format(L["The picked recipe's chance, cost and sale value are in one line above the craft bar. Press that line, or %s (Y on a controller), for its full page beside the list. Open or closed is remembered for each tab."], Pop(L["Details"])),
 		  enter = OnTab("recipes"),
 		  part = function()
@@ -207,10 +241,14 @@ Guide.AddTour("window", {
 		  part = function() return Parts().roll end },
 		-- Leveling Guide
 		{ title = L["Leveling Guide"],
-		  text = string.format(L["The cheapest way from your skill to the next goal, step by step, with trainer visits and what to buy. Every step uses a recipe that still gives skill points at that skill (orange or yellow). %s and %s at the top set where it leads and what it saves on. The step you're on is lit."], Pop(L["Goal"]), Pop(L["Cheapest Route"])),
+		  text = function()
+			local base = string.format(L["The cheapest way from your skill to the next goal, step by step, with trainer visits and what to buy. Every step uses a recipe that still gives skill points at that skill (orange or yellow). %s and %s at the top set where it leads and what it saves on. The step you're on is lit."], Pop(L["Goal"]), Pop(L["Cheapest Route"]))
+			if Layout() then return base .. " " .. L["Its recipe shows on the right."] end
+			return base
+		  end,
 		  enter = OnTab("guide"), part = TabPage("guide"), when = OwnGuide },
 		{ title = L["Each Step"],
-		  text = string.format(L["%s crafts it, %s adds it to your queue, and %s picks the recipe in the list. %s lists other recipes that give points right now."], Pop(L["Make"]), Pop(L["Queue"]), Pop(L["Show Recipe"]), Pop(L["Or Instead"])),
+		  text = string.format(L["%s crafts it, %s adds it to your queue, and %s picks the recipe in the list. %s lists other recipes that give points right now."], Pop(L["Make"]), Pop(L["Queue"]), Pop(L["Show Recipe"]), Pop(L["Alternates"])),
 		  enter = OnTab("guide"), part = TabPage("guide"), when = OwnGuide },
 		-- Materials
 		{ title = L["Materials"],
@@ -224,6 +262,10 @@ Guide.AddTour("window", {
 		{ title = L["Missing Recipes"],
 		  text = L["Every recipe you don't know yet, with where it comes from: trainers, vendors, drops and quests. Click a place to put a pin on your map (a TomTom waypoint when TomTom is installed). The search box above narrows the list."],
 		  enter = OnTab("missing"), part = TabPage("missing") },
+		-- (Camping's page, told while it shows.)
+		{ title = L["Camping"],
+		  text = L["Every camping item of your professions, and the others' under Other Professions. Click a profession's name to fold its items away, and an item for what it takes, how to learn it and how to make it."],
+		  when = function() return ns.Win ~= nil and ns.Win.gather == ns.Win.CAMP end },
 		{ title = L["The Swap Button"],
 		  text = L["Opens the game's profession window instead. On that window, the same button brings this one back."],
 		  enter = OnTab("recipes"),
@@ -238,6 +280,10 @@ Guide.AddTour("window", {
 		  when = function()
 			return Get("window") ~= "recipes" and ns.Pane ~= nil and ns.Pane.ProfitCould ~= nil and ns.Pane.ProfitCould() == true
 		  end },
+		-- (The option to lay the window out like the game's, told while it's off.)
+		{ title = L["Blizzard Layout"],
+		  text = string.format(L["%s in the options lays this window out like the game's own profession window: your professions as tabs down its left side, the recipe always on the right, its pages as tabs under it."], Pop(L["Blizzard Layout"])),
+		  when = function() return Get("window") == "recipes" and Get("blizzardLayout") ~= true end },
 		{ title = L["Settings"], text = Settings },
 	},
 })

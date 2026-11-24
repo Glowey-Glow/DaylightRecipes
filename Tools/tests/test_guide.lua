@@ -186,7 +186,7 @@ T.case("a profit at a low chance never outranks a recipe that gives points", fun
 		T.ok(row.spell ~= LESSER_HEALING, "Craft Next does not offer the green potion while others give points")
 	end
 	for _, alt in ipairs(first.alts or {}) do
-		T.ok(alt.spell ~= LESSER_HEALING and Good(alt.spell, 110), "nor does Or Instead")
+		T.ok(alt.spell ~= LESSER_HEALING and Good(alt.spell, 110), "nor do the Alternates")
 	end
 	W.ah[858] = nil
 end)

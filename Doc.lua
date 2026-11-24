@@ -57,6 +57,17 @@ function Doc.SpellTip(spell)
 	return function(tip) tip:SetSpellByID(spell) end
 end
 
+-- A chance's own color: the bad red at none, the title gold at half, the good green at a sure
+-- thing (the skill-up chance's percent and its bar, Pages.Skill).
+function Doc.ChanceColor(v)
+	v = math.max(0, math.min(1, tonumber(v) or 0))
+	local lo, hi, t
+	if v < 0.5 then lo, hi, t = "BAD", "TITLE", v * 2 else lo, hi, t = "TITLE", "GOOD", (v - 0.5) * 2 end
+	local r1, g1, b1 = Color(lo)
+	local r2, g2, b2 = Color(hi)
+	return r1 + (r2 - r1) * t, g1 + (g2 - g1) * t, b1 + (b2 - b1) * t
+end
+
 function Doc.Pct(v)
 	if v >= 0.995 or v == 0 then return L["%d%%"]:format(v * 100 + 0.5) end
 	return L["%.1f%%"]:format(v * 100)
@@ -231,18 +242,26 @@ end
 local function FitThumb(d)
 	local scroll, thumb = d.scroll, d.thumb
 	-- (A page that never scrolls has no thumb, whatever the scroll frame thinks its range is.)
+	-- (Blizzard Style without Daylight UI: the game's own scroll bar, MinimalScrollBar, in its
+	-- place: arrows, a thumb to drag, a track to click. Host.ScrollArt.)
+	local H = ns.Host
+	local function Art()
+		if H and H.ScrollArt then thumb:SetAlpha(H.ScrollArt(thumb, scroll, 5) and 0 or 1) end
+	end
 	if d.still then
 		thumb:Hide()
+		Art()
 		return
 	end
 	local range = scroll:GetVerticalScrollRange() or 0
 	local h = scroll:GetHeight()
-	if range <= 0.5 or h <= 0 then thumb:Hide() return end
+	if range <= 0.5 or h <= 0 then thumb:Hide() Art() return end
 	local size = math.max(24, h * h / (h + range))
 	thumb:SetHeight(size)
 	thumb:ClearAllPoints()
 	thumb:SetPoint("TOPRIGHT", scroll, "TOPRIGHT", -3, -((h - size) * (scroll:GetVerticalScroll() / range)))
 	thumb:Show()
+	Art()
 end
 
 -- A new doc in `parent` (placed by the caller: d.scroll is the frame to anchor). opts.pad: the
@@ -354,23 +373,25 @@ function Doc.GlowStyle()
 	return type(style) == "string" and style or "circle"
 end
 
--- A frame's glow on or off. Called again only when that changes (or the style does), so a page
--- drawn again doesn't start its light over.
+-- A frame's glow on or off; r, g, b: in that color (the recipe's skill-up color: the best craft's
+-- box in the list and round the guide's step, as its arrow), else the look's. Called again only
+-- when that changes (or the style or color does), so a page drawn again doesn't start its light over.
 local glowing = setmetatable({}, { __mode = "k" })
-function Doc.Glow(frame, on)
+function Doc.Glow(frame, on, r, g, b)
 	if type(API.GlowAround) ~= "function" then return end
 	local style = on and Doc.GlowStyle() or false
-	if (glowing[frame] or false) == style then return end
-	glowing[frame] = style
+	local key = style and (r and ("%s %.3f %.3f %.3f"):format(style, r, g, b) or style) or false
+	if (glowing[frame] or false) == key then return end
+	glowing[frame] = key
 	if style then
-		API.GlowAround(frame, true, { style = style })
+		API.GlowAround(frame, true, { style = style, r = r, g = g, b = b })
 	else
 		API.GlowAround(frame, false)
 	end
 end
 
 -- A light round the part of the page from `top` (a d.y taken before it was drawn) down to here.
-function D:GlowFrom(top)
+function D:GlowFrom(top, r, g, b)
 	if not Doc.GlowStyle() then return end
 	local child = self.child
 	local box = self:Take("glow", function()
@@ -381,7 +402,7 @@ function D:GlowFrom(top)
 	box:SetFrameLevel(child:GetFrameLevel() + 20)
 	box:SetPoint("TOPLEFT", child, "TOPLEFT", self.pad - 8, -top)
 	box:SetSize(math.max(1, self.width - self.pad * 2 + 16), math.max(1, self.y - top))
-	Doc.Glow(box, true)
+	Doc.Glow(box, true, r, g, b)
 end
 
 function D:Top()
@@ -578,9 +599,10 @@ function Doc.Chevron(parent)
 		bar:SetPoint("TOP", holder, "TOP", 0, -(i - 1) * 2)
 		holder.bars[i] = bar
 	end
+	-- (Host.Tint: drawn again in the new colors after a look change; "ACCENT" is its "pop".)
 	function holder.Paint(ink)
-		local r, g, b = Color(ink or "LABEL")
-		for _, bar in ipairs(holder.bars) do bar:SetColorTexture(r, g, b, 1) end
+		local role = ink == "ACCENT" and "pop" or ink or "LABEL"
+		for _, bar in ipairs(holder.bars) do ns.Host.Tint(bar, role, 1) end
 	end
 	holder.Paint()
 	return holder
@@ -665,16 +687,26 @@ function D:Pickers(list, indent)
 	self.y = self.y + tall + 6
 end
 
-function D:Bar(value)
+-- A bar of the look; r, g, b: its fill in that color instead (the skill-up chance's, Pages.Skill:
+-- those come from a pool of their own, so the look's bars keep the look's fill).
+function D:Bar(value, r, g, b)
 	local child = self.child
-	local b = self:Take("bar", function()
-		local bar = API.Bar(child)
-		bar:SetMinMaxValues(0, 1)
-		return bar
+	local inked = r ~= nil
+	local bar = self:Take(inked and "bar-ink" or "bar", function()
+		local made = API.Bar(child)
+		made:SetMinMaxValues(0, 1)
+		return made
 	end)
-	b:SetPoint("TOPLEFT", child, "TOPLEFT", self.pad, -self.y)
-	b:SetSize(self.width - self.pad * 2, 8)
-	b:SetValue(value or 0)
-	self.y = self.y + 14
-	return b
+	if inked and bar.SetStatusBarColor then bar:SetStatusBarColor(r, g, b) end
+	-- (Blizzard Style: the profession window's own bar, 14 high, its border reaching 2 past its
+	-- ends, ProfessionsStatusBarArtTemplate: Host.lua's A.Bar. Another look: a thin 8.)
+	local H = ns.Host
+	local bz = H and H.Blizzard and H.Blizzard() == true
+	local tall = bz and 14 or 8
+	local inset = bz and 3 or 0
+	bar:SetPoint("TOPLEFT", child, "TOPLEFT", self.pad + inset, -self.y)
+	bar:SetSize(self.width - self.pad * 2 - inset * 2, tall)
+	bar:SetValue(value or 0)
+	self.y = self.y + tall + 6
+	return bar
 end

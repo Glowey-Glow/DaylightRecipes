@@ -161,20 +161,26 @@ State.TAB_PAD, State.TAB_MIN_PAD, State.TAB_GAP, State.TAB_EDGE = 9, 4, 4, 8
 --   4. Else the tabs take a second row (the design's fallback past 520), at the full padding.
 -- A label is never cut: a tab is always its text's width plus padding, and a single tab wider
 -- than 520 widens the column past it rather than lose a letter.
+-- limits.minTab: no tab narrower than that (Blizzard Style: its tab art's two end caps, as
+-- PanelTemplates_TabResize's minWidth, WindowBlizzard.lua's Blz.TabMin).
 function State.TabLayout(widths, limits)
 	local lo = limits and limits.min or State.W
 	local hi = limits and limits.max or State.MAX_W
+	local least = limits and tonumber(limits.minTab) or 0
 	local gap, edge = State.TAB_GAP, State.TAB_EDGE
 	local n = #widths
-	local text = 0
-	for i = 1, n do text = text + ceil(widths[i]) end
-	local function need(pad) return text + n * 2 * pad + max(0, n - 1) * gap + 2 * edge end
+	local function tabW(i, pad) return max(ceil(widths[i]) + 2 * pad, least) end
+	local function need(pad)
+		local sum = max(0, n - 1) * gap + 2 * edge
+		for i = 1, n do sum = sum + tabW(i, pad) end
+		return sum
+	end
 	local out = { rows = 1, pad = State.TAB_PAD, tabs = {} }
 	local function place(pad, breakAt)
 		local x, row = edge, 1
 		local widest = 0
 		for i = 1, n do
-			local w = ceil(widths[i]) + 2 * pad
+			local w = tabW(i, pad)
 			if breakAt and i == breakAt then x, row = edge, 2 end
 			out.tabs[i] = { x = x, row = row, w = w }
 			x = x + w + gap
@@ -197,7 +203,7 @@ function State.TabLayout(widths, limits)
 	local pad = State.TAB_PAD
 	local x, breakAt = edge, n + 1
 	for i = 1, n do
-		local w = ceil(widths[i]) + 2 * pad
+		local w = tabW(i, pad)
 		if i > 1 and x + w + edge > hi then
 			breakAt = i
 			break

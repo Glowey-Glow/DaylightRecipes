@@ -1,15 +1,18 @@
 ## Interface: 16001
-## Title: Glowey's |cffa335eeRecipes|r (DaylightUI Plugin)
+## Title: Glowey's |cffa335eeRecipes|r
 ## IconTexture: Interface\AddOns\DaylightRecipes\Media\icon.png
-## Notes: A plugin for Daylight UI: a compact profession window with your recipes, their material costs, skill-up chance and sale value, a Leveling Guide, a crafting queue and every recipe you don't know yet with where to get it, and a thin strip at vendors, trainers and the Auction House with what to buy or learn. Uses DaylightMogul's prices when it's loaded.
+## Group: DaylightRecipes
+## Notes: Works on its own, and integrates with Daylight UI when it's installed (its options window, look and profiles). A compact profession window with your recipes, their material costs, skill-up chance and sale value, a Leveling Guide, a crafting queue and every recipe you don't know yet with where to get it, and a thin strip at vendors, trainers and the Auction House with what to buy or learn. Uses DaylightMogul's prices when it's loaded.
 ## Author: Glowey
 ## X-License: GPL-3.0-or-later
 ## X-Curse-Project-ID: 1801403
 ## X-Credits: Recipe, source and disenchant data from ForeverRecipes by Ismail (GPL-3.0), built from ForeverDB.app and CMaNGOS Classic DB. Recipe sources, reputation and camping data from Polestar by the Polestar authors (GPL-3.0). Source corrections and NPC places from QuestieDB by the Questie team (used under the GPLv3 terms the Questie team offers).
 ## Version: @project-version@
-## Dependencies: DaylightUI
-## OptionalDeps: DaylightMogul, TomTom
-## SavedVariables: DaylightRecipesDB
+## OptionalDeps: DaylightUI, DaylightMogul, TomTom
+## SavedVariables: DaylightRecipesDB, DaylightRecipesSettings
+# (The saved variables load before the files: Locales/Locales.lua reads the language picked in
+# Glowey's Plugins window as it loads.)
+## LoadSavedVariablesFirst: 1
 
 Data\Recipes.lua
 Data\Sources.lua
@@ -25,6 +28,7 @@ Locales\esES.lua
 Locales\ruRU.lua
 Locales\koKR.lua
 Locales\zhCN.lua
+Host.lua
 Update.lua
 Guide.lua
 RecipesGuide.lua
@@ -52,6 +56,8 @@ WindowList.lua
 WindowMenu.lua
 WindowChips.lua
 Window.lua
+WindowBlizzard.lua
+WindowLayout.lua
 Cooldowns.lua
 Take.lua
 Shop.lua
