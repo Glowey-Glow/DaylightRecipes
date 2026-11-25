@@ -1,5 +1,8 @@
 # Glowey's Recipes
 
+## 3.2.1
+- With Glowey's Gear installed (1.2.1 or later), hovering a crafted item in the Recipes window (the recipe list, the recipe's icon in its details, the Blizzard Layout's item, the materials and lists) shows Gear's comparison beside its tooltip: the piece it would replace, Equipped or In Your Bags, with the stat changes. Holding Shift still shows the game's own comparison, on the other side.
+
 ## 3.2.0
 - Prices from your Auction House addon. Glowey's Recipes can now price materials, sales and disenchants from Auctionator, TradeSkillMaster, AuctionMaster, Auction House DataBase (AHDB), Auctioneer, ForeverForge Auction or Oribos Exchange. When one of them is installed, a window asks once whose prices to use (it asks again only when you install another one). Change it any time under Prices > Price Addon, where the addons with more than one kind of price also let you pick which one: TSM's Market Value, Lowest Buyout, Recent Value or Region Market Average; AuctionMaster's market price or lowest buyout; AHDB's last-scan median, lowest buyout or 30-day typical price; ForeverForge Auction's going rate, lowest buyout or usual price; Oribos Exchange's price on your Auction House or across the region.
 - An item the picked addon has no price for is priced as before, from your own browsing and scans (and Daylight UI's or Professionally Lost's prices when those are on). TSM's prices come from the TSM desktop app: without it they are empty, so everything keeps your own prices.

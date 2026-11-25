@@ -134,6 +134,8 @@ local function RowTip(r)
 	if r.tip then pcall(r.tip, GameTooltip) end
 	if held and r.shift.tip then GameTooltip:AddLine(r.shift.tip, Color("WARN")) end
 	GameTooltip:Show()
+	-- (An item's: Glowey's Gear's comparison beside it, Tips.GearCompare.)
+	if ns.Tips and ns.Tips.GearCompare then ns.Tips.GearCompare(GameTooltip) end
 end
 
 -- The row's right text as it reads now: the Shift action's word while Shift is held over it

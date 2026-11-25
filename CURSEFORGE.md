@@ -6,7 +6,8 @@ By Glowey. A standalone addon that **integrates with Daylight UI** when it's ins
 
 ---
 
-## New in 3.2.0
+## New in 3.2.1
+- **Compare what you craft:** with Glowey's Gear installed, hovering a crafted item in the Recipes window shows the piece it would replace beside its tooltip (**Equipped** or **In Your Bags**), with the stat changes.
 - **Prices from your Auction House addon:** Glowey's Recipes can price materials, sales and disenchants from **Auctionator, TradeSkillMaster, AuctionMaster, Auction House DataBase (AHDB), Auctioneer, ForeverForge Auction or Oribos Exchange**. When one is installed, a window asks once whose prices to use; change it any time under **Prices > Price Addon**, and pick which of its prices (market value, lowest buyout, region average...) where it has several.
 - **Never without a price:** an item the picked addon doesn't know is priced as before, from your own browsing and scans.
 - **No competing scans:** while the picked addon scans the Auction House itself, the Leveling Guide points you to its scan instead of offering ours, and AHDB is told when ours are running so its requests wait.

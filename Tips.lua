@@ -278,6 +278,26 @@ function Tips.GearUp(spell)
 	return true, type(text) == "string" and text or nil
 end
 
+-- Glowey's Gear's comparison beside an item tooltip of ours (GloweyGearAPI.Compare, its API
+-- version 2): the piece the item would replace, Equipped or In Your Bags, with the stat changes,
+-- as in Gear's Upgrades for Sale list. Read from the item the tooltip shows (tip:GetItem()); a
+-- tooltip with no item, or not gear, takes Gear's away. Nothing without Gear 1.2.1 or later.
+function Tips.GearCompare(tip)
+	local api = rawget(_G, "GloweyGearAPI")
+	if type(api) ~= "table" or type(api.Compare) ~= "function" then return end
+	local link
+	if type(tip) == "table" and type(tip.GetItem) == "function" then
+		local ok, _, l = pcall(tip.GetItem, tip)
+		local secret = rawget(_G, "issecretvalue")
+		if ok and type(l) == "string" and not (secret and secret(l)) then link = l end
+	end
+	if not link then
+		if type(api.HideCompare) == "function" then pcall(api.HideCompare) end
+		return
+	end
+	pcall(api.Compare, tip, link)
+end
+
 -- Gear's answers changed (gear put on, a level, item data arriving): fn runs. False without Gear.
 function Tips.GearWatch(fn)
 	local api = rawget(_G, "GloweyGearAPI")

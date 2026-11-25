@@ -314,6 +314,7 @@ local function MakeListRow()
 			local ok = pcall(GameTooltip.SetRecipeResultItem, GameTooltip, e.spell)
 			if not ok or GameTooltip:NumLines() == 0 then GameTooltip:SetSpellByID(e.spell) end
 			GameTooltip:Show()
+			if ns.Tips and ns.Tips.GearCompare then ns.Tips.GearCompare(GameTooltip) end
 		end
 	end)
 	r:SetScript("OnLeave", function(self)
