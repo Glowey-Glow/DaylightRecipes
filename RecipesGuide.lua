@@ -45,6 +45,9 @@ local function Parts() return ns.Window and ns.Window.TourParts and ns.Window.To
 -- lines are in all six language files. A player updating sees every entry above the one they
 -- read last (Guide.News), so 3.0.0's is what says why the window is suddenly small.
 local NEWS = {
+	{ version = "3.2.0", lines = {
+		L["Prices from your Auction House addon: Auctionator, TradeSkillMaster, AuctionMaster, AHDB, Auctioneer, ForeverForge Auction or Oribos Exchange. A window asks once whose prices to use; change it in Plugins > Recipes > Prices."],
+	} },
 	{ version = "3.1.0", lines = {
 		L["Works without Daylight UI: its settings are in Glowey's settings (/glowey), and the Blizzard Style look dresses the window in the game's own frames, tabs, bars and scroll bars. With Daylight UI it follows its language, look and scale."],
 		L["Blizzard Layout (in the options, off to start): the window laid out like the game's profession window, with your professions as tabs down its left side and Alts, Cooldowns and Tracking as pages of their own. The Leveling Guide shows its step's recipe on the right."],

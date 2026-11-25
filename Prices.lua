@@ -290,6 +290,9 @@ end
 
 local function DaylightChanged() Touched() end
 
+-- Prices changed somewhere else (PriceSources.lua: the picked addon's).
+function Prices.Changed() Touched() end
+
 local function HearDaylight()
 	local D = _G.DaylightUI
 	if type(D) ~= "table" or type(D.GetModule) ~= "function" then return end
@@ -481,6 +484,11 @@ local function Buying()
 	return false
 end
 
+-- AHDB holds its own Auction House requests while ours run (PriceSources.lua: Sources.Busy).
+local function Hold(key, on)
+	if ns.Sources then ns.Sources.Busy(key, on) end
+end
+
 function Prices.CanCheck()
 	return ahOpen and not Prices.Mogul() and C_AuctionHouse ~= nil and ns.Get("useAH") and true or false
 end
@@ -499,6 +507,7 @@ function Prices.StopCheck()
 	if not run then return end
 	local was = run
 	run = nil
+	Hold("check", false)
 	Touched(true)
 	if was.onChange then pcall(was.onChange) end
 end
@@ -592,6 +601,7 @@ function Prices.Check(ids, onChange)
 	end
 	if #list == 0 then return false end
 	run = { ids = list, at = 1, total = #list, token = 1, tries = 0, onChange = onChange }
+	Hold("check", true)
 	Told()
 	Next()
 	return true
@@ -658,6 +668,7 @@ end
 
 function Prices.CanScan()
 	return ahOpen and not scanning and not Prices.Mogul() and C_AuctionHouse ~= nil and not DaylightScans()
+		and not (ns.Sources and ns.Sources.ScanHandedOff())
 end
 
 function Prices.Scanning() return scanning end
@@ -674,6 +685,7 @@ local asked, tries = 0, 0
 
 local function Finish(text)
 	scanning = false
+	Hold("scan", false)
 	if text then ns.Print(text) end
 	if ns.ShowingPlan() then ns.Changed() end
 end
@@ -692,7 +704,11 @@ local function Watch(serial)
 end
 
 function More()
-	if not scanning or not ahOpen then scanning = false return end
+	if not scanning or not ahOpen then
+		scanning = false
+		Hold("scan", false)
+		return
+	end
 	if C_AuctionHouse.HasFullBrowseResults and C_AuctionHouse.HasFullBrowseResults() then
 		Book().scanned = time()
 		Finish(L["Auction House prices read."])
@@ -718,6 +734,7 @@ function Prices.Scan()
 		return
 	end
 	scanning, firstRead, tries = true, false, 0
+	Hold("scan", true)
 	asked = asked + 1
 	Watch(asked)
 	ns.Print(L["Reading Auction House prices..."])
@@ -746,6 +763,7 @@ f:SetScript("OnEvent", function(self, event, arg)
 		if ns.ShowingPlan() then ns.Changed() end
 	elseif event == "AUCTION_HOUSE_CLOSED" then
 		ahOpen, scanning = false, false
+		Hold("scan", false)
 		Prices.StopCheck()
 		-- (What Daylight UI saw in its searches this visit is read from here on.)
 		if Prices.Daylight() then Touched(true) end

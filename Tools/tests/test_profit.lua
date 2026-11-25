@@ -85,6 +85,8 @@ local function world()
 	}
 	-- Professionally Lost's hand-off: whether its first-load window is still to come at this login.
 	ns.ProfLost = { Due = function() return W.due end, Handed = function() return false end }
+	-- PriceSources.lua: no price addon picked, its question not to come.
+	ns.Sources = { Due = function() return false end, External = function() return nil end }
 	ns.Doc = setmetatable({ Color = function() return 1, 1, 1 end, Hex = function() return "" end,
 		ItemName = function(id) return "Item" .. id, "icon" end, ItemTip = function() return function() end end,
 		SpellTip = function() return function() end end, Pct = function(v) return tostring(v) end,

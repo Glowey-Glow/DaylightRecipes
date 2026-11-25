@@ -2,14 +2,14 @@
 
 **A profession window that levels you up:** your recipes, a step-by-step Leveling Guide, a crafting queue, and what to buy or learn at the vendor, the Auction House and the trainer, all in the Daylight UI look.
 
-By Glowey. A standalone addon that **integrates with Daylight UI** when it's installed: its pages sit in Daylight UI's options window, in its look, and ride in its profiles (not part of Daylight UI itself: report its bugs here, not to Daylight UI). Without Daylight UI, its settings are in the Glowey's Plugins window (**/glowey**, or Options > AddOns). It keeps its own Auction House prices, and uses **DaylightMogul**'s when Mogul is loaded. With it installed you can turn ForeverRecipes off.
+By Glowey. A standalone addon that **integrates with Daylight UI** when it's installed: its pages sit in Daylight UI's options window, in its look, and ride in its profiles (not part of Daylight UI itself: report its bugs here, not to Daylight UI). Without Daylight UI, its settings are in the Glowey's Plugins window (**/glowey**, or Options > AddOns). It keeps its own Auction House prices, uses **DaylightMogul**'s when Mogul is loaded, and can use Auctionator's, TSM's, AuctionMaster's, AHDB's, Auctioneer's, ForeverForge Auction's or Oribos Exchange's instead. With it installed you can turn ForeverRecipes off.
 
 ---
 
-## New in 3.1.1
-- **Stale prices are marked:** an Auction House price seen more than a day ago reads **"Stale, seen 3 days ago"** in the warning color, under a material, beside an item's value and in the shopping list ("4 Stale Prices" on its strip), so you know to scan or Check Prices again.
-- **The Auction House strip stays clear** of the game's tabs and Auctionator's beside them: it stands beside the window instead, under Glowey's Gear's window when that's docked there.
-- **Faster and smoother:** the Leveling Guide, Craft Next and the lists are worked out once until something changes, and bursts of bag, recipe and reputation updates redraw once.
+## New in 3.2.0
+- **Prices from your Auction House addon:** Glowey's Recipes can price materials, sales and disenchants from **Auctionator, TradeSkillMaster, AuctionMaster, Auction House DataBase (AHDB), Auctioneer, ForeverForge Auction or Oribos Exchange**. When one is installed, a window asks once whose prices to use; change it any time under **Prices > Price Addon**, and pick which of its prices (market value, lowest buyout, region average...) where it has several.
+- **Never without a price:** an item the picked addon doesn't know is priced as before, from your own browsing and scans.
+- **No competing scans:** while the picked addon scans the Auction House itself, the Leveling Guide points you to its scan instead of offering ours, and AHDB is told when ours are running so its requests wait.
 ---
 
 ## The window

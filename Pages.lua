@@ -424,7 +424,18 @@ end
 
 function Pages.Prices(d)
 	local P = ns.Prices
-	if not P or P.Mogul() or not ns.Get("useAH") then return end
+	if not ns.Get("useAH") then return end
+	-- Another addon's prices, picked by the player (PriceSources.lua). When it scans the Auction
+	-- House itself, its scan is the one to use: ours isn't offered.
+	local X = ns.Sources and ns.Sources.External()
+	if X then
+		d:Line(L["Auction House prices from %s."]:format(X.name), "tiny", "OFF")
+		if X.scans then
+			d:Line(L["Scan the Auction House with %s for fresh prices."]:format(X.name), "tiny", "OFF")
+			return
+		end
+	end
+	if not P or P.Mogul() then return end
 	if P.Daylight and P.Daylight() and not P.Scanning() then
 		local at = P.DaylightAt()
 		-- (Over a day old, Calc.STALE: in the warning ink, as our own scan's line below.)

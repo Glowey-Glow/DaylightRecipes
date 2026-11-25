@@ -506,6 +506,7 @@ local function Busy()
 	if ns.Guide and ns.Guide.Busy and ns.Guide.Busy() then return true end
 	if ns.Guide and ns.Guide.Welcoming and ns.Guide.Welcoming() then return true end
 	if ns.ProfLost and ns.ProfLost.Due and ns.ProfLost.Due() then return true end
+	if ns.Sources and ns.Sources.Due and ns.Sources.Due() then return true end
 	for _, name in ipairs(DAYLIGHT_DIALOGS) do
 		local f = _G[name]
 		if type(f) == "table" and f.IsShown and f:IsShown() and (not f.GetAlpha or (f:GetAlpha() or 0) > 0.05) then return true end

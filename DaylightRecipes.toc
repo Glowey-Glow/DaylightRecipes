@@ -32,6 +32,7 @@ Host.lua
 Update.lua
 Guide.lua
 RecipesGuide.lua
+PriceSources.lua
 Core.lua
 ProfLost.lua
 Calc.lua

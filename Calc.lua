@@ -228,18 +228,25 @@ local function Mogul(itemID, source)
 	if ok and type(copper) == "number" and copper > 0 then return copper end
 end
 
--- Whether Auction House prices are in use: DaylightMogul's when it's loaded, else our own (read
--- while you browse, or by a scan from the Leveling Guide).
+-- Whether Auction House prices are in use: another addon's when the player picked one
+-- (PriceSources.lua), DaylightMogul's when it's loaded, else our own (read while you browse, or by
+-- a scan from the Leveling Guide).
 function Calc.HasAH()
 	if not ns.Get("useAH") then return false end
+	if ns.Sources and ns.Sources.External() then return true end
 	if ns.Prices and ns.Prices.Mogul() then return true end
 	return ns.Prices ~= nil and ns.Prices.Has()
 end
 
--- One item on the Auction House, or nil.
+-- One item on the Auction House, or nil. The picked addon's price first; an item it has none for
+-- is priced as it would be without it.
 function Calc.AH(itemID)
 	return Kept("ah:" .. itemID, function()
 		if not ns.Get("useAH") then return nil end
+		if ns.Sources then
+			local copper = ns.Sources.Get(itemID)
+			if copper then return copper end
+		end
 		if ns.Prices and not ns.Prices.Mogul() then return ns.Prices.Get(itemID) end
 		return Mogul(itemID, ns.Get("priceSource") or "market")
 	end)
@@ -257,6 +264,12 @@ Calc.STALE = 24 * 3600
 -- prices off, or DaylightMogul's prices, which keep their own age).
 function Calc.AHAge(itemID)
 	if not ns.Get("useAH") then return nil end
+	-- (The picked addon's age when its price is the one in use; nil when it keeps none: TSM,
+	-- Auctioneer.)
+	if ns.Sources and ns.Sources.External() then
+		local copper, age = ns.Sources.Get(itemID)
+		if copper then return age end
+	end
 	local P = ns.Prices
 	if not P or P.Mogul() or type(P.Age) ~= "function" then return nil end
 	return P.Age(itemID)

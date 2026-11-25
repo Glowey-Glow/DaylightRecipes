@@ -77,6 +77,7 @@ T.case("every frame the plugin dresses is a window (follows the opacity) or a so
 	local SOLID = {
 		["Shop.lua"] = { 'ns.SkinWindow(list, { solid = true })', 'ns.Host.Skin(f, { bgAlpha = 1 })' },
 		["ProfLost.lua"] = { 'ns.SkinWindow(f, { solid = true })', 'ns.SkinWindow(f, { solid = true })' },
+		["PriceSources.lua"] = { 'ns.SkinWindow(f, { solid = true })', 'ns.SkinWindow(f, { solid = true })' },
 		["WindowMenu.lua"] = { 'API.Skin(menu, LOOK)', 'API.Skin(menu, LOOK)' },
 	}
 	local FOLLOWS = {

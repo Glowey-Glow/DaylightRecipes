@@ -40,6 +40,9 @@ local DEFAULTS = {
 	paneWidth = 300,
 	useAH = true,
 	priceSource = "market",
+	-- Whose Auction House prices (PriceSources.lua): "auto" = DaylightMogul's when it's loaded,
+	-- else our own; "own", "mogul", or one of the price addons (its kind in ahKind_<id>).
+	ahSource = "auto",
 	talents = true,
 	learnableOnly = false,
 	tomtom = true,
@@ -66,6 +69,7 @@ local DEFAULTS = {
 	spots = {},
 }
 ns.DEFAULTS = DEFAULTS
+for _, k in ipairs(ns.Sources and ns.Sources.KINDS or {}) do DEFAULTS[k.key] = k.default end
 
 function ns.Get(path)
 	local ok, value = pcall(API.GetSetting, ADDON, path)
@@ -498,6 +502,8 @@ local SOURCES = {
 }
 
 local function NoAH(get) return get("useAH") == false end
+-- (PriceSources.lua, loaded just before this file; an empty stand-in should it be missing.)
+local PRICE_ADDONS = ns.Sources or { CHOICES = {}, ORDER = {}, INSTALLED = {}, KINDS = {} }
 local function PaneOff(get) return get("window") == "recipes" end
 -- A window to dock the pane to: Daylight UI's (with it loaded) or DaylightMogul's. Without
 -- either (Host.lua runs the plugin on its own) the Docked Pane choice and its rows are left out.
@@ -557,7 +563,11 @@ local pages = {
 		{ label = L["Prices"], items = {
 			{ type = "toggle", key = "useAH", label = L["Use Auction House Prices"],
 			  desc = L["Materials, sales and disenchants are priced from the Auction House: DaylightMogul's prices when it's loaded, else what you've browsed or scanned from the Leveling Guide. Off, only vendor prices are used."] },
+			{ type = "dropdown", key = "ahSource", label = L["Price Addon"], values = PRICE_ADDONS.CHOICES,
+			  order = PRICE_ADDONS.ORDER, disabled = NoAH, hidden = function() return #PRICE_ADDONS.INSTALLED == 0 end,
+			  desc = L["Whose Auction House prices to use. Automatic: DaylightMogul's when it's loaded, else Glowey's Recipes' own. An item the picked addon has no price for is priced as before."] },
 			{ type = "dropdown", key = "priceSource", label = L["DaylightMogul's Price"], values = SOURCES,
+			  hidden = function(get) return PRICE_ADDONS.Choice and PRICE_ADDONS.Choice(get) ~= "mogul" end,
 			  desc = L["Which of DaylightMogul's prices to use, when it's loaded."], disabled = NoAH },
 			{ type = "toggle", key = "talents", label = L["Count My Profession Talents"],
 			  desc = L["Overtime raises the skill-up chance and Bartering lowers vendor prices, by the ranks you've bought."] },
@@ -618,6 +628,23 @@ local pages = {
 }
 
 -- The "Tell me when a newer version is out" switch (Update.lua), on the first page.
+-- Each installed price addon with more than one kind of price: which one, shown while that addon
+-- is the Price Addon (PriceSources.lua's KINDS), under DaylightMogul's row.
+for _, group in ipairs(pages[1] and pages[1].groups or {}) do
+	if group.label == L["Prices"] then
+		local at = #group.items + 1
+		for i, row in ipairs(group.items) do
+			if row.key == "priceSource" then at = i + 1 end
+		end
+		for _, k in ipairs(PRICE_ADDONS.KINDS) do
+			table.insert(group.items, at, { type = "dropdown", key = k.key, label = L["%s Price"]:format(k.name),
+				values = k.values, order = k.order, disabled = NoAH,
+				hidden = function(get) return PRICE_ADDONS.Choice(get) ~= k.id end,
+				desc = L["Which of %s's prices to use."]:format(k.name) })
+			at = at + 1
+		end
+	end
+end
 if ns.UpdateGroup and pages[1] then table.insert(pages[1].groups, ns.UpdateGroup()) end
 -- Help: Retake Tour, What's new, Revert to the profession window you had (Guide.lua, RecipesGuide.lua).
 if ns.Guide and ns.Guide.HelpGroup and pages[1] then table.insert(pages[1].groups, ns.Guide.HelpGroup()) end
