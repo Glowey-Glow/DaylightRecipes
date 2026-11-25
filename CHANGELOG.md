@@ -1,5 +1,11 @@
 # Glowey's Recipes
 
+## 3.2.2
+- Opening a profession no longer freezes the game for a moment. The Leveling Guide's route used to be worked out all at once in one frame; it's now worked out a few milliseconds at a time over the next frames, and the guide reads "Working out your route..." until it's ready.
+- No more checking every frame while a window is open: the profession window kept watch on the game's own window every frame, and the vendor and Auction House strips re-measured their window every frame (and looked for Auctionator's tabs and Gear's window twice a second). They now follow the window's own moves, shows and hides.
+- Hovering a recipe item is lighter: its Known By and Can Learn lines are kept instead of being worked out across all your characters on every tooltip refresh.
+- The Price Addon choice no longer counts an Auction House addon that's switched off for this character.
+
 ## 3.2.1
 - With Glowey's Gear installed (1.2.1 or later), hovering a crafted item in the Recipes window (the recipe list, the recipe's icon in its details, the Blizzard Layout's item, the materials and lists) shows Gear's comparison beside its tooltip: the piece it would replace, Equipped or In Your Bags, with the stat changes. Holding Shift still shows the game's own comparison, on the other side.
 

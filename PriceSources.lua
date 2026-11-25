@@ -234,8 +234,11 @@ local function Installed(folder)
 	end
 	local okE, exists = pcall(A.DoesAddOnExist, folder)
 	if not okE or not exists then return false end
-	local okN, who = pcall(UnitName, "player")
-	local okS, state = pcall(A.GetAddOnEnableState, folder, okN and who or nil)
+	-- (Asked for this character by GUID, as the game's own addon list asks: by name it answered
+	-- for all characters, so an addon switched off here still counted.)
+	local okG, guid = pcall(UnitGUID, "player")
+	local okS, state
+	if okG and type(guid) == "string" then okS, state = pcall(A.GetAddOnEnableState, folder, guid) end
 	if not okS or type(state) ~= "number" then
 		okS, state = pcall(A.GetAddOnEnableState, folder)
 	end

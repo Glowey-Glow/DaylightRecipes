@@ -329,4 +329,41 @@ T.case("the nearest trainer named for a recipe is one who teaches it at your ski
 	T.ok(checked > 300, "(checked " .. checked .. " trained recipes)")
 end)
 
+T.case("the route worked out a slice a frame is the one worked out at once", function()
+	at(FIRST_AID, 83, 150, 150, "cost")
+	Calc.Forget()
+	Plan.Forget()
+	local function sig(plan)
+		local out = {}
+		for _, st in ipairs(plan.route.steps) do out[#out + 1] = (st.kind or "") .. ":" .. tostring(st.spell) .. ":" .. tostring(st.to) end
+		return table.concat(out, ",")
+	end
+	local once = sig(Plan.Get())
+	Plan.Forget()
+	-- (A clock that runs 5 ms a look: every point of the route gives the frame back.)
+	local now = 0
+	rawset(_G, "debugprofilestop", function() now = now + 5 return now end)
+	local made = {}
+	local realCreate = CreateFrame
+	rawset(_G, "CreateFrame", function(...) local f = realCreate(...) made[#made + 1] = f return f end)
+	T.eq(Plan.Peek(), nil, "not ready on the first ask: started")
+	T.ok(Plan.Working(), "working it out")
+	rawset(_G, "CreateFrame", realCreate)
+	local driver
+	for _, f in ipairs(made) do if f.scripts.OnUpdate then driver = f end end
+	T.ok(driver ~= nil, "a driver frame")
+	local frames = 0
+	while Plan.Working() and frames < 5000 do
+		frames = frames + 1
+		driver.scripts.OnUpdate(driver, 0.016)
+	end
+	rawset(_G, "debugprofilestop", nil)
+	T.ok(frames > 1, "spread over frames (" .. frames .. ")")
+	T.ok(not Plan.Working(), "and done")
+	T.ok(not driver:IsShown(), "the driver rests once done")
+	local plan = Plan.Peek()
+	T.ok(plan ~= nil, "ready now")
+	T.eq(sig(plan), once, "the same route")
+end)
+
 return T.done()

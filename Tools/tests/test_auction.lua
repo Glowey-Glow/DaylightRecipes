@@ -49,10 +49,10 @@ local function GameUp()
 	rawset(AuctionHouseFrame, "GetEffectiveAlpha", function() return 1 end)
 end
 local function strip() return _G.DaylightRecipesAHStrip end
--- A frame of the game: every strip's OnUpdate, as the client runs it.
+-- A look of the strip at its host (Check), as a hooked call of the host runs it.
 local function Frame()
 	local s = strip()
-	if s and s:IsShown() and s.scripts.OnUpdate then s.scripts.OnUpdate(s) end
+	if s and s:IsShown() and s.Check then s.Check(s) end
 end
 local function fresh()
 	if GAME.ahOpen then

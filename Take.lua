@@ -132,16 +132,47 @@ local function Start()
 end
 
 -- While a session is open: keep the game's window held (DaylightUI parks it again when it loads,
--- and a fight may have kept it out).
-local watch = CreateFrame("Frame")
-watch:Hide()
-watch:SetScript("OnUpdate", function(self)
-	if not open then self:Hide() return end
+-- and a fight may have kept it out), and off the controller's list. No polling: what moves it is
+-- a call that is hooked. Its SetParent (DaylightUI or DaylightMogul parking it again), its OnShow,
+-- and the game listing a window for the controller (Blizzard_GamepadSharedUtility-- FrameControlsManager.lua:192-197, :384: every ShowUIPanel, and every page that re-lists it,
+-- goes through FrameControlsManager:FrameShown). The fight's end is PLAYER_REGEN_ENABLED below.
+local function Keep()
+	if not open then return end
 	local f = Game()
 	if ours and f and not InCombatLockdown() and (f:GetParent() ~= veil or not holding) then Hold() end
 	-- (A controller: the held window off the game's list, so its cursor stays in ours. Guide.lua)
 	if holding and f and ns.Pad and f:IsShown() then ns.Pad.KeepOff(f) end
-end)
+end
+
+local keepSoon = false
+local function KeepSoon()
+	if keepSoon or not open then return end
+	keepSoon = true
+	C_Timer.After(0, function()
+		keepSoon = false
+		Keep()
+	end)
+end
+
+local hookedGame, hookedPad
+local function HookWatch()
+	local f = Game()
+	if f and hookedGame ~= f then
+		hookedGame = f
+		-- (A frame later: the one moving it finishes first, as it would have with a look each frame.)
+		hooksecurefunc(f, "SetParent", KeepSoon)
+		f:HookScript("OnShow", KeepSoon)
+	end
+	local G = rawget(_G, "GamepadMode")
+	local m = type(G) == "table" and G.FrameControlsManager or nil
+	if not hookedPad and type(m) == "table" and type(m.FrameShown) == "function" then
+		hookedPad = true
+		-- (Any window listed: the held one, or ours, without which it can't be taken off.)
+		hooksecurefunc(m, "FrameShown", function()
+			if open and holding then Keep() end
+		end)
+	end
+end
 
 -- Between sessions the game's window goes back: on Forever it is the professions book too (K and
 -- the micro menu open it with no trade skill), which must show. Put off a frame, so another
@@ -164,7 +195,13 @@ events:SetScript("OnEvent", function(_, event)
 	if event == "TRADE_SKILL_SHOW" then
 		open = true
 		Start()
-		watch:Show()
+		HookWatch()
+		Keep()
+		-- (The game's window can load with this very event: looked at once more a frame later.)
+		C_Timer.After(0, function()
+			HookWatch()
+			Keep()
+		end)
 	elseif event == "TRADE_SKILL_DATA_SOURCE_CHANGED" then
 		-- (Another profession, or a link opened with the window up: whose list it is may change.)
 		if open then Start() end

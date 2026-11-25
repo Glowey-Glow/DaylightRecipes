@@ -481,6 +481,24 @@ end
 -- of them, when several share it), and the step is marked low; where even the best is under one craft in five (RARE),
 -- no step is made at all (a gap). The costs shown (a step's, an alternative's a point) are the real
 -- expected ones, not the ranking's.
+-- A working-out spread over frames (Plan.Warm): inside its coroutine, Route gives the frame back
+-- once it has used SLICE_MS of it, and goes on the next frame. Called anywhere else (Plan.Get, the
+-- tests), it never yields: the route is worked out at once, as before.
+local SLICE_MS = 4
+local function Clock()
+	local f = _G.debugprofilestop
+	return f and f() or os.clock() * 1000
+end
+local sliceCo, sliceFrom
+local function Slice()
+	if not sliceCo or coroutine.running() ~= sliceCo then return end
+	local now = Clock()
+	if now - sliceFrom >= SLICE_MS then
+		coroutine.yield()
+		sliceFrom = Clock()
+	end
+end
+
 local function Route(from, target, cap, goal, credit)
 	local cands = Candidates(goal, credit)
 	local bySpell = {}
@@ -542,6 +560,7 @@ local function Route(from, target, cap, goal, credit)
 
 	while k < target and guard < 600 do
 		guard = guard + 1
+		Slice()
 		if cap > 0 and k >= cap then
 			if cap >= TOP then break end
 			local nextCap = cap + 75
@@ -887,6 +906,16 @@ local function Offered(route, skill)
 	end
 end
 
+-- What the whole route rests on (a skill-up only trims it): the profession, its cap, the target,
+-- the recipes known, prices, talents, the goal, and the tools you hold (they change which recipes
+-- need a tool made first).
+local function RouteKey(target, count, goal)
+	local tools = {}
+	for _, tool in ipairs(TOOLS[S.line] or {}) do tools[#tools + 1] = Owns(tool) and 1 or 0 end
+	return table.concat({ S.line, S.max or 0, target, count, Calc.version, tostring(ns.Get("talents")),
+		goal, table.concat(tools) }, ":")
+end
+
 -- { target, route, shopping } for the open profession, or nil (none open, someone else's).
 function Plan.Get()
 	if not S.line or S.linked or not ns.Recipes then return nil end
@@ -899,11 +928,7 @@ function Plan.Get()
 	-- The route's choice at each point doesn't hang on where you started, so a skill-up only trims
 	-- it; anything else it rests on (cap, target, a recipe learned, prices, talents) works it out anew.
 	local goal = Plan.Goal()
-	-- (The tools you hold change which recipes need a tool made first.)
-	local tools = {}
-	for _, tool in ipairs(TOOLS[S.line] or {}) do tools[#tools + 1] = Owns(tool) and 1 or 0 end
-	local routeKey = table.concat({ S.line, S.max or 0, target, count, Calc.version, tostring(ns.Get("talents")),
-		goal, table.concat(tools) }, ":")
+	local routeKey = RouteKey(target, count, goal)
 	if not full or fullKey ~= routeKey or skill < full.from then
 		full, fullKey = Build(skill, target, goal), routeKey
 	end
@@ -966,6 +991,77 @@ function Plan.Get()
 	end
 	return kept
 end
+
+-- Whether Plan.Get would answer without working the whole route out (it's worked out already).
+local function RouteReady()
+	if not S.line or S.linked or not ns.Recipes then return true end
+	if not full then return false end
+	holding = {}
+	local known = ns.Where.KnownSet()
+	local count = 0
+	for _ in pairs(known) do count = count + 1 end
+	return fullKey == RouteKey(Plan.Target(), count, Plan.Goal()) and (S.skill or 0) >= full.from
+end
+
+-- The route worked out a slice at a time, SLICE_MS a frame (a profession opening, ProfLost handing
+-- a guide back): the whole working-out at once held a frame up a tenth of a second or more (Perfy,
+-- 2026-11-25). When it's done, Plan.Get answers at once and the pages are drawn again. Nothing runs
+-- once it's done: the driver hides itself.
+local driver
+local function Done()
+	sliceCo = nil
+	if driver then driver:Hide() end
+	pcall(Plan.Get)
+	if ns.Changed then ns.Changed() end
+end
+function Plan.Warm()
+	if sliceCo then return end
+	if RouteReady() then
+		pcall(Plan.Get)
+		return
+	end
+	holding = {}
+	local skill, target, goal = S.skill or 0, Plan.Target(), Plan.Goal()
+	local known = ns.Where.KnownSet()
+	local count = 0
+	for _ in pairs(known) do count = count + 1 end
+	local key = RouteKey(target, count, goal)
+	local co
+	co = coroutine.create(function()
+		local built = Build(skill, target, goal)
+		-- (Kept only if nothing worked one out meanwhile, at once.)
+		if sliceCo == co and not (full and fullKey == key and full.from <= skill) then full, fullKey = built, key end
+	end)
+	sliceCo = co
+	if not driver then
+		driver = CreateFrame("Frame")
+		driver:Hide()
+		driver:SetScript("OnUpdate", function(self)
+			local c = sliceCo
+			if not c then return self:Hide() end
+			sliceFrom = Clock()
+			local ok, err = coroutine.resume(c)
+			if not ok then
+				sliceCo = nil
+				self:Hide()
+				geterrorhandler()(err)
+				return
+			end
+			if coroutine.status(c) == "dead" then Done() end
+		end)
+	end
+	driver:Show()
+end
+
+-- The plan when it's ready, else nil with the working-out started (Plan.Warm): for the pages, so
+-- opening one never works the whole route out in a single frame.
+function Plan.Peek()
+	if sliceCo then return nil end
+	if RouteReady() then return Plan.Get() end
+	Plan.Warm()
+	return nil
+end
+function Plan.Working() return sliceCo ~= nil end
 
 -- Rank names for a cap (for text).
 function Plan.RankName(cap) return RANK_SHOWN[cap] end

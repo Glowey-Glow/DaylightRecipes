@@ -199,10 +199,10 @@ for _, follow in ipairs({ false, true }) do
 		sound(s, "first shown", DaylightUIAuctionHouse)
 		-- The window is clicked: the game raises a toplevel window's level.
 		DaylightUIAuctionHouse.level = 500
-		s.scripts.OnUpdate(s)
+		s.Check(s)
 		sound(s, "the host raised to level 500", DaylightUIAuctionHouse)
 		DaylightUIAuctionHouse.level = 0
-		s.scripts.OnUpdate(s)
+		s.Check(s)
 		sound(s, "the host at level 0", DaylightUIAuctionHouse)
 		-- The list drawn again (a refresh; another list; a tag): rows and chips made anew.
 		s.head.buttons = nil
@@ -219,7 +219,7 @@ for _, follow in ipairs({ false, true }) do
 		sound(s, "the list shut and opened", DaylightUIAuctionHouse)
 		-- A host that is itself a dialog: the strip keeps that layer, well over the host.
 		DaylightUIAuctionHouse.strata, DaylightUIAuctionHouse.level = "DIALOG", 30
-		s.scripts.OnUpdate(s)
+		s.Check(s)
 		T.eq(s.strata, "DIALOG", "a DIALOG host: the strip in its layer")
 		T.ok(s.level > 30 + 20, "well over it")
 		T.ok(rawget(s, "shell").level > 30, "its background over the host too")
@@ -342,9 +342,9 @@ T.case("the window near the screen's foot: the list opens beside it, whole, neve
 	T.ok(60 + s.list.h <= 1200, "its top on the screen")
 	-- Dragged up again: under the strip. (The strip follows a window that moves.)
 	DaylightUIAuctionHouse.bottom, s.bottom = 464, 432
-	s.scripts.OnUpdate(s)
+	s.Check(s)
 	GAME.now = GAME.now + 1
-	s.scripts.OnUpdate(s)
+	s.Check(s)
 	T.run(1)
 	T.eq(s.listAt, "below", "the window dragged up: the list is under the strip again")
 	closeAH()

@@ -304,7 +304,7 @@ function ns.ReadProfession()
 	if line and not linked and (changed or resting) and ns.Plan then
 		C_Timer.After(0, function()
 			local rests = ns.ProfLost and ns.ProfLost.RestPlan(line)
-			if S.line == line and not S.linked and S.mode and not rests then pcall(ns.Plan.Get) end
+			if S.line == line and not S.linked and S.mode and not rests then ns.Plan.Warm() end
 			if ns.Shop then ns.Shop.Refresh() end
 		end)
 	end

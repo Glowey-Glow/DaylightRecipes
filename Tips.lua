@@ -147,20 +147,25 @@ local function Dim(text)
 	return ("|cff%02x%02x%02x%s|r"):format(off[1] * 255, off[2] * 255, off[3] * 255, text)
 end
 
-local function ItemLines(lines, data)
-	if not ns.Get("tooltips") then return end
-	local itemID = type(data) == "table" and data.itemID
-	if type(itemID) ~= "number" then return end
-	Index()
-	local spell = teaches[itemID]
-	local recipe = spell and ns.Recipes and ns.Recipes[spell]
+-- A recipe item's two lines (Known By, Can Learn), kept for the item last asked about: the game
+-- fills a hovered item's tooltip again several times a second, and working them out walks every
+-- character on the account. Made again when the item, what is saved (Store.version) or the
+-- professions learned change, and at most every few seconds besides (a skill-up has no version).
+local RECIPE_KEEP = 3
+local recipeFor, recipeVersion, recipeLearned, recipeAt, recipeKnown, recipeCan
+local function RecipeLines(itemID, spell, recipe)
+	local version, have, now = ns.Store.version, Learned(), GetTime()
+	if recipeFor == itemID and recipeVersion == version and recipeLearned == have and now - recipeAt < RECIPE_KEEP then
+		return recipeKnown, recipeCan
+	end
+	local known, canText
 	-- A recipe item: who on the account knows it, and who of this realm and faction (the ones it can
 	-- be mailed to) has its profession and could learn it, with the skill each still needs. Shown
 	-- when this character or one of those has the profession.
-	local learn = spell and recipe and ns.Learn and ns.Learn.For(itemID)
-	if spell and recipe and (learn or Learned()[recipe[1]]) then
+	local learn = ns.Learn and ns.Learn.For(itemID)
+	if learn or have[recipe[1]] then
 		local who = ns.Store.WhoKnows(spell, true)
-		lines.Line(L["Known By"], #who > 0 and Short(who) or L["No one on your account"])
+		known = #who > 0 and Short(who) or L["No one on your account"]
 		local can = {}
 		for _, e in ipairs(learn and learn.list or {}) do
 			if not e.knows then
@@ -169,7 +174,23 @@ local function ItemLines(lines, data)
 				can[#can + 1] = name
 			end
 		end
-		if #can > 0 then lines.Line(L["Can Learn"], Short(can)) end
+		if #can > 0 then canText = Short(can) end
+	end
+	recipeFor, recipeVersion, recipeLearned, recipeAt, recipeKnown, recipeCan = itemID, version, have, now, known, canText
+	return known, canText
+end
+
+local function ItemLines(lines, data)
+	if not ns.Get("tooltips") then return end
+	local itemID = type(data) == "table" and data.itemID
+	if type(itemID) ~= "number" then return end
+	Index()
+	local spell = teaches[itemID]
+	local recipe = spell and ns.Recipes and ns.Recipes[spell]
+	if spell and recipe then
+		local known, can = RecipeLines(itemID, spell, recipe)
+		if known then lines.Line(L["Known By"], known) end
+		if can then lines.Line(L["Can Learn"], can) end
 	end
 	local used = UsedText(itemID)
 	if used then lines.Line(L["Used In"], used) end

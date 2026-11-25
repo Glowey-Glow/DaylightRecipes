@@ -844,8 +844,12 @@ function Pages.Guide(d, ctx)
 		d:Line(why, "small", "OFF")
 		return
 	end
-	local plan = ns.Plan.Get()
-	if not plan then return end
+	-- (Worked out a slice a frame when it isn't yet: drawn again when it's done. Plan.Warm)
+	local plan = ns.Plan.Peek()
+	if not plan then
+		if ns.Plan.Working() then d:Line(L["Working out your route..."], "small", "OFF") end
+		return
+	end
 	local skill = S.skill or 0
 	d:Line(L["%s %d to %d"]:format(S.name or L["Your profession"], skill, plan.target), "head", "VALUE")
 	GoalPart(d, plan)
@@ -1021,8 +1025,11 @@ function Pages.Materials(d)
 		return
 	end
 	Pages.Prices(d)
-	local plan = ns.Plan.Get()
-	if not plan then return end
+	local plan = ns.Plan.Peek()
+	if not plan then
+		if ns.Plan.Working() then d:Line(L["Working out your route..."], "small", "OFF") end
+		return
+	end
 	d:Heading(L["For the Route to %d"]:format(plan.target))
 	if (S.skill or 0) >= plan.target then
 		d:Line(L["You've reached your target."], "small", "GOOD")

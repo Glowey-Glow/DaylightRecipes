@@ -1242,7 +1242,7 @@ local function PlaceList(s, want, head)
 		list:SetPoint("TOPRIGHT", s, "BOTTOMRIGHT", 0, Seam(s, "daylight"))
 	end
 	list:SetHeight(h)
-	-- (Kept, so the strip's OnUpdate places the list again when the strip has moved: its host
+	-- (Kept, so the strip's Check places the list again when the strip has moved: its host
 	-- dragged, or its place not known yet on the frame it first showed.)
 	s.listAt, s.listWant, s.listHead, s.listFrom = mode, want, head, bottom
 end
@@ -1378,6 +1378,51 @@ function Level(s, host)
 end
 Shop.Stack = Stack
 
+-- WHEN A STRIP LOOKS AGAIN at its host (its Check). No polling: the host's own calls and scripts
+-- say it changed. Daylight UI steps its windows by hand with SetAlpha and SetPoint
+-- (DaylightUI/Windows/Feel.lua), drags them with StartMoving / StopMovingOrSizing
+-- (Windows/Frame.lua Win.Drag) and scales them with SetScale; the game's panels are placed with SetPoint; a window
+-- clicked is raised; Daylight UI's NPC window changes size between pages (OnSizeChanged). Each is
+-- hooked once per host; Glowey's Gear's window, which docks against the same edge, the same way.
+local BURST = { 0, 0.5, 1, 2, 3 }   -- seconds after a strip shows
+local watched = setmetatable({}, { __mode = "k" })
+
+local function Wake()
+	for _, s in ipairs(strips) do
+		if s:IsShown() and s.Check then s.Check(s) end
+	end
+end
+local waking = false
+local function WakeSoon()
+	if waking then return end
+	waking = true
+	C_Timer.After(0, function()
+		waking = false
+		Wake()
+	end)
+end
+
+local function WatchHost(f)
+	if type(f) ~= "table" or watched[f] then return end
+	watched[f] = true
+	local hook = rawget(_G, "hooksecurefunc")
+	if hook then
+		for _, method in ipairs({ "SetPoint", "SetAlpha", "SetScale", "StopMovingOrSizing", "SetFrameStrata",
+			"SetFrameLevel", "Raise", "Lower" }) do
+			if type(f[method]) == "function" then pcall(hook, f, method, WakeSoon) end
+		end
+	end
+	if type(f.HookScript) == "function" then
+		-- (Hidden: looked at at once, so the strip goes with it on the same frame.)
+		pcall(f.HookScript, f, "OnHide", Wake)
+		for _, script in ipairs({ "OnShow", "OnSizeChanged", "OnMouseDown" }) do
+			pcall(f.HookScript, f, script, WakeSoon)
+		end
+	end
+end
+Shop.WatchHost = WatchHost
+Shop.Wake = Wake
+
 local function NewStrip(name, key)
 	local s = CreateFrame("Frame", name, UIParent)
 	s.key = key
@@ -1438,9 +1483,13 @@ local function NewStrip(name, key)
 	-- (The first time a strip shows, on this account: one line saying where its tour is. Guide.lua)
 	s:HookScript("OnShow", function() if ns.Guide then ns.Guide.Offer("shop") end end)
 	-- Gone with the window it hangs from; drawn in that window's layer, tucked under it. A strip as
-	-- wide as its host follows the host's width (Daylight UI's NPC window changes size between its pages).
-	s:SetScript("OnUpdate", function(self)
+	-- wide as its host follows the host's width (Daylight UI's NPC window changes size between its
+	-- pages). Looked at when something says the host changed (WatchHost, below: its own calls and
+	-- scripts), never on every frame.
+	local function Check(self)
+		if not self:IsShown() then return end
 		local host = self.host
+		WatchHost(rawget(_G, "GloweyGearWindow"))
 		if not Visible(host) then
 			self:Hide()
 			-- (The Auction House's two windows can swap while it stays open: s.lost then looks for
@@ -1449,11 +1498,15 @@ local function NewStrip(name, key)
 			return
 		end
 		-- (s.follow: a host the player can drag and scale. Still for a moment after either, the
-		-- strip is docked again for the room there is now. As 2.5.3's panel did, main's Watch.)
+		-- strip is docked again for the room there is now. As 2.5.3's panel did, main's Watch;
+		-- the moment after is a one-shot timer, Settle.)
 		if self.follow then
 			local l, t, sc = Edge(host, "GetLeft"), Edge(host, "GetTop"), host:GetEffectiveScale()
 			if l ~= self.hostL or t ~= self.hostT or sc ~= self.hostS then
-				if self.hostS ~= nil then self.moved = GetTime() end
+				if self.hostS ~= nil then
+					self.moved = GetTime()
+					self.Settle(self)
+				end
 				self.hostL, self.hostT, self.hostS = l, t, sc
 			elseif self.moved and GetTime() - self.moved > 0.3 then
 				self.moved = nil
@@ -1462,16 +1515,14 @@ local function NewStrip(name, key)
 			end
 		end
 		-- (Tabs that come after the strip showed, Auctionator's made as the window opens, and
-		-- Glowey's Gear's window docking beside the host or going: looked for twice a second.)
+		-- Glowey's Gear's window docking beside the host or going: looked for at each of these
+		-- looks, a few times in the seconds after the strip shows (Burst), and when Gear's window
+		-- shows, hides or moves.)
 		if (self.under or self.beside) and self.redraw then
-			local now = GetTime()
-			if not self.underAt or now - self.underAt > 0.5 then
-				self.underAt = now
-				local gear = self.beside ~= nil and (self.beside() ~= nil) or false
-				if (self.compact and self.under and self.under(self)) or gear ~= (self.besideWas == true) then
-					self.redraw()
-					return
-				end
+			local gear = self.beside ~= nil and (self.beside() ~= nil) or false
+			if (self.compact and self.under and self.under(self)) or gear ~= (self.besideWas == true) then
+				self.redraw()
+				return
 			end
 		end
 		Level(self, host)
@@ -1485,6 +1536,34 @@ local function NewStrip(name, key)
 			self.wide = w
 			if self.sized then self:SetWidth(w) end
 			Layout(self)
+		end
+	end
+	s.Check = Check
+	-- (A drag or a scale: looked at again once it has been still for a moment.)
+	s.Settle = function(self)
+		if self.settling then return end
+		self.settling = true
+		local function again()
+			self.settling = false
+			if not (self:IsShown() and self.moved) then return end
+			local left = 0.31 - (GetTime() - self.moved)
+			if left > 0.005 then
+				self.settling = true
+				return C_Timer.After(left, again)
+			end
+			Check(self)
+		end
+		C_Timer.After(0.31, again)
+	end
+	-- (As it shows: its place is not known on that very frame, and the host's tabs and Gear's
+	-- window can come a moment later. A few one-shot looks, then nothing until something changes.)
+	s:HookScript("OnShow", function(self)
+		local shown = (self.shownAt or 0) + 1
+		self.shownAt = shown
+		for _, t in ipairs(BURST) do
+			C_Timer.After(t, function()
+				if self.shownAt == shown then Check(self) end
+			end)
 		end
 	end)
 
@@ -1524,6 +1603,7 @@ end
 -- The edge is fixed per host: a strip never moves to another side by itself.
 local function Dock(s, host, kind, mode, drop, at)
 	s.host = host
+	WatchHost(host)
 	s.fit = mode == "side"
 	s.compact = mode == "corner"
 	-- (At the host's scale, so its width is the host's own number.)
@@ -2185,7 +2265,7 @@ end
 -- The window the strip hangs from went away with the Auction House still open: Daylight UI 2.0's
 -- window and the game's can swap in place (the swap icon on Daylight UI's header and the link back
 -- on the game's, DaylightUI_AuctionHouse/Window.lua:376-399), and no game event says so. The strip
--- then looks for the one that's up now (once: the strip's own OnUpdate calls this as it hides).
+-- then looks for the one that's up now (once: the strip's own Check calls this as it hides).
 local rehosting = false
 function Shop.AuctionLost()
 	if rehosting or not ahOpen then return end
