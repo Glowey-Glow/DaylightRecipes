@@ -650,15 +650,27 @@ if ns.UpdateGroup and pages[1] then table.insert(pages[1].groups, ns.UpdateGroup
 if ns.Guide and ns.Guide.HelpGroup and pages[1] then table.insert(pages[1].groups, ns.Guide.HelpGroup()) end
 
 pcall(function()
-	DUI:RegisterPlugin(ADDON, {
-		title = "Glowey's Recipes",
-		icon = "Interface\\AddOns\\" .. ADDON .. "\\Media\\icon-glyph.png",
-		needs = { 1, 2 },
-		short = L["Recipes"],
-		color = { 0.95, 0.75, 0.35 },
-		blurb = L["A profession window with costs, skill-up chances, a leveling plan and missing recipes."],
-	})
-	DUI:RegisterModule(ADDON, { plugin = ADDON, label = L["Recipes"], defaults = DEFAULTS, options = { pages = pages } })
+	-- (With Daylight UI and another of Glowey's plugins on, its pages go under one "Glowey's" entry
+	-- on the options rail: Hub.lua.)
+	local spec = { addon = ADDON, dui = DUI,
+		plugin = {
+			title = "Glowey's Recipes",
+			icon = "Interface\\AddOns\\" .. ADDON .. "\\Media\\icon-glyph.png",
+			needs = { 1, 2 },
+			short = L["Recipes"],
+			color = { 0.95, 0.75, 0.35 },
+			blurb = L["A profession window with costs, skill-up chances, a leveling plan and missing recipes."],
+		},
+		module = { plugin = ADDON, label = L["Recipes"], defaults = DEFAULTS, options = { pages = pages } },
+		words = { open = L["Open"], pages = L["Its settings, a page each."] },
+		hubIcon = "Interface\\AddOns\\" .. ADDON .. "\\Media\\glowey-hub.png",
+		hubBlurb = L["Glowey's plugins, in one place."],
+		hubDesc = L["Glowey's plugins, in one place."],
+	}
+	if ns.Hub then ns.Hub.Join(spec) else
+		DUI:RegisterPlugin(ADDON, spec.plugin)
+		DUI:RegisterModule(ADDON, spec.module)
+	end
 end)
 
 local PL_KEYS = { plGuide = true, plShop = true, plTrainer = true, plTips = true, plPrices = true, plStep = true }

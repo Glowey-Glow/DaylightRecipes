@@ -1,5 +1,8 @@
 # Glowey's Recipes
 
+## 3.2.5
+- With another of Glowey's plugins on, Recipes' pages sit under one "Glowey's" entry on Daylight UI's options rail.
+
 ## 3.2.4
 - No more hitch on opening a profession on the Recipes tab, or when prices change: the list's guide mark waits for the route worked out over frames instead of working it out in one frame (and then again).
 - A full Auction House scan's prices redraw the guide once things are quiet, not after every page.
