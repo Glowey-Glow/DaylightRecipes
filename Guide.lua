@@ -1050,9 +1050,13 @@ function Guide.News(all)
 		spec.tour and { L["Retake Tour"], StartTour } or nil)
 end
 
+local greetTries = 0
 local function Greet()
 	if InCombatLockdown() or DaylightBusy() then
-		C_Timer.After(5, Greet)
+		-- (Asked again every 5 s for ten minutes at most: still busy then, it waits for the next
+		-- login.)
+		greetTries = greetTries + 1
+		if greetTries <= 120 then C_Timer.After(5, Greet) end
 		return
 	end
 	-- (From here on Guide.Busy answers by what is up: a note shown below counts until it is closed.)

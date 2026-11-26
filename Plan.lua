@@ -796,7 +796,9 @@ function Plan.CurrentSpell()
 		local theirs = P.Handed("step", S.line) and P.NextStepSpell and P.NextStepSpell(S.line) or nil
 		return theirs and ns.Recipes and ns.Recipes[theirs] and theirs or nil
 	end
-	local ok, plan = pcall(Plan.Get)
+	-- (Peek, never Get: a route not worked out yet is worked out over frames (Warm), not in this
+	-- paint; the mark comes with the redraw when it's done.)
+	local ok, plan = pcall(Plan.Peek)
 	if not ok or type(plan) ~= "table" or (S.skill or 0) >= plan.target then return nil end
 	for _, s in ipairs(plan.route.steps) do
 		if s.kind == "rank" then return nil end

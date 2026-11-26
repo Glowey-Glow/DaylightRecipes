@@ -1,5 +1,10 @@
 # Glowey's Recipes
 
+## 3.2.4
+- No more hitch on opening a profession on the Recipes tab, or when prices change: the list's guide mark waits for the route worked out over frames instead of working it out in one frame (and then again).
+- A full Auction House scan's prices redraw the guide once things are quiet, not after every page.
+- The welcome no longer keeps asking every 5 seconds for the whole session while Daylight UI is busy: it gives up after ten minutes and asks at the next login.
+
 ## 3.2.3
 - The profession menu no longer catches the click outside it: the click closes the menu and reaches what you clicked (a data text, an addon drawer, the world) the first time.
 - Settings dropdowns no longer catch the click outside them: a click on a data text, an addon drawer or anything else closes the menu and reaches what you clicked the first time.

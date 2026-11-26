@@ -633,8 +633,9 @@ local function Work()
 	if head > tail then
 		queue, head, tail = {}, 1, 0
 		worker:Hide()
-		if ns.Calc then ns.Calc.Forget() end
-		if ns.ShowingPlan() then ns.Changed() end
+		-- (Through the quiet wait like every other price change: a scan's pages come one after
+		-- another, and each redrawing the route at once worked it out again per page.)
+		Touched()
 	end
 end
 worker:SetScript("OnUpdate", Work)
