@@ -6,6 +6,8 @@
 --                             Daylight UI's or our own), copper or nil
 --   PriceAge(itemID)          how long ago that price was seen, seconds, or nil (not known)
 --   Listed(itemID)            how many were listed when it was seen, or nil (not known)
+--   DaylightLows(itemID)      Daylight UI's Auction House's daily lows of an item, a flat list
+--                             day (days since 1970), low, ... oldest first (its last 14 days), or nil
 --   Stale(itemID)             whether that price is over a day old
 --   HasPrices()               whether Auction House prices are in use at all
 --   Unit(itemID)              the cheaper of the Auction House and a vendor: copper, "ah" | "vendor"
@@ -49,6 +51,9 @@ local function Calc() return ns.Calc end
 
 function API.Price(itemID) return Calc().AH(itemID) end
 function API.PriceAge(itemID) return Calc().AHAge(itemID) end
+function API.DaylightLows(itemID)
+	return ns.Prices and ns.Prices.DaylightLows and ns.Prices.DaylightLows(itemID) or nil
+end
 function API.Listed(itemID) return ns.Prices and ns.Prices.Quantity and ns.Prices.Quantity(itemID) or nil end
 function API.Stale(itemID) return (Calc().Stale(itemID)) end
 function API.HasPrices() return Calc().HasAH() end

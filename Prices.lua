@@ -249,6 +249,27 @@ function Prices.Quantity(itemID)
 	return OwnQuantity(itemID)
 end
 
+-- Daylight UI's daily lows of an item (its Store.Lows, Store.lua:147: the lowest unit buyout of
+-- each day, its newest 14 days, a flat list day, low, ... newest last; Market.lua:1-9), as a copy,
+-- or nil (none, Daylight UI's prices not read, Auction House prices off). For a plugin's price
+-- history (API.lua's DaylightLows).
+function Prices.DaylightLows(itemID)
+	if not ns.Get("useAH") then return nil end
+	local store, rkey = DaylightBook()
+	if not store or type(store.Lows) ~= "function" then return nil end
+	local ok, lows = pcall(store.Lows, rkey, tostring(itemID))
+	if not ok or type(lows) ~= "table" then return nil end
+	local out, n = {}, 0
+	for i = 1, #lows - 1, 2 do
+		local day, copper = lows[i], lows[i + 1]
+		if type(day) == "number" and type(copper) == "number" and copper > 0 then
+			out[n + 1], out[n + 2] = day, copper
+			n = n + 2
+		end
+	end
+	return n > 0 and out or nil
+end
+
 function Prices.Has()
 	if OwnHas() then return true end
 	local store, rkey = DaylightBook()
