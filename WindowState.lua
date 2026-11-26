@@ -28,6 +28,15 @@ State.ROW = 20
 State.VERSION = 2        -- the layout the saved state is for (1: the 1000 x 640 window)
 
 State.TAB_KEYS = { "recipes", "guide", "materials", "queue", "missing" }
+-- A plugin's own tab (API.lua's RegisterTab), after ours, in the order they came. True when added.
+function State.AddTab(key)
+	if type(key) ~= "string" then return false end
+	for _, k in ipairs(State.TAB_KEYS) do
+		if k == key then return false end
+	end
+	State.TAB_KEYS[#State.TAB_KEYS + 1] = key
+	return true
+end
 -- The tabs Professionally Lost's guide stands in for, for a profession handed to it.
 State.HANDED = { guide = true, materials = true }
 

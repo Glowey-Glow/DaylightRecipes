@@ -1,5 +1,9 @@
 # Glowey's Recipes
 
+## 3.3.0 (in testing)
+- Plugins can now add a tab of their own to the profession window, after ours, through a public API (DaylightRecipes.API: prices, recipes, what you know, the crafting queue). Without a plugin nothing changes. The first is Glowey's Recipes: Profit.
+- The crafting queue no longer lists as "to buy" what its own crafts make: bolts queued before the shirt that uses them cover the shirt's bolts.
+
 ## 3.2.4
 - No more hitch on opening a profession on the Recipes tab, or when prices change: the list's guide mark waits for the route worked out over frames instead of working it out in one frame (and then again).
 - A full Auction House scan's prices redraw the guide once things are quiet, not after every page.

@@ -266,6 +266,8 @@ local later = false
 local function Redraw()
 	later = false
 	if Prices.Checking() then return end
+	-- (A plugin hears of it once things are quiet: API.lua's OnPrices.)
+	if ns.PricesHeard then ns.PricesHeard() end
 	if ns.Plan and ns.Plan.Forget then ns.Plan.Forget() end
 	if ns.ShowingPlan() then ns.Changed() end
 end

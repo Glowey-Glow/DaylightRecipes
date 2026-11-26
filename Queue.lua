@@ -108,8 +108,25 @@ function Queue.NextHere()
 	end
 end
 
+-- What the queue's own crafts make (itemID -> count, at the least a craft makes): a bolt queued
+-- before the shirt that uses it covers the shirt's bolts, so they aren't to buy as well (Profit's
+-- plan queues what it makes on the way first).
+local function Made()
+	local made = {}
+	for _, e in ipairs(Queue.List()) do
+		local itemID, each
+		if ns.Calc.Output then itemID, each = ns.Calc.Output(e.spell) end
+		if itemID then
+			local lo = math.floor(each or 1)
+			made[itemID] = (made[itemID] or 0) + math.max(1, lo) * e.count
+		end
+	end
+	return made
+end
+
 -- What the queue takes, profession by profession: line -> { itemID -> count } (the profession of
 -- each queued recipe; for the strips' profession tags, Shop.lua). Together they are Queue.Needs().
+-- What the queue makes itself is taken off (Made), from the first lines that need it.
 function Queue.NeedsByLine()
 	local out = {}
 	for _, e in ipairs(Queue.List()) do
@@ -122,16 +139,31 @@ function Queue.NeedsByLine()
 			end
 		end
 	end
+	local made = Made()
+	for _, items in pairs(out) do
+		for itemID, n in pairs(items) do
+			local have = made[itemID]
+			if have and have > 0 then
+				local take = math.min(have, n)
+				made[itemID] = have - take
+				items[itemID] = n - take > 0 and n - take or nil
+			end
+		end
+	end
 	return out
 end
 
--- What the whole queue takes: itemID -> count.
+-- What the whole queue takes: itemID -> count (less what it makes itself).
 function Queue.Needs()
 	local out = {}
 	for _, e in ipairs(Queue.List()) do
 		for _, m in ipairs(ns.Calc.Materials(e.spell)) do
 			out[m[1]] = (out[m[1]] or 0) + m[2] * e.count
 		end
+	end
+	for itemID, n in pairs(Made()) do
+		local need = out[itemID]
+		if need then out[itemID] = need - n > 0 and need - n or nil end
 	end
 	return out
 end

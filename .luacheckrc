@@ -9,6 +9,7 @@ ignore = { "212/_.*", "213/_.*" }
 globals = {
 	"StaticPopupDialogs",
 	"DaylightRecipesDB",
+	"DaylightRecipes",
 	"SLASH_DAYLIGHTRECIPES1",
 	"SLASH_DAYLIGHTRECIPES2",
 	"SlashCmdList",
