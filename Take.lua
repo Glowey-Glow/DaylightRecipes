@@ -169,7 +169,8 @@ local function HookWatch()
 		hookedPad = true
 		-- (Any window listed: the held one, or ours, without which it can't be taken off.)
 		hooksecurefunc(m, "FrameShown", function()
-			if open and holding then Keep() end
+			-- (Caught: it runs inside the game's ShowUIPanel for every window.)
+			if open and holding then pcall(Keep) end
 		end)
 	end
 end

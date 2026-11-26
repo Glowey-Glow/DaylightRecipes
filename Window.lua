@@ -957,6 +957,9 @@ local function Build()
 	if not (ns.Host and ns.Host.Window) and type(UISpecialFrames) == "table" then table.insert(UISpecialFrames, "DaylightRecipesWindow") end
 	win:HookScript("OnHide", function()
 		Menu.Close()
+		-- (Also with the menu shut: the caster a Blizzard Layout side tab put under the mouse is
+		-- see-through, and would take a click where the window was.)
+		Menu.HideCaster()
 		Menu.StopTicker()
 		-- (A secure Stop a fight keeps out shows its own face where it is: WindowList's SyncStop.)
 		List.SyncStop(false)

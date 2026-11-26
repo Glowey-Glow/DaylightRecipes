@@ -15,8 +15,9 @@
 --   Each of your professions has a "more" button (and a right-click, and a controller's Y) with
 --   Link to Chat and Unlearn, so neither is said only in a tooltip.
 -- It is built the way DaylightUI builds its own dropdown (DaylightUI/Options/Widgets.lua:2652-2666:
--- a click-catcher over the screen with the menu its child, told to the controller as a popup with
--- Pad.Popup), so a press anywhere else, B or picking a row closes it. Its catcher is one strata
+-- a catcher over the screen with the menu its child, told to the controller as a popup with
+-- Pad.Popup), so a press anywhere else, B or picking a row closes it. Unlike that one, the catcher
+-- takes no clicks: a press elsewhere closes the menu and still reaches what was pressed. Its catcher is one strata
 -- under that dropdown's (Build), so the "more" menu, which is that dropdown, opens wholly over it.
 -- Also here: the pages the menu opens that aren't a tab (an alt's recipes, a gathering profession,
 -- the camping page), and unlearning a profession.
@@ -1086,6 +1087,24 @@ Paint = function()
 end
 Menu.Paint = function() Paint() end
 
+-- A press that isn't the menu's: not on the menu, not on what opened it (its own click toggles it),
+-- and not on a menu or tooltip over it (Daylight UI's dropdown, a profession's "more").
+local function PressOutside()
+	if not (menu and menu:IsVisible()) or menu:IsMouseOver() then return false end
+	local from = W.menuFrom
+	if from and from.IsVisible and from:IsVisible() and from:IsMouseOver() then return false end
+	local getFoci, getFocus = rawget(_G, "GetMouseFoci"), rawget(_G, "GetMouseFocus")
+	local foci = type(getFoci) == "function" and getFoci() or nil
+	local f = type(foci) == "table" and foci[1] or (type(getFocus) == "function" and getFocus() or nil)
+	if type(f) == "table" and f.GetFrameStrata then
+		local ok, strata = pcall(f.GetFrameStrata, f)
+		local over = catcher:GetFrameStrata() == "DIALOG" and { FULLSCREEN = true, FULLSCREEN_DIALOG = true, TOOLTIP = true }
+			or { TOOLTIP = true }
+		if ok and over[strata] then return false end
+	end
+	return true
+end
+
 local function Build()
 	-- (DaylightUI's own dropdown: a catcher over the screen, the menu its child, a press anywhere
 	-- else closes it. DaylightUI/Options/Widgets.lua:2652-2666.)
@@ -1098,12 +1117,18 @@ local function Build()
 	-- all of it under everything of that dropdown, whatever the levels (strata come before levels;
 	-- their order is Blizzard_SharedXML/UI.xsd:18-29, and Craft.lua's Stop relies on DIALOG over
 	-- MEDIUM the same way). Menu.Open sets it, since a tour raises the window to FULLSCREEN.
-	catcher = CreateFrame("Button", nil, UIParent)
+	-- The catcher only holds the menu's layer: it takes no mouse. A press outside the menu closes
+	-- it (the game's own menus close the same way, Blizzard_Menu's GLOBAL_MOUSE_DOWN) and still
+	-- goes on to what was pressed, so a data text, a drawer or a button outside works first time.
+	-- Heard only while the menu is open.
+	catcher = CreateFrame("Frame", nil, UIParent)
 	catcher:SetAllPoints(UIParent)
 	catcher:SetFrameStrata("DIALOG")
-	catcher:RegisterForClicks("AnyUp")
-	catcher:SetScript("OnClick", function() Menu.Close() end)
+	catcher:EnableMouse(false)
 	catcher:Hide()
+	catcher:SetScript("OnShow", function(self) self:RegisterEvent("GLOBAL_MOUSE_DOWN") end)
+	catcher:SetScript("OnHide", function(self) self:UnregisterEvent("GLOBAL_MOUSE_DOWN") end)
+	catcher:SetScript("OnEvent", function() if PressOutside() then Menu.Close() end end)
 	menu = CreateFrame("Frame", "DaylightRecipesMenu", catcher)
 	menu:SetFrameLevel(catcher:GetFrameLevel() + 5)
 	menu:SetSize(210, 300)
@@ -1214,10 +1239,11 @@ end
 
 function Menu.Close()
 	if not Menu.Shown() then return end
+	-- (The catcher first: nothing below can leave it up.)
+	catcher:Hide()
 	StopCoolTicker()
 	GameTooltip:Hide()
 	HideCaster()
-	catcher:Hide()
 	if W.Lay and W.Lay.Relight then W.Lay.Relight() end
 	local from = W.menuFrom
 	if not (from and from:IsVisible()) then from = W.nameButton end

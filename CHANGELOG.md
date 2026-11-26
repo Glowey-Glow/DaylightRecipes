@@ -1,5 +1,13 @@
 # Glowey's Recipes
 
+## 3.2.3
+- The profession menu no longer catches the click outside it: the click closes the menu and reaches what you clicked (a data text, an addon drawer, the world) the first time.
+- Settings dropdowns no longer catch the click outside them: a click on a data text, an addon drawer or anything else closes the menu and reaches what you clicked the first time.
+- In Blizzard Layout, the profession window's invisible button no longer stays under the mouse after the window closes.
+- An error of ours while the game's frame manager shows a window is caught, so the game's own work goes on.
+- After Escape closes a tour card, the card no longer keeps your keys to itself (it could stop movement keys in a later fight).
+- BugSack reports now end with this addon's name and version on its own errors, so a report says which version it came from.
+
 ## 3.2.2
 - Opening a profession no longer freezes the game for a moment. The Leveling Guide's route used to be worked out all at once in one frame; it's now worked out a few milliseconds at a time over the next frames, and the guide reads "Working out your route..." until it's ready.
 - No more checking every frame while a window is open: the profession window kept watch on the game's own window every frame, and the vendor and Auction House strips re-measured their window every frame (and looked for Auctionator's tabs and Gear's window twice a second). They now follow the window's own moves, shows and hides.
