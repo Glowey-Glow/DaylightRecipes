@@ -6,10 +6,8 @@ By Glowey. A standalone addon that **integrates with Daylight UI** when it's ins
 
 ---
 
-## New in 3.2.2
-- **No freeze when you open a profession:** the Leveling Guide's route is worked out over a few frames instead of all at once.
-- **Smoother:** the profession window and the vendor and Auction House strips no longer check anything every frame, and recipe item tooltips are lighter.
-- **Price Addon:** an Auction House addon switched off for this character is no longer offered.
+## New in 3.2.5
+- **Glowey's on the options rail:** with another of Glowey's plugins on, they all sit under one "Glowey's" entry, each plugin a page there.
 ---
 
 ## The window
