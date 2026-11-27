@@ -831,3 +831,8 @@ L["You have an Auction House addon installed. Pick whose prices Glowey's Recipes
 
 -- What's New (2026-11-24)
 L["Prices from your Auction House addon: Auctionator, TradeSkillMaster, AuctionMaster, AHDB, Auctioneer, ForeverForge Auction or Oribos Exchange. A window asks once whose prices to use; change it in Plugins > Recipes > Prices."] = "경매장 애드온의 가격: Auctionator, TradeSkillMaster, AuctionMaster, AHDB, Auctioneer, ForeverForge Auction 또는 Oribos Exchange. 누구의 가격을 쓸지 창이 한 번 묻습니다. Plugins > 제조법 > 가격에서 바꿀 수 있습니다."
+
+-- Added 2026-11-26 (translation sweep): machine draft.
+L["Glowey's plugins, in one place."] = "Glowey 플러그인을 한곳에."
+L["Its settings, a page each."] = "설정마다 페이지가 하나씩."
+L["Working out your route..."] = "경로를 계산하는 중..."

@@ -831,3 +831,8 @@ L["You have an Auction House addon installed. Pick whose prices Glowey's Recipes
 
 -- What's New (2026-11-24)
 L["Prices from your Auction House addon: Auctionator, TradeSkillMaster, AuctionMaster, AHDB, Auctioneer, ForeverForge Auction or Oribos Exchange. A window asks once whose prices to use; change it in Plugins > Recipes > Prices."] = "来自你的拍卖行插件的价格：Auctionator、TradeSkillMaster、AuctionMaster、AHDB、Auctioneer、ForeverForge Auction 或 Oribos Exchange。会有一个窗口询问一次使用谁的价格；可在 Plugins > 配方 > 价格 中更改。"
+
+-- Added 2026-11-26 (translation sweep): machine draft.
+L["Glowey's plugins, in one place."] = "Glowey的扩展，集中一处。"
+L["Its settings, a page each."] = "它的设置，每项一页。"
+L["Working out your route..."] = "正在计算你的路线……"

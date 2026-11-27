@@ -1,5 +1,8 @@
 # Glowey's Recipes
 
+## 3.2.6
+- Translations: every text is now in all six languages (German, Spanish, French, Korean, Russian and Chinese), the Glowey's plugins window and the route's "Working out your route..." included.
+
 ## 3.2.5
 - With another of Glowey's plugins on, Recipes' pages sit under one "Glowey's" entry on Daylight UI's options rail.
 
