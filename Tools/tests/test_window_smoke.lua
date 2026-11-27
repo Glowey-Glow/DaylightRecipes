@@ -637,6 +637,7 @@ Load("WindowList.lua")
 Load("WindowMenu.lua")
 Load("WindowChips.lua")
 Load("Window.lua")
+Load("API.lua")
 -- (Blizzard Style: answers at once here, the mock Host having no Blizzard calls.)
 Load("WindowBlizzard.lua")
 -- (The Blizzard Layout: inert while its setting is off, as it is until its own case below.)
@@ -2691,6 +2692,41 @@ end, function()
 	for _, k in ipairs({ "Blizzard", "Chrome", "Retitle", "Dress", "Tab", "Inset", "ScrollArt", "Atlas", "Looked", "Outset" }) do H[k] = nil end
 	W.Blz.ready = nil
 	Window.Relayout()
+	Flush()
+end)
+
+-- ---- a plugin's own tab (API.lua): after ours, its page drawn on our doc ----------------------------
+-- (Last: the tab stays registered for the rest of the run.)
+Case("a plugin's tab: after ours, its page drawn on our doc, the column within 520", function()
+	local R = DaylightRecipes and DaylightRecipes.API
+	ok(R and R.major == 1, "the public API")
+	S.mode = "win"
+	local before = #Window.TourParts().tabs
+	local drawn = 0
+	ok(R.RegisterTab("plugin", "Plugin", function(d, ctx)
+		drawn = drawn + 1
+		ok(ctx and ctx.pick and ctx.redraw, "its page has our context")
+		d:Row({ left = "A Plugin Row" })
+	end), "registered")
+	ok(not R.RegisterTab("plugin", "Again", function() end), "a key taken is refused")
+	ok(not R.RegisterTab("queue", "Mine", function() end), "and so is one of ours")
+	Window.Render()
+	Flush()
+	local shown = Window.TourParts().tabs
+	eq(#shown, before + 1, "one tab more")
+	eq(shown[#shown].key, "plugin", "after ours")
+	ok(W.col <= State.MAX_W, "the column within 520: " .. W.col)
+	Window.SetTab("plugin")
+	Flush()
+	local found
+	for _, o in ipairs(ALL) do
+		local left = rawget(o, "left")
+		if o.kind == "Button" and type(left) == "table" and o:IsVisible() and strip(left.textValue or "") == "A Plugin Row" then found = o end
+	end
+	ok(drawn > 0 and found, "its page drawn")
+	eq(DaylightRecipesDB.win.tab, "plugin", "remembered like ours")
+	NoLabelCut("a plugin's tab")
+	Window.SetTab("recipes")
 	Flush()
 end)
 

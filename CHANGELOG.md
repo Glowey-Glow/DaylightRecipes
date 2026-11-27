@@ -1,5 +1,10 @@
 # Glowey's Recipes
 
+## 3.3.0
+- A plugin can read Daylight UI's Auction House daily lows through the API (for its price history).
+- Plugins can now add a tab of their own to the profession window, after ours, through a public API (DaylightRecipes.API: prices, recipes, what you know, the crafting queue). Without a plugin nothing changes.
+- The crafting queue no longer lists as "to buy" what its own crafts make: bolts queued before the shirt that uses them cover the shirt's bolts.
+
 ## 3.2.6
 - Translations: every text is now in all six languages (German, Spanish, French, Korean, Russian and Chinese), the Glowey's plugins window and the route's "Working out your route..." included.
 

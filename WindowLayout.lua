@@ -1841,6 +1841,8 @@ function Lay.Shape(P)
 		P.Draw(pageDoc, Pages.Queue, ctx)
 	elseif W.tab == "materials" then
 		P.Draw(pageDoc, Pages.Materials)
+	elseif ns.ExtraTabs and ns.ExtraTabs[W.tab] then
+		P.Draw(pageDoc, ns.ExtraTabs[W.tab].draw, ctx)
 	else
 		-- (The details are always open: a missing recipe's sources show there.)
 		ctx.filter = pageSearch.filter or ""

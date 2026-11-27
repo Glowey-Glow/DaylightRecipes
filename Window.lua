@@ -555,12 +555,19 @@ local TAB_WORDS = { recipes = L["Recipes"], guide = L["Leveling Guide"], materia
 	queue = L["Queue"], missing = L["Missing"] }
 local plButton       -- "Open Professionally Lost", where the Leveling Guide tab was
 
+-- A tab's words: ours, or a plugin's own tab's (ns.ExtraTabs, API.lua's RegisterTab).
+function Window.TabWord(key)
+	local extra = ns.ExtraTabs and ns.ExtraTabs[key]
+	return TAB_WORDS[key] or (extra and extra.label) or nil
+end
+
+local MakeTab        -- (below) one tab's button
 local function TabLabel(key)
 	if key == "queue" then
 		local n = ns.Queue and ns.Queue.Count() or 0
 		if n > 0 then return L["Queue (%d)"]:format(n) end
 	end
-	return TAB_WORDS[key]
+	return Window.TabWord(key)
 end
 
 -- The tab row laid out for the tabs that show (WindowState.TabLayout: the column grows with it
@@ -582,6 +589,10 @@ local function PaintTabs()
 	-- with the queue's tab at its reserved longest, "Queue (99)" (the column's width comes from
 	-- these, so it does not move as the queue fills and empties).
 	local pieces, widths, reserve = {}, {}, {}
+	-- (A plugin's tab registered after the window was made: its button now.)
+	for i, key in ipairs(State.TAB_KEYS) do
+		if not tabOf[key] then MakeTab(i, key) end
+	end
 	for _, b in ipairs(tabButtons) do
 		local on = shown[b.key] and not other
 		b:SetShown(on)
@@ -640,6 +651,26 @@ local function PaintTabs()
 	return layout.rows * State.TABS
 end
 
+function MakeTab(i, key)
+	local b = CreateFrame("Button", nil, tabRow)
+	b.key = key
+	b.text = Text(b, "small")
+	b.text:SetPoint("CENTER", 0, 1)
+	b.text:SetWordWrap(false)
+	b.text:SetText(Window.TabWord(key) or key)
+	b.line = b:CreateTexture(nil, "ARTWORK")
+	b.line:SetHeight(2)
+	b.line:SetPoint("BOTTOMLEFT", 6, 0)
+	b.line:SetPoint("BOTTOMRIGHT", -6, 0)
+	b:SetScript("OnClick", function() Window.SetTab(b.key) end)
+	b:SetScript("OnEnter", function() b.text:SetTextColor(Color("VALUE")) end)
+	b:SetScript("OnLeave", function()
+		if b.key ~= W.tab then b.text:SetTextColor(Color("LABEL")) end
+	end)
+	tabButtons[i] = b
+	tabOf[key] = b
+end
+
 local function BuildTabs()
 	tabRow = CreateFrame("Frame", nil, col)
 	tabRow:SetPoint("TOPLEFT", col, "TOPLEFT", 0, 0)
@@ -650,25 +681,7 @@ local function BuildTabs()
 	under:SetPoint("BOTTOMLEFT", tabRow, "BOTTOMLEFT", 0, 0)
 	under:SetPoint("BOTTOMRIGHT", tabRow, "BOTTOMRIGHT", 0, 0)
 	under:SetColorTexture(1, 1, 1, 0.06)
-	for i, key in ipairs(State.TAB_KEYS) do
-		local b = CreateFrame("Button", nil, tabRow)
-		b.key = key
-		b.text = Text(b, "small")
-		b.text:SetPoint("CENTER", 0, 1)
-		b.text:SetWordWrap(false)
-		b.text:SetText(TAB_WORDS[key])
-		b.line = b:CreateTexture(nil, "ARTWORK")
-		b.line:SetHeight(2)
-		b.line:SetPoint("BOTTOMLEFT", 6, 0)
-		b.line:SetPoint("BOTTOMRIGHT", -6, 0)
-		b:SetScript("OnClick", function() Window.SetTab(b.key) end)
-		b:SetScript("OnEnter", function() b.text:SetTextColor(Color("VALUE")) end)
-		b:SetScript("OnLeave", function()
-			if b.key ~= W.tab then b.text:SetTextColor(Color("LABEL")) end
-		end)
-		tabButtons[i] = b
-		tabOf[key] = b
-	end
+	for i, key in ipairs(State.TAB_KEYS) do MakeTab(i, key) end
 	W.tabButtons, W.tabRow, W.tabUnder = tabButtons, tabRow, under
 	plButton = CreateFrame("Button", nil, tabRow)
 	plButton.text = Text(plButton, "small")
@@ -1164,6 +1177,9 @@ Render = function()
 		Draw(pageDoc, Pages.Queue, pageCtx)
 	elseif W.tab == "materials" then
 		Draw(pageDoc, Pages.Materials)
+	elseif ns.ExtraTabs and ns.ExtraTabs[W.tab] then
+		-- (A plugin's tab: its own page, drawn on our doc. API.lua.)
+		Draw(pageDoc, ns.ExtraTabs[W.tab].draw, pageCtx)
 	else
 		pageCtx.filter = pageSearch.filter or ""
 		-- (With the details open a missing recipe's sources show there, and the list stays whole.)
@@ -1466,7 +1482,7 @@ function Window.SessionStarted()
 	local first = not win
 	if first then
 		local saved = DB().tab
-		if type(saved) == "string" and TAB_WORDS[saved] then want = saved end
+		if type(saved) == "string" and Window.TabWord(saved) then want = saved end
 		Build()
 	end
 	closing = closing + 1
@@ -1518,7 +1534,7 @@ end)
 local function Ensure()
 	if win then return end
 	local saved = DB().tab
-	if type(saved) == "string" and TAB_WORDS[saved] then want = saved end
+	if type(saved) == "string" and Window.TabWord(saved) then want = saved end
 	Build()
 end
 
