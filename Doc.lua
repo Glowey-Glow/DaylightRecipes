@@ -233,6 +233,11 @@ local function MakeRow(child)
 		if button ~= "LeftButton" and not self.rightClick then return end
 		if self.onClick then self.onClick(button, self) end
 	end)
+	-- (Dragged: what the row hands the cursor, a spell for the action bars. D:Row registers the drag
+	-- only on rows that have one, so a slip of the mouse on any other row is still a click.)
+	r:SetScript("OnDragStart", function(self)
+		if self.drag then self.drag(self) end
+	end)
 	-- A controller's Y: what a right-click does on a row that wants one (the queue's Move / Remove).
 	r.padMore = function(self)
 		if not (self.rightClick and self.onClick) then return nil end
@@ -446,7 +451,8 @@ end
 -- link (shift-click into chat), marked (a faint accent ground: the one picked), dim (a gray icon),
 -- rightClick (onClick hears right clicks too), onDouble(row) (a left double click),
 -- shift = { text, tip, run } (a Shift action: above MakeRow), hover = { text, ink } (a hint in the
--- right text's place while the mouse is on the row: RowFace).
+-- right text's place while the mouse is on the row: RowFace), drag(row) (a left-button drag: puts
+-- something on the cursor, such as a spell for the action bars).
 function D:Row(o)
 	local child = self.child
 	local r = self:Take("row", function() return MakeRow(child) end)
@@ -456,6 +462,8 @@ function D:Row(o)
 	r.onClick, r.tip, r.link, r.rightClick, r.onDouble = o.onClick, o.tip, o.link, o.rightClick, o.onDouble
 	r.shift = type(o.shift) == "table" and o.shift or nil
 	r.hover = type(o.hover) == "table" and o.hover or nil
+	r.drag = type(o.drag) == "function" and o.drag or nil
+	if r.drag then r:RegisterForDrag("LeftButton") else r:RegisterForDrag() end
 	if o.marked then
 		local ar, ag, ab = API.Accent()
 		r.mark:SetColorTexture(ar, ag, ab, 0.14)

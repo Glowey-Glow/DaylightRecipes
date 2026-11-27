@@ -463,6 +463,7 @@ L["Everything the Leveling Guide's route needs, what you already have of it, and
 -- Tracking (Window.lua)
 L["Tracking"] = "Aufspüren"
 L["Click: turn on"] = "Klicken: einschalten"
+L["Drag: to an action bar"] = "Ziehen: auf eine Aktionsleiste"
 L["Click: turn off"] = "Klicken: ausschalten"
 
 -- Craft cooldowns (Window.lua, Cooldowns.lua)
@@ -797,7 +798,7 @@ L["Works without Daylight UI: its settings are in Glowey's settings (/glowey), a
 L["You know no recipe that can only be made once in a while."] = "Ihr kennt kein Rezept, das nur ab und zu hergestellt werden kann."
 L["Your other characters' professions on this server, as each last saw them. Click one to see its recipes."] = "Die Berufe Eurer anderen Charaktere auf diesem Server, so wie jeder sie zuletzt gesehen hat. Klickt auf einen, um seine Rezepte zu sehen."
 L["Your professions are tabs down the window's left side, Camping after them, then %s, %s and %s, each a page of its own. The open one is lit; press another to open it. A right-click on a profession's tab (Y on a controller) has %s and %s."] = "Eure Berufe sind Reiter an der linken Seite des Fensters, dahinter Camping, dann %s, %s und %s, jeder eine eigene Seite. Der geöffnete leuchtet; drückt auf einen anderen, um ihn zu öffnen. Ein Rechtsklick auf den Reiter eines Berufs (Y auf dem Controller) bietet %s und %s."
-L["Your professions' minimap tracking. Click one to turn it on or off."] = "Die Minikarten-Aufspürung Eurer Berufe. Klickt auf eine, um sie an- oder auszuschalten."
+L["Your professions' minimap tracking. Click one to turn it on or off, or drag it to an action bar."] = "Das Aufspüren Eurer Berufe auf der Minikarte. Klickt eines an, um es ein- oder auszuschalten, oder zieht es auf eine Aktionsleiste."
 L["Your recipes that can only be made once in a while. Click one to open it."] = "Eure Rezepte, die nur ab und zu hergestellt werden können. Klickt auf eines, um es zu öffnen."
 
 -- Price addons (PriceSources.lua, 2026-11-24)

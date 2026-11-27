@@ -463,6 +463,7 @@ L["Everything the Leveling Guide's route needs, what you already have of it, and
 -- Tracking (Window.lua)
 L["Tracking"] = "Rastreo"
 L["Click: turn on"] = "Clic: activar"
+L["Drag: to an action bar"] = "Arrastrar: a una barra de acción"
 L["Click: turn off"] = "Clic: desactivar"
 
 -- Craft cooldowns (Window.lua, Cooldowns.lua)
@@ -797,7 +798,7 @@ L["Works without Daylight UI: its settings are in Glowey's settings (/glowey), a
 L["You know no recipe that can only be made once in a while."] = "No conoces ninguna receta que solo se pueda hacer de vez en cuando."
 L["Your other characters' professions on this server, as each last saw them. Click one to see its recipes."] = "Las profesiones de tus otros personajes en este servidor, tal como cada uno las vio por última vez. Haz clic en una para ver sus recetas."
 L["Your professions are tabs down the window's left side, Camping after them, then %s, %s and %s, each a page of its own. The open one is lit; press another to open it. A right-click on a profession's tab (Y on a controller) has %s and %s."] = "Tus profesiones son pestañas a lo largo del lado izquierdo de la ventana, después Acampada y luego %s, %s y %s, cada una con su propia página. La abierta está iluminada; pulsa otra para abrirla. Un clic derecho en la pestaña de una profesión (Y con mando) ofrece %s y %s."
-L["Your professions' minimap tracking. Click one to turn it on or off."] = "El rastreo en el minimapa de tus profesiones. Haz clic en uno para activarlo o desactivarlo."
+L["Your professions' minimap tracking. Click one to turn it on or off, or drag it to an action bar."] = "El rastreo de tus profesiones en el minimapa. Haz clic en uno para activarlo o desactivarlo, o arrástralo a una barra de acción."
 L["Your recipes that can only be made once in a while. Click one to open it."] = "Tus recetas que solo se pueden hacer de vez en cuando. Haz clic en una para abrirla."
 
 -- Price addons (PriceSources.lua, 2026-11-24)

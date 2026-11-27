@@ -463,6 +463,7 @@ L["Everything the Leveling Guide's route needs, what you already have of it, and
 -- Tracking (Window.lua)
 L["Tracking"] = "추적"
 L["Click: turn on"] = "클릭: 켜기"
+L["Drag: to an action bar"] = "끌기: 행동 단축바로"
 L["Click: turn off"] = "클릭: 끄기"
 
 -- Craft cooldowns (Window.lua, Cooldowns.lua)
@@ -797,7 +798,7 @@ L["Works without Daylight UI: its settings are in Glowey's settings (/glowey), a
 L["You know no recipe that can only be made once in a while."] = "가끔씩만 만들 수 있는 제조법을 알고 있지 않습니다."
 L["Your other characters' professions on this server, as each last saw them. Click one to see its recipes."] = "이 서버에 있는 내 다른 캐릭터의 전문 기술을 각 캐릭터가 마지막으로 본 상태로 보여 줍니다. 하나를 클릭하면 제조법을 볼 수 있습니다."
 L["Your professions are tabs down the window's left side, Camping after them, then %s, %s and %s, each a page of its own. The open one is lit; press another to open it. A right-click on a profession's tab (Y on a controller) has %s and %s."] = "내 전문 기술은 창 왼쪽 가장자리를 따라 탭으로 있고, 그 뒤에 캠핑, 이어서 %s, %s, %s가 각각 별도 페이지로 있습니다. 열려 있는 것은 밝게 표시되며, 다른 것을 누르면 열립니다. 전문 기술 탭을 오른쪽 클릭(컨트롤러의 Y)하면 %s, %s 기능이 있습니다."
-L["Your professions' minimap tracking. Click one to turn it on or off."] = "전문 기술의 미니맵 추적입니다. 하나를 클릭해 켜거나 끕니다."
+L["Your professions' minimap tracking. Click one to turn it on or off, or drag it to an action bar."] = "내 전문 기술의 미니맵 추적입니다. 클릭하면 켜거나 끄고, 행동 단축바로 끌어다 놓을 수도 있습니다."
 L["Your recipes that can only be made once in a while. Click one to open it."] = "가끔씩만 만들 수 있는 내 제조법입니다. 하나를 클릭하면 열립니다."
 
 -- Price addons (PriceSources.lua, 2026-11-24)

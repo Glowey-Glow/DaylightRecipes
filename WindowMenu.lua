@@ -574,7 +574,8 @@ end
 -- ---------------------------------------------------------------------------------------------
 -- The tracking spells of your professions (Find Minerals, Find Herbs, Find Fish), as the game's
 -- minimap tracking menu lists them (C_Minimap.GetTrackingInfo: only the ones you know). Click one
--- to turn it on or off (C_Minimap.SetTracking, as that menu does). The one on has an accent ring
+-- to turn it on or off (C_Minimap.SetTracking, as that menu does), or drag it to an action bar
+-- (C_Spell.PickupSpell, as the spellbook's buttons do). The one on has an accent ring
 -- and DaylightUI's glow, in the style the player picked for its main buttons.
 
 local TRACK_SPELLS = { [2580] = true, [2383] = true, [43308] = true }
@@ -615,6 +616,15 @@ end
 
 local function TrackingList() return Drawn("tracking", "", ReadTracking) end
 
+-- A tracking spell onto the cursor, to drop on an action bar: by its spell ID, else its name (one
+-- matched by name only). C_Spell.PickupSpell (SpellDocumentation.lua), as Blizzard's spell buttons
+-- call it (SpellFlyout.lua:77); not in combat, where the bars can't take it anyway.
+local function PickupTracking(spell, name)
+	local CS = C_Spell
+	if InCombatLockdown() or not (CS and CS.PickupSpell) then return end
+	if spell then pcall(CS.PickupSpell, spell) elseif type(name) == "string" then pcall(CS.PickupSpell, name) end
+end
+
 -- The glow style for a tile that's on: the player's main-button style, none when that's None or
 -- this DaylightUI has no GlowAround (the ring still shows it's on).
 local function TrackGlowStyle()
@@ -651,6 +661,7 @@ local function TrackTile(i)
 			GameTooltip:SetText(self.name or "")
 		end
 		GameTooltip:AddLine(self.on and L["Click: turn off"] or L["Click: turn on"], Color("LABEL"))
+		GameTooltip:AddLine(L["Drag: to an action bar"], Color("LABEL"))
 		GameTooltip:Show()
 	end)
 	b:SetScript("OnLeave", function(self)
@@ -661,6 +672,8 @@ local function TrackTile(i)
 		if not self.index then return end
 		pcall(C_Minimap.SetTracking, self.index, not self.on)
 	end)
+	b:RegisterForDrag("LeftButton")
+	b:SetScript("OnDragStart", function(self) PickupTracking(self.spell, self.name) end)
 	trackTiles[i] = b
 	return b
 end
@@ -1541,11 +1554,15 @@ local function TrackingPage(d)
 		d:Line(L["None of your professions tracks anything on the minimap."], "small", "OFF")
 		return
 	end
-	d:Line(L["Your professions' minimap tracking. Click one to turn it on or off."], "small", "TEXT")
+	d:Line(L["Your professions' minimap tracking. Click one to turn it on or off, or drag it to an action bar."], "small", "TEXT")
 	for _, t in ipairs(all) do
 		d:Row({ icon = t.icon, left = t.name or "?", leftInk = "VALUE",
 			right = t.on and L["On"] or L["Off"], rightInk = t.on and "GOOD" or "OFF",
-			tip = t.spell and function(tip) tip:SetSpellByID(t.spell) end or nil,
+			tip = function(tip)
+				if not (t.spell and pcall(tip.SetSpellByID, tip, t.spell)) then tip:SetText(t.name or "") end
+				tip:AddLine(L["Drag: to an action bar"], Color("LABEL"))
+			end,
+			drag = function() PickupTracking(t.spell, t.name) end,
 			onClick = function()
 				pcall(C_Minimap.SetTracking, t.index, not t.on)
 				ns.Window.Render()

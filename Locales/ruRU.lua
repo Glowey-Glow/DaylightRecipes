@@ -469,6 +469,7 @@ L["Everything the Leveling Guide's route needs, what you already have of it, and
 -- Tracking (Window.lua)
 L["Tracking"] = "Отслеживание"
 L["Click: turn on"] = "Щелчок: включить"
+L["Drag: to an action bar"] = "Перетащить: на панель команд"
 L["Click: turn off"] = "Щелчок: выключить"
 
 -- Craft cooldowns (Window.lua, Cooldowns.lua)
@@ -806,7 +807,7 @@ L["Works without Daylight UI: its settings are in Glowey's settings (/glowey), a
 L["You know no recipe that can only be made once in a while."] = "Вы не знаете рецептов, которые можно делать лишь время от времени."
 L["Your other characters' professions on this server, as each last saw them. Click one to see its recipes."] = "Профессии других ваших персонажей на этом сервере — такими, какими каждый видел их в последний раз. Щёлкните по одной, чтобы увидеть её рецепты."
 L["Your professions are tabs down the window's left side, Camping after them, then %s, %s and %s, each a page of its own. The open one is lit; press another to open it. A right-click on a profession's tab (Y on a controller) has %s and %s."] = "Ваши профессии — вкладки вдоль левого края окна, за ними лагерь, затем %s, %s и %s, у каждой своя страница. Открытая подсвечена; нажмите на другую, чтобы открыть её. Правый щелчок по вкладке профессии (Y на контроллере) даёт %s и %s."
-L["Your professions' minimap tracking. Click one to turn it on or off."] = "Отслеживание ваших профессий на миникарте. Щёлкните по одному, чтобы включить или выключить его."
+L["Your professions' minimap tracking. Click one to turn it on or off, or drag it to an action bar."] = "Отслеживание ваших профессий на миникарте. Щелкните, чтобы включить или выключить, или перетащите на панель команд."
 L["Your recipes that can only be made once in a while. Click one to open it."] = "Ваши рецепты, которые можно делать лишь время от времени. Щёлкните по одному, чтобы открыть его."
 
 -- Price addons (PriceSources.lua, 2026-11-24)

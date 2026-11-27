@@ -463,6 +463,7 @@ L["Everything the Leveling Guide's route needs, what you already have of it, and
 -- Tracking (Window.lua)
 L["Tracking"] = "追踪"
 L["Click: turn on"] = "点击：开启"
+L["Drag: to an action bar"] = "拖动：放到动作条上"
 L["Click: turn off"] = "点击：关闭"
 
 -- Craft cooldowns (Window.lua, Cooldowns.lua)
@@ -797,7 +798,7 @@ L["Works without Daylight UI: its settings are in Glowey's settings (/glowey), a
 L["You know no recipe that can only be made once in a while."] = "你没有学会只能隔一段时间制作一次的配方。"
 L["Your other characters' professions on this server, as each last saw them. Click one to see its recipes."] = "你在此服务器上其他角色的专业，以各角色最后一次看到的状态显示。点击一个可查看其配方。"
 L["Your professions are tabs down the window's left side, Camping after them, then %s, %s and %s, each a page of its own. The open one is lit; press another to open it. A right-click on a profession's tab (Y on a controller) has %s and %s."] = "你的专业作为标签页排在窗口左侧，后面是露营，然后是%s、%s和%s，各自成页。已打开的会亮起；按下另一个即可打开。右键点击专业标签页（手柄的Y键）提供%s和%s。"
-L["Your professions' minimap tracking. Click one to turn it on or off."] = "你专业的小地图追踪。点击一项即可开启或关闭。"
+L["Your professions' minimap tracking. Click one to turn it on or off, or drag it to an action bar."] = "你的专业在小地图上的追踪。点击即可开启或关闭，也可以拖到动作条上。"
 L["Your recipes that can only be made once in a while. Click one to open it."] = "你只能隔一段时间制作一次的配方。点击一个即可打开。"
 
 -- Price addons (PriceSources.lua, 2026-11-24)
