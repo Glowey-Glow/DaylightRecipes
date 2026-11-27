@@ -10,11 +10,6 @@ By Glowey. A standalone addon that **integrates with Daylight UI** when it's ins
 - **The crafting queue nets out what it makes:** bolts queued before the shirt that uses them cover the shirt's bolts, so they're no longer on the list to buy.
 - **Ready for plugins:** a public API lets add-ons of Glowey's add a tab to the profession window. Without one, nothing changes.
 
-## New in 3.2.6
-- **Every text in all six languages:** German, Spanish, French, Korean, Russian and Chinese.
-
-## New in 3.2.5
-- **Glowey's on the options rail:** with another of Glowey's plugins on, they all sit under one "Glowey's" entry, each plugin a page there.
 ---
 
 ## The window
