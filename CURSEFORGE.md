@@ -6,9 +6,8 @@ By Glowey. A standalone addon that **integrates with Daylight UI** when it's ins
 
 ---
 
-## New in 3.3.0
-- **The crafting queue nets out what it makes:** bolts queued before the shirt that uses them cover the shirt's bolts, so they're no longer on the list to buy.
-- **Ready for plugins:** a public API lets add-ons of Glowey's add a tab to the profession window. Without one, nothing changes.
+## New in 3.4.0
+- **Tracking to your action bars:** drag Find Herbs or Find Minerals from the Tracking icons (behind the three dots) or the Tracking page in Blizzard Layout onto an action bar. A click still turns them on or off.
 
 ---
 

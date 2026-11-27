@@ -1,5 +1,8 @@
 # Glowey's Recipes
 
+## 3.4.0
+- Tracking spells (Find Herbs, Find Minerals) can be dragged to your action bars: from the Tracking icons behind the three dots, and from the Tracking page in Blizzard Layout. A click still turns them on or off.
+
 ## 3.3.0
 - A plugin can read Daylight UI's Auction House daily lows through the API (for its price history).
 - Plugins can now add a tab of their own to the profession window, after ours, through a public API (DaylightRecipes.API: prices, recipes, what you know, the crafting queue). Without a plugin nothing changes.
